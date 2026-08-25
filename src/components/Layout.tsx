@@ -7,6 +7,8 @@ import {
   FolderOpen,
   Settings,
   Zap,
+  Server,
+  ExternalLink,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -54,15 +56,38 @@ export default function Layout() {
           ))}
         </nav>
 
-        {/* Footer info */}
-        <div className="px-6 py-4 border-t border-border">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
-            <span>PETABLOCKS-FEA</span>
-            <span className="font-mono">10.20.110.116</span>
+        {/* Footer info & MDRCloud attribution */}
+        <div className="px-6 py-4 border-t border-border space-y-2.5">
+          <div className="flex items-center justify-between text-xs">
+            <span className="font-mono text-muted-foreground text-[11px]">v1.2.0</span>
+            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+              PROD
+            </span>
           </div>
-          <div className="flex items-center justify-between text-xs text-muted-foreground mt-1">
-            <span>PETABLOCKS-DB</span>
-            <span className="font-mono">10.20.110.117</span>
+
+          <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1 border-t border-border/50">
+            <span className="flex items-center gap-1">
+              <Server className="h-3 w-3 text-primary" /> Host:
+            </span>
+            <a
+              href="https://mdrcloud.com"
+              target="_blank"
+              rel="noreferrer"
+              className="font-bold text-foreground hover:text-primary transition-colors inline-flex items-center gap-0.5"
+            >
+              MDRCloud <ExternalLink className="h-2.5 w-2.5" />
+            </a>
+          </div>
+
+          <div className="text-[10px] text-muted-foreground/80 font-mono space-y-0.5">
+            <div className="flex justify-between">
+              <span>FEA:</span>
+              <span>10.20.110.116</span>
+            </div>
+            <div className="flex justify-between">
+              <span>DB:</span>
+              <span>10.20.110.117</span>
+            </div>
           </div>
         </div>
       </aside>
