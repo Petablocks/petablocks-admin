@@ -3,7 +3,7 @@
 FROM node:20-alpine AS frontend-build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci
+RUN npm install
 COPY . .
 RUN npm run build
 
@@ -11,9 +11,9 @@ RUN npm run build
 FROM node:20-alpine AS production
 WORKDIR /app
 COPY server/package*.json ./server/
-RUN cd server && npm ci --only=production
+RUN cd server && npm install --omit=dev
 COPY server/ ./server/
-COPY --from=frontend-build /app/dist ./public
+COPY --from=frontend-build /app/dist ./dist
 
 EXPOSE 3000
 CMD ["node", "server/index.js"]
