@@ -34,10 +34,10 @@ jobs:
           title: "🛠️ Admin Panel Deployment"
           content: "admin.petablocks.com → ${{ job.status }}"
 
-      - name: Print Deploy Receipt
+      - name: 🖨️ Print Deploy Receipt
         if: always()
         run: |
-          curl -s -X POST http://10.95.0.185:8006/webhook/deploy \
+          curl -s --max-time 5 -X POST http://10.95.0.185:8006/webhook/deploy \
             -H "Content-Type: application/json" \
             -d '{
               "project": ${{ toJson(github.repository) }},
@@ -48,4 +48,4 @@ jobs:
               "deployer": ${{ toJson(github.actor) }},
               "environment": "fea-admin",
               "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-            }'
+            }' || true
