@@ -31,6 +31,8 @@ jobs:
         with:
           webhook: ${{ secrets.DISCORD_WEBHOOK }}
           status: ${{ job.status }}
+          nofail: true
+          ack_no_webhook: true
           title: "🛠️ Admin Panel Deployment"
           content: "admin.petablocks.com → ${{ job.status }}"
 
