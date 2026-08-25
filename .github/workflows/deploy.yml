@@ -2,6 +2,7 @@ name: Deploy Admin Panel to PETABLOCKS-FEA
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
