@@ -1,0 +1,50 @@
+name: Deploy Admin Panel to PETABLOCKS-FEA
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Sync to PETABLOCKS-FEA
+        run: |
+          rsync -avz --delete \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            --exclude='dist' \
+            -e "ssh -o StrictHostKeyChecking=no" \
+            ./ root@10.20.110.116:/opt/petablocks/admin/
+
+      - name: Rebuild & Restart Container
+        run: |
+          ssh -o StrictHostKeyChecking=no root@10.20.110.116 \
+            "cd /opt/petablocks && docker compose up -d --build --no-deps admin"
+
+      - name: Discord Notification
+        if: always()
+        uses: sarisia/actions-status-discord@v1
+        with:
+          webhook: ${{ secrets.DISCORD_WEBHOOK }}
+          status: ${{ job.status }}
+          title: "🛠️ Admin Panel Deployment"
+          content: "admin.petablocks.com → ${{ job.status }}"
+
+      - name: Print Deploy Receipt
+        if: always()
+        run: |
+          curl -s -X POST http://10.95.0.185:8006/webhook/deploy \
+            -H "Content-Type: application/json" \
+            -d '{
+              "project": ${{ toJson(github.repository) }},
+              "status": "${{ job.status }}",
+              "branch": "${{ github.ref_name }}",
+              "commit": "${{ github.sha }}",
+              "message": ${{ toJson(github.event.head_commit.message || '') }},
+              "deployer": ${{ toJson(github.actor) }},
+              "environment": "fea-admin",
+              "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }'
