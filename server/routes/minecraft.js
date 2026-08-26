@@ -8,10 +8,12 @@ const SERVERS = [
   {
     id: 'fabric-main',
     name: 'PETABLOCKS Modpack Server',
-    host: process.env.MC_FABRIC_HOST || 'play.petablocks.com',
-    port: parseInt(process.env.MC_FABRIC_PORT || '25565', 10),
-    rconPort: parseInt(process.env.MC_FABRIC_RCON_PORT || '25575', 10),
-    rconPassword: process.env.MC_FABRIC_RCON_PASSWORD || process.env.RCON_PASSWORD || '',
+    host: process.env.MC_FABRIC_HOST || '10.20.110.127',
+    port: parseInt(process.env.MC_FABRIC_PORT || '11691', 10),
+    displayHost: 'play.petablocks.com',
+    rconHost: process.env.MC_FABRIC_RCON_HOST || '10.20.110.127',
+    rconPort: parseInt(process.env.MC_FABRIC_RCON_PORT || '16901', 10),
+    rconPassword: process.env.MC_FABRIC_RCON_PASSWORD || 'P3tabl0cksrc0n!!',
     type: 'fabric',
     version: '1.20.1',
     description: 'Main Fabric 1.20.1 Modpack Server (Plan & LuckPerms DB)',
@@ -21,8 +23,10 @@ const SERVERS = [
     name: 'PETABLOCKS Create 2',
     host: process.env.MC_CREATE2_HOST || 'create2.petablocks.com',
     port: parseInt(process.env.MC_CREATE2_PORT || '25565', 10),
+    displayHost: 'create2.petablocks.com',
+    rconHost: process.env.MC_CREATE2_RCON_HOST || process.env.MC_CREATE2_HOST || 'create2.petablocks.com',
     rconPort: parseInt(process.env.MC_CREATE2_RCON_PORT || '25576', 10),
-    rconPassword: process.env.MC_CREATE2_RCON_PASSWORD || process.env.RCON_PASSWORD || '',
+    rconPassword: process.env.MC_CREATE2_RCON_PASSWORD || '',
     type: 'neoforge',
     version: '1.21.1',
     description: 'NeoForge 1.21.1 Create 2 SMP Server',
@@ -32,11 +36,13 @@ const SERVERS = [
     name: 'PETABLOCKS Patreon Server',
     host: process.env.MC_PATREON_HOST || 'createcreative.petablocks.com',
     port: parseInt(process.env.MC_PATREON_PORT || '25565', 10),
+    displayHost: 'createcreative.petablocks.com',
+    rconHost: process.env.MC_PATREON_RCON_HOST || process.env.MC_PATREON_HOST || 'createcreative.petablocks.com',
     rconPort: parseInt(process.env.MC_PATREON_RCON_PORT || '25577', 10),
-    rconPassword: process.env.MC_PATREON_RCON_PASSWORD || process.env.RCON_PASSWORD || '',
+    rconPassword: process.env.MC_PATREON_RCON_PASSWORD || '',
     type: 'neoforge',
     version: '1.21.1',
-    description: 'NeoForge 1.21.1 Whitelisted Patreon Creative Server',
+    description: 'NeoForge 1.21.1 Whitelisted Patreon Creative Server (DiscoPanel)',
   },
 ];
 
@@ -207,6 +213,7 @@ router.get('/servers', async (_req, res) => {
           name: srv.name,
           host: srv.host,
           port: srv.port,
+          displayHost: srv.displayHost || srv.host,
           rconPort: srv.rconPort,
           hasRcon: Boolean(srv.rconPassword),
           type: srv.type,
@@ -305,7 +312,7 @@ router.post('/rcon', async (req, res) => {
   }
 
   const srv = SERVERS.find((s) => s.id === serverId) || SERVERS[0];
-  const result = await sendRconCommand(srv.host, srv.rconPort, srv.rconPassword, command.trim());
+  const result = await sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, command.trim());
   res.json({
     serverId: srv.id,
     serverName: srv.name,
@@ -334,7 +341,7 @@ router.post('/broadcast', async (req, res) => {
       } else {
         cmd = `tellraw @a {"text":"[PETABLOCKS] ${message.trim()}","color":"aqua"}`;
       }
-      return sendRconCommand(srv.host, srv.rconPort, srv.rconPassword, cmd);
+      return sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, cmd);
     })
   );
 
