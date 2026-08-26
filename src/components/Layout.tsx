@@ -1,6 +1,7 @@
 import { Outlet, NavLink } from 'react-router-dom'
 import {
   LayoutDashboard,
+  Gamepad2,
   Box,
   Activity,
   Database,
@@ -14,6 +15,7 @@ import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/minecraft', icon: Gamepad2, label: 'Minecraft Servers' },
   { to: '/containers', icon: Box, label: 'Containers' },
   { to: '/monitoring', icon: Activity, label: 'Monitoring' },
   { to: '/databases', icon: Database, label: 'Databases' },

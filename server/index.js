@@ -6,6 +6,7 @@ const containersRouter = require('./routes/containers');
 const metricsRouter = require('./routes/metrics');
 const databasesRouter = require('./routes/databases');
 const filesRouter = require('./routes/files');
+const minecraftRouter = require('./routes/minecraft');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,6 +19,7 @@ app.use('/api/containers', containersRouter);
 app.use('/api/metrics', metricsRouter);
 app.use('/api/databases', databasesRouter);
 app.use('/api/files', filesRouter);
+app.use('/api/minecraft', minecraftRouter);
 
 // Health check
 app.get('/api/health', async (_req, res) => {
