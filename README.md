@@ -1,57 +1,35 @@
-# petablocks-admin
+# 🛡️ PETABLOCKS Admin Portal (`petablocks-admin`)
 
-Admin Panel + Monitoring Dashboard + File Manager for the PETABLOCKS Network.
+> Comprehensive administration, container operations, object storage, and Minecraft server telemetry dashboard for the PETABLOCKS ecosystem.
+>
+> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.co.uk)** • **Version**: `v1.2.0` • **Endpoint**: `https://admin.petablocks.com`
 
-Built with **Vite + React + TypeScript + Tailwind CSS + shadcn/ui** (frontend) and **Node.js + Express** (backend).
+---
 
-Served at [admin.petablocks.com](https://admin.petablocks.com) — protected by Cloudflare Access.
+## 🌟 Modules & Features
 
-## Features
+### 1. 🎮 Minecraft Server Management (`/minecraft`)
+* **Live Server List Ping (SLP)**: Real-time latency tracking, player counts vs. limits, protocol versions, and MOTDs for all realms.
+* **Interactive Web RCON Console**: Run server commands directly from the browser with timestamped terminal logs and quick macros.
+* **In-Game Broadcast Tool**: Send `/tellraw` chat announcements or `/title` alerts across all servers simultaneously.
+* **Live Player Roster & Kick Control**: Active session viewer with 3D avatar head icons.
+* **Plan & LuckPerms Database Analytics**: Queries MariaDB port `:3307` for group rankings and lifetime playtime stats.
 
-| Page | Description |
-|---|---|
-| **Dashboard** | Overview: container count, CPU, memory, DB status |
-| **Containers** | Start, stop, restart Docker containers on FEA VM |
-| **Monitoring** | Real-time CPU & memory charts (updates every 5s) |
-| **Databases** | MariaDB connection status and per-database sizes |
-| **File Manager** | Upload, browse, delete files in MinIO. Copy public URLs. |
-| **Settings** | Admin configuration |
+### 2. 🗄️ MinIO S3 File Manager (`/files`)
+* S3 object storage explorer (`http://minio:9000`).
+* Drag-and-drop file upload, folder creation, presigned downloads, delete controls, and media lightboxes.
 
-## Architecture
+### 3. 📦 Docker Container Operations (`/containers`)
+* Real-time Docker container statuses, memory/CPU usage, container restart, stop, and start triggers via `/var/run/docker.sock`.
 
-```
-┌─────────────────────────────────────┐
-│           Vite React Frontend        │
-│   Dashboard / Containers / Monitor   │
-│   Databases / File Manager           │
-└──────────────┬──────────────────────┘
-               │ /api/*
-┌──────────────▼──────────────────────┐
-│         Node.js Express Backend      │
-│  /api/containers → Dockerode         │
-│  /api/metrics    → Docker stats      │
-│  /api/databases  → mysql2            │
-│  /api/files      → @aws-sdk/client-s3│
-└─────────────────────────────────────┘
-```
+### 4. 🗄️ Database Health (`/databases`)
+* Health and schema telemetry for `pb-mariadb-fea` (:3306) and `pb-mariadb-mc` (:3307).
 
-## Development
+---
 
-```bash
-# Frontend
-npm install
-cp .env.example .env
-npm run dev   # Vite dev server at :5173, proxies /api to :3001
+## 🛠️ Tech Stack
 
-# Backend (separate terminal)
-cd server && npm install
-node index.js  # Express at :3001 (for dev proxy)
-```
-
-## Deployment
-
-Automatically deployed to `PETABLOCKS-FEA (10.20.110.116)` via GitHub Actions on every push to `main`.
-
-Requires:
-- `DISCORD_WEBHOOK` secret in GitHub repo settings
-- Self-hosted runner with SSH access to 10.20.110.116
+* **Frontend**: React 19 + TypeScript + Vite + Tailwind CSS + TanStack Query + Recharts
+* **Backend**: Express + Node.js (SLP, RCON, Docker Engine, MySQL, MinIO S3 SDK)
+* **Auth**: Cloudflare Zero Trust Access
+* **Deployment**: Docker container (`pb-admin`) on `PETABLOCKS-FEA` (`10.20.110.116`)
