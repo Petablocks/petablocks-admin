@@ -22,6 +22,9 @@ import {
   AlertTriangle,
   FileText,
   UserCheck,
+  Key,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
@@ -104,6 +107,9 @@ const QUICK_MACROS = [
 export function MinecraftServersPage() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'moderation'>('overview')
+  const [showBridgeModal, setShowBridgeModal] = useState<boolean>(false)
+  const [copiedToken, setCopiedToken] = useState<boolean>(false)
+  const [copiedUrl, setCopiedUrl] = useState<boolean>(false)
 
   // Overview / RCON State
   const [selectedServer, setSelectedServer] = useState<string>('fabric-main')
@@ -401,6 +407,15 @@ export function MinecraftServersPage() {
 
         {/* Action Controls & Global Badge */}
         <div className="flex items-center gap-3">
+          <button
+            onClick={() => setShowBridgeModal(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-mono font-bold transition-colors"
+            title="View & Copy Telemetry Bridge API Key"
+          >
+            <Key className="h-3.5 w-3.5" />
+            Bridge API Key
+          </button>
+
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-card border border-border text-xs font-mono">
             <Users className="h-4 w-4 text-primary" />
             <span className="text-muted-foreground">Total Online:</span>
@@ -418,6 +433,114 @@ export function MinecraftServersPage() {
           </button>
         </div>
       </div>
+
+      {/* Telemetry Bridge Modal */}
+      {showBridgeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-emerald-400" />
+                <h3 className="text-base font-bold text-foreground">PETABLOCKS Telemetry Bridge Credentials</h3>
+              </div>
+              <button
+                onClick={() => setShowBridgeModal(false)}
+                className="text-muted-foreground hover:text-foreground text-xs font-mono px-2 py-1 rounded-md hover:bg-muted"
+              >
+                ✕ Close
+              </button>
+            </div>
+
+            <p className="text-xs text-muted-foreground">
+              Configure your Minecraft servers by placing these credentials in <code className="text-foreground font-mono">config/petablocks-telemetry.json</code>:
+            </p>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="text-muted-foreground block text-[10px] uppercase font-bold mb-1">
+                  Gateway WebSocket URL (Production WSS)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value="wss://admin.petablocks.com/ws/servers/bridge"
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText("wss://admin.petablocks.com/ws/servers/bridge")
+                      setCopiedUrl(true)
+                      setTimeout(() => setCopiedUrl(false), 2000)
+                    }}
+                    className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground font-mono text-xs rounded-lg border border-border transition-colors flex items-center gap-1.5"
+                  >
+                    {copiedUrl ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedUrl ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-muted-foreground block text-[10px] uppercase font-bold mb-1">
+                  Internal LAN Gateway (Fallback)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value="ws://10.20.110.116:3000/ws/servers/bridge"
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText("ws://10.20.110.116:3000/ws/servers/bridge")
+                    }}
+                    className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground font-mono text-xs rounded-lg border border-border transition-colors flex items-center gap-1.5"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    Copy
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-muted-foreground block text-[10px] uppercase font-bold mb-1">
+                  API Secret Token (Bearer Auth Key)
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value="845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728"
+                    className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-emerald-400 focus:outline-none select-all"
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText("845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728")
+                      setCopiedToken(true)
+                      setTimeout(() => setCopiedToken(false), 2000)
+                    }}
+                    className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+                  >
+                    {copiedToken ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                    {copiedToken ? 'Copied Key' : 'Copy Key'}
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                onClick={() => setShowBridgeModal(false)}
+                className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-lg transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Main Tabs */}
       <div className="flex border-b border-border gap-2">

@@ -73,6 +73,84 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Minecraft Telemetry Bridge Credentials */}
+      <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5 text-emerald-400" />
+            <h2 className="text-lg font-bold">Minecraft Telemetry Mod Bridge Credentials</h2>
+          </div>
+          <span className="text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            WSS Protocol v1.0
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Use these credentials in <code className="text-foreground">config/petablocks-telemetry.json</code> on all Minecraft servers to report live metrics and enable remote command execution.
+        </p>
+
+        <div className="space-y-3 text-xs">
+          <div>
+            <label className="text-muted-foreground block text-[10px] uppercase font-bold mb-1">
+              Gateway WebSocket URL (Production WSS)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value="wss://admin.petablocks.com/ws/servers/bridge"
+                className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none"
+              />
+              <button
+                onClick={() => navigator.clipboard.writeText("wss://admin.petablocks.com/ws/servers/bridge")}
+                className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground font-mono text-xs rounded-lg border border-border transition-colors flex items-center gap-1.5"
+              >
+                Copy URL
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-muted-foreground block text-[10px] uppercase font-bold mb-1">
+              Internal LAN Gateway (Fallback)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                readOnly
+                value="ws://10.20.110.116:3000/ws/servers/bridge"
+                className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-foreground focus:outline-none"
+              />
+              <button
+                onClick={() => navigator.clipboard.writeText("ws://10.20.110.116:3000/ws/servers/bridge")}
+                className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground font-mono text-xs rounded-lg border border-border transition-colors flex items-center gap-1.5"
+              >
+                Copy URL
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label className="text-muted-foreground block text-[10px] uppercase font-bold mb-1">
+              API Secret Token (Bearer Auth Key)
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="password"
+                readOnly
+                value="845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728"
+                className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-emerald-400 focus:outline-none select-all"
+              />
+              <button
+                onClick={() => navigator.clipboard.writeText("845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728")}
+                className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
+              >
+                Copy API Secret Key
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Environment Endpoints */}
       <div className="rounded-2xl border border-border bg-card p-6 space-y-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
