@@ -47,6 +47,49 @@ const SERVERS = [
   },
 ];
 
+// In-Memory Circular Console Log Buffers (up to 500 lines per server)
+const serverLogBuffers = {
+  'fabric-main': [],
+  'create-2': [],
+  'create-patreon': [],
+};
+
+// Connected SSE Clients
+const sseClients = new Set();
+
+function addServerLog(serverId, level, message, source = 'Server') {
+  const timestamp = new Date().toISOString();
+  const timeFormatted = new Date().toLocaleTimeString('en-GB', { hour12: false });
+  const entry = {
+    id: `${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
+    serverId,
+    timestamp,
+    time: timeFormatted,
+    level, // 'INFO' | 'WARN' | 'ERROR' | 'FATAL' | 'CHAT' | 'COMMAND'
+    message,
+    source,
+  };
+
+  if (!serverLogBuffers[serverId]) serverLogBuffers[serverId] = [];
+  serverLogBuffers[serverId].push(entry);
+  if (serverLogBuffers[serverId].length > 500) {
+    serverLogBuffers[serverId].shift();
+  }
+
+  // Broadcast to active SSE clients
+  const sseData = `data: ${JSON.stringify(entry)}\n\n`;
+  for (const client of sseClients) {
+    if (!client.targetServerId || client.targetServerId === 'all' || client.targetServerId === serverId) {
+      client.res.write(sseData);
+    }
+  }
+}
+
+// Seed initial system logs
+for (const srv of SERVERS) {
+  addServerLog(srv.id, 'INFO', `Initialized telemetry listener for ${srv.name} (${srv.displayHost})`, 'System');
+}
+
 // Helper: VarInt encoding for Minecraft protocol
 function writeVarInt(value) {
   const bytes = [];
@@ -64,7 +107,6 @@ function writeVarInt(value) {
 
 // Helper: Resolve DNS SRV records (e.g. _minecraft._tcp.play.petablocks.com)
 async function resolveMinecraftHost(host, defaultPort = 25565) {
-  // If host is an IP address, return directly
   if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
     return { host, port: defaultPort, isSrv: false };
   }
@@ -183,7 +225,6 @@ async function sendRconCommand(host, port, password, command, timeout = 5000) {
     return { success: false, output: 'RCON password not configured for this server' };
   }
 
-  // Resolve target host if domain
   const target = await resolveMinecraftHost(host, port);
   const targetHost = target.host;
   const targetPort = target.port;
@@ -216,7 +257,6 @@ async function sendRconCommand(host, port, password, command, timeout = 5000) {
     };
 
     socket.connect(targetPort, targetHost, () => {
-      // Packet type 3 = Login / Auth
       socket.write(createPacket(1, 3, password));
     });
 
@@ -232,7 +272,6 @@ async function sendRconCommand(host, port, password, command, timeout = 5000) {
         }
         if (type === 2) {
           authenticated = true;
-          // Send the command: Type 2 = Command Execute
           socket.write(createPacket(2, 2, command));
         }
       } else {
@@ -252,6 +291,24 @@ async function sendRconCommand(host, port, password, command, timeout = 5000) {
       resolve({ success: false, output: `RCON Connection Error: ${err.message}` });
     });
   });
+}
+
+// Database helper for Moderation Audit Logs
+async function getAdminDb() {
+  const dbUrl = process.env.DATABASE_URL || 'mysql://admin:mOgsrNJ6lEQQXx77YnPcVd0jxAmQDRud@10.20.110.117:3306/petablocks_admin';
+  const conn = await mysql.createConnection(dbUrl);
+  await conn.query(`
+    CREATE TABLE IF NOT EXISTS moderation_logs (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      server_id VARCHAR(64) NOT NULL,
+      action VARCHAR(32) NOT NULL,
+      target VARCHAR(64) NOT NULL,
+      executor VARCHAR(64) DEFAULT 'Admin',
+      reason TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  return conn;
 }
 
 // GET /api/minecraft/servers — Live SLP telemetry for all 3 servers
@@ -292,6 +349,184 @@ router.get('/servers', async (_req, res) => {
   } catch (err) {
     res.status(500).json({ error: String(err) });
   }
+});
+
+// GET /api/minecraft/logs — Fetch recent console logs
+router.get('/logs', (req, res) => {
+  const { serverId = 'fabric-main', limit = 100 } = req.query;
+  const buffer = serverLogBuffers[serverId] || [];
+  const count = Math.min(parseInt(limit, 10) || 100, 500);
+  res.json({
+    serverId,
+    logs: buffer.slice(-count),
+    totalCount: buffer.length,
+  });
+});
+
+// GET /api/minecraft/logs/stream — Server-Sent Events (SSE) live log stream
+router.get('/logs/stream', (req, res) => {
+  const targetServerId = req.query.serverId || 'all';
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const client = { res, targetServerId };
+  sseClients.add(client);
+
+  // Send initial buffer
+  const initialLogs = targetServerId === 'all'
+    ? Object.values(serverLogBuffers).flat().sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)).slice(-50)
+    : (serverLogBuffers[targetServerId] || []).slice(-50);
+
+  res.write(`data: ${JSON.stringify({ type: 'initial', logs: initialLogs })}\n\n`);
+
+  // Keep-alive heartbeat every 20s
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 20000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    sseClients.delete(client);
+  });
+});
+
+// GET /api/minecraft/moderation/bans — Get active bans & whitelist
+router.get('/moderation/bans', async (req, res) => {
+  const { serverId = 'fabric-main' } = req.query;
+  const srv = SERVERS.find((s) => s.id === serverId) || SERVERS[0];
+
+  let bans = [];
+  let whitelist = [];
+
+  if (srv.rconPassword) {
+    try {
+      // Query /banlist players
+      const banResult = await sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, 'banlist players');
+      if (banResult.success) {
+        // Parse Minecraft ban output format: "There are X bans: name (reason), name2 (reason)"
+        const match = banResult.output.match(/There are \d+ (?:total )?bans?:?(.*)/i);
+        if (match && match[1]) {
+          const listStr = match[1].trim();
+          if (listStr) {
+            bans = listStr.split(',').map((item) => {
+              const cleaned = item.trim();
+              const m = cleaned.match(/^([^\s(]+)(?:\s*\((.*?)\))?$/);
+              return {
+                name: m ? m[1] : cleaned,
+                reason: m && m[2] ? m[2] : 'Banned by operator',
+                source: 'RCON banlist',
+              };
+            });
+          }
+        }
+      }
+
+      // Query /whitelist list
+      const wlResult = await sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, 'whitelist list');
+      if (wlResult.success) {
+        const match = wlResult.output.match(/There are \d+ (?:whitelisted )?players?:?(.*)/i);
+        if (match && match[1]) {
+          const listStr = match[1].trim();
+          if (listStr) {
+            whitelist = listStr.split(',').map((name) => name.trim()).filter(Boolean);
+          }
+        }
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  res.json({
+    serverId: srv.id,
+    serverName: srv.name,
+    bans,
+    whitelist,
+  });
+});
+
+// GET /api/minecraft/moderation/audit — Get staff moderation audit log
+router.get('/moderation/audit', async (_req, res) => {
+  try {
+    const db = await getAdminDb();
+    const [rows] = await db.query(
+      `SELECT id, server_id, action, target, executor, reason, created_at
+       FROM moderation_logs
+       ORDER BY created_at DESC
+       LIMIT 50`
+    );
+    await db.end();
+    res.json({ logs: rows });
+  } catch (err) {
+    res.json({ logs: [], error: String(err) });
+  }
+});
+
+// POST /api/minecraft/moderation/action — Execute moderation command & save audit
+router.post('/moderation/action', async (req, res) => {
+  const { serverId = 'fabric-main', action, target, reason = 'No reason specified', executor = 'Admin' } = req.body;
+
+  if (!action || !target) {
+    return res.status(400).json({ error: 'Action and target player required' });
+  }
+
+  const srv = SERVERS.find((s) => s.id === serverId) || SERVERS[0];
+  let command = '';
+
+  switch (action) {
+    case 'ban':
+      command = `ban ${target} ${reason}`;
+      break;
+    case 'pardon':
+    case 'unban':
+      command = `pardon ${target}`;
+      break;
+    case 'kick':
+      command = `kick ${target} ${reason}`;
+      break;
+    case 'whitelist_add':
+      command = `whitelist add ${target}`;
+      break;
+    case 'whitelist_remove':
+      command = `whitelist remove ${target}`;
+      break;
+    case 'op':
+      command = `op ${target}`;
+      break;
+    case 'deop':
+      command = `deop ${target}`;
+      break;
+    default:
+      return res.status(400).json({ error: `Unsupported moderation action: ${action}` });
+  }
+
+  const result = await sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, command);
+
+  // Broadcast log to SSE console
+  addServerLog(srv.id, result.success ? 'WARN' : 'ERROR', `[MODERATION] ${executor} executed '${command}' -> ${result.output}`, 'Moderation');
+
+  // Record to DB audit log
+  try {
+    const db = await getAdminDb();
+    await db.query(
+      `INSERT INTO moderation_logs (server_id, action, target, executor, reason) VALUES (?, ?, ?, ?, ?)`,
+      [srv.id, action, target, executor, reason]
+    );
+    await db.end();
+  } catch (e) {
+    console.error('Failed to write moderation audit log:', e);
+  }
+
+  res.json({
+    serverId: srv.id,
+    action,
+    target,
+    command,
+    ...result,
+  });
 });
 
 // GET /api/minecraft/analytics — Query MariaDB :3307 for Plan & LuckPerms
@@ -364,6 +599,11 @@ router.post('/rcon', async (req, res) => {
 
   const srv = SERVERS.find((s) => s.id === serverId) || SERVERS[0];
   const result = await sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, command.trim());
+
+  // Broadcast command execution to console log stream
+  addServerLog(srv.id, 'COMMAND', `> /${command.trim()}`, 'RCON');
+  addServerLog(srv.id, result.success ? 'INFO' : 'ERROR', result.output, 'Server');
+
   res.json({
     serverId: srv.id,
     serverName: srv.name,
@@ -392,7 +632,9 @@ router.post('/broadcast', async (req, res) => {
       } else {
         cmd = `tellraw @a {"text":"[PETABLOCKS] ${message.trim()}","color":"aqua"}`;
       }
-      return sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, cmd);
+      const res = await sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, cmd);
+      addServerLog(srv.id, 'CHAT', `[BROADCAST] ${message.trim()}`, 'Broadcast');
+      return res;
     })
   );
 

@@ -4,6 +4,24 @@ All notable changes to the PETABLOCKS Admin & Operations Portal will be document
 
 ---
 
+## [1.3.0] - 2026-08-27
+### Added
+- **🔴 Live Console Log Streaming (`latest.log`)**:
+  - Real-time Server-Sent Events (SSE) log stream (`GET /api/minecraft/logs/stream`) with auto-reconnect and keepalive heartbeats.
+  - Severity level filtering (`ALL`, `INFO`, `WARN`, `ERROR`, `CHAT`, `COMMAND`) with color-coded syntax formatting.
+  - Live log text search filter.
+  - Pause / Resume stream controls and auto-scroll toggle.
+  - Direct log file export / download (`.log`).
+- **⚖️ Player Moderation & Ban Management**:
+  - Dedicated moderation panel with active banlist viewer (`/banlist players`) and whitelist viewer (`/whitelist list`).
+  - Action execution form supporting **Ban**, **Pardon / Unban**, **Kick**, **Add/Remove Whitelist**, and **OP/DEOP**.
+  - **Audit Logging**: Persists all staff moderation actions to MariaDB `petablocks_admin.moderation_logs`.
+- **DNS SRV & SLP VarInt Protocol Resolution**:
+  - Automatic DNS SRV record lookup (`_minecraft._tcp.<domain>`) resolving realm game ports (`11691`, `11681`, `11651`).
+  - Strict VarInt length and protocol state byte packing for zero false-offline status pings.
+
+---
+
 ## [1.2.0] - 2026-08-26
 ### Added
 - **Minecraft Server Management & Deep Telemetry**:

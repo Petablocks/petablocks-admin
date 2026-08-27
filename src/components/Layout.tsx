@@ -61,7 +61,7 @@ export default function Layout() {
         {/* Footer info & MDRCloud attribution */}
         <div className="px-6 py-4 border-t border-border space-y-2.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-mono text-muted-foreground text-[11px]">v1.2.0</span>
+            <span className="font-mono text-muted-foreground text-[11px]">v1.3.0</span>
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
               PROD
             </span>
