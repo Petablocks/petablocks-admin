@@ -36,15 +36,39 @@ interface ServerData {
   resolvedTarget?: string
   rconPort: number
   hasRcon: boolean
+  hasModBridge?: boolean
   type: string
   version: string
   description: string
   online: boolean
   latency: number
+  tps?: number
+  mspt?: number
+  cpuUsagePercent?: number
+  memory?: {
+    usedMb: number
+    allocatedMb: number
+    maxMb: number
+    gcPauseDurationMsLastMinute?: number
+  } | null
+  dimensions?: Array<{
+    id: string
+    loadedChunks: number
+    entityCount: number
+  }>
   players: {
     online: number
     max: number
-    sample?: Array<{ name: string; id: string }>
+    sample?: Array<{
+      name: string
+      id?: string
+      uuid?: string
+      ping?: number
+      dimension?: string
+      pos?: [number, number, number]
+      health?: number
+      gameMode?: string
+    }>
   }
   motd?: string
 }
@@ -461,6 +485,16 @@ export function MinecraftServersPage() {
                           <Circle className="h-2.5 w-2.5 fill-current" />
                           {srv.online ? 'Online' : 'Offline'}
                         </span>
+                        {srv.hasModBridge ? (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            Mod Bridge Active
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
+                            SLP Ping
+                          </span>
+                        )}
                         <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border border-border">
                           {srv.version}
                         </span>
@@ -485,6 +519,23 @@ export function MinecraftServersPage() {
 
                 <div className="grid grid-cols-2 gap-2 pt-3 border-t border-border/60 text-xs font-mono">
                   <div className="bg-background/60 p-2.5 rounded-xl border border-border/50">
+                    <span className="text-[10px] text-muted-foreground uppercase font-sans font-bold block">Tick Performance</span>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <span className={cn(
+                        "text-sm font-bold block",
+                        (srv.tps ?? 20) >= 19.5 ? "text-emerald-400" : (srv.tps ?? 20) >= 15 ? "text-amber-400" : "text-rose-400"
+                      )}>
+                        {srv.tps !== undefined ? `${srv.tps.toFixed(1)} TPS` : '20.0 TPS'}
+                      </span>
+                      {srv.mspt !== undefined && (
+                        <span className="text-[10px] text-muted-foreground">
+                          ({srv.mspt.toFixed(1)}ms)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="bg-background/60 p-2.5 rounded-xl border border-border/50">
                     <span className="text-[10px] text-muted-foreground uppercase font-sans font-bold block">Players</span>
                     <span className="text-sm font-bold text-foreground mt-0.5 block">
                       {srv.players.online} / {srv.players.max}
@@ -492,9 +543,22 @@ export function MinecraftServersPage() {
                   </div>
 
                   <div className="bg-background/60 p-2.5 rounded-xl border border-border/50">
-                    <span className="text-[10px] text-muted-foreground uppercase font-sans font-bold block">SLP Ping</span>
-                    <span className="text-sm font-bold text-emerald-400 mt-0.5 block">
-                      {srv.online ? `${srv.latency} ms` : '—'}
+                    <span className="text-[10px] text-muted-foreground uppercase font-sans font-bold block">
+                      {srv.memory ? 'JVM Heap RAM' : 'SLP Latency'}
+                    </span>
+                    <span className="text-sm font-bold text-foreground mt-0.5 block">
+                      {srv.memory
+                        ? `${(srv.memory.usedMb / 1024).toFixed(1)} / ${(srv.memory.maxMb / 1024).toFixed(1)} GB`
+                        : (srv.online ? `${srv.latency} ms` : '—')}
+                    </span>
+                  </div>
+
+                  <div className="bg-background/60 p-2.5 rounded-xl border border-border/50">
+                    <span className="text-[10px] text-muted-foreground uppercase font-sans font-bold block">World Chunks</span>
+                    <span className="text-sm font-bold text-cyan-400 mt-0.5 block">
+                      {srv.dimensions && srv.dimensions.length > 0
+                        ? `${srv.dimensions.reduce((acc, d) => acc + d.loadedChunks, 0)} Chunks`
+                        : (srv.online ? 'Loaded' : '—')}
                     </span>
                   </div>
                 </div>
@@ -719,11 +783,28 @@ export function MinecraftServersPage() {
                           <img
                             src={`https://mc-heads.net/avatar/${p.name}/64`}
                             alt={p.name}
-                            className="w-7 h-7 rounded bg-black/40"
+                            className="w-8 h-8 rounded-lg bg-black/40 border border-border"
                           />
                           <div>
-                            <span className="font-bold text-xs text-foreground block font-mono">{p.name}</span>
-                            <span className="text-[10px] text-muted-foreground block">{s.name}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs text-foreground font-mono">{p.name}</span>
+                              {p.ping !== undefined && (
+                                <span className="text-[10px] font-mono text-emerald-400">
+                                  {p.ping}ms
+                                </span>
+                              )}
+                              {p.dimension && (
+                                <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border">
+                                  {p.dimension.replace('minecraft:', '')}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+                              <span>{s.name}</span>
+                              {p.pos && (
+                                <span>[{Math.round(p.pos[0])}, {Math.round(p.pos[1])}, {Math.round(p.pos[2])}]</span>
+                              )}
+                            </div>
                           </div>
                         </div>
 
@@ -740,7 +821,7 @@ export function MinecraftServersPage() {
                             rel="noreferrer"
                             className="px-2 py-1 rounded bg-muted text-muted-foreground hover:text-foreground text-[10px] font-mono transition-colors"
                           >
-                            Inspect Profile
+                            Profile
                           </a>
                         </div>
                       </div>

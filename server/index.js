@@ -1,3 +1,4 @@
+const http = require('http');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -6,13 +7,17 @@ const containersRouter = require('./routes/containers');
 const metricsRouter = require('./routes/metrics');
 const databasesRouter = require('./routes/databases');
 const filesRouter = require('./routes/files');
-const minecraftRouter = require('./routes/minecraft');
+const { router: minecraftRouter, initWebSocket } = require('./routes/minecraft');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+
+// Initialize WebSocket Bridge on the shared HTTP server
+initWebSocket(server);
 
 // API routes
 app.use('/api/containers', containersRouter);
@@ -47,6 +52,7 @@ app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
 });
 
-app.listen(PORT, () => {
-  console.log(`PETABLOCKS Admin Panel running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`PETABLOCKS Admin Panel & Telemetry Bridge running on port ${PORT}`);
 });
+
