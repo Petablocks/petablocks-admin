@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const net = require('net');
+const dns = require('dns').promises;
 const mysql = require('mysql2/promise');
 
 const router = Router();
@@ -8,7 +9,7 @@ const SERVERS = [
   {
     id: 'fabric-main',
     name: 'PETABLOCKS Modpack Server',
-    host: process.env.MC_FABRIC_HOST || '10.20.110.127',
+    host: process.env.MC_FABRIC_HOST || 'play.petablocks.com',
     port: parseInt(process.env.MC_FABRIC_PORT || '11691', 10),
     displayHost: 'play.petablocks.com',
     rconHost: process.env.MC_FABRIC_RCON_HOST || '10.20.110.127',
@@ -22,9 +23,9 @@ const SERVERS = [
     id: 'create-2',
     name: 'PETABLOCKS Create 2',
     host: process.env.MC_CREATE2_HOST || 'create2.petablocks.com',
-    port: parseInt(process.env.MC_CREATE2_PORT || '25565', 10),
+    port: parseInt(process.env.MC_CREATE2_PORT || '11681', 10),
     displayHost: 'create2.petablocks.com',
-    rconHost: process.env.MC_CREATE2_RCON_HOST || process.env.MC_CREATE2_HOST || 'create2.petablocks.com',
+    rconHost: process.env.MC_CREATE2_RCON_HOST || 'create2.petablocks.com',
     rconPort: parseInt(process.env.MC_CREATE2_RCON_PORT || '25576', 10),
     rconPassword: process.env.MC_CREATE2_RCON_PASSWORD || '',
     type: 'neoforge',
@@ -35,9 +36,9 @@ const SERVERS = [
     id: 'create-patreon',
     name: 'PETABLOCKS Patreon Server',
     host: process.env.MC_PATREON_HOST || 'createcreative.petablocks.com',
-    port: parseInt(process.env.MC_PATREON_PORT || '25565', 10),
+    port: parseInt(process.env.MC_PATREON_PORT || '11651', 10),
     displayHost: 'createcreative.petablocks.com',
-    rconHost: process.env.MC_PATREON_RCON_HOST || process.env.MC_PATREON_HOST || 'createcreative.petablocks.com',
+    rconHost: process.env.MC_PATREON_RCON_HOST || 'createcreative.petablocks.com',
     rconPort: parseInt(process.env.MC_PATREON_RCON_PORT || '25577', 10),
     rconPassword: process.env.MC_PATREON_RCON_PASSWORD || '',
     type: 'neoforge',
@@ -46,8 +47,47 @@ const SERVERS = [
   },
 ];
 
-// Helper: Minecraft Server List Ping (SLP)
-function pingMinecraftServer(host, port, timeout = 3500) {
+// Helper: VarInt encoding for Minecraft protocol
+function writeVarInt(value) {
+  const bytes = [];
+  let v = value;
+  while (true) {
+    if ((v & ~0x7F) === 0) {
+      bytes.push(v);
+      break;
+    }
+    bytes.push((v & 0x7F) | 0x80);
+    v >>>= 7;
+  }
+  return Buffer.from(bytes);
+}
+
+// Helper: Resolve DNS SRV records (e.g. _minecraft._tcp.play.petablocks.com)
+async function resolveMinecraftHost(host, defaultPort = 25565) {
+  // If host is an IP address, return directly
+  if (/^(\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+    return { host, port: defaultPort, isSrv: false };
+  }
+
+  try {
+    const srvRecords = await dns.resolveSrv('_minecraft._tcp.' + host);
+    if (srvRecords && srvRecords.length > 0) {
+      srvRecords.sort((a, b) => a.priority - b.priority || b.weight - a.weight);
+      return { host: srvRecords[0].name, port: srvRecords[0].port, isSrv: true };
+    }
+  } catch {
+    // No SRV record found or DNS error -> fallback to default
+  }
+
+  return { host, port: defaultPort, isSrv: false };
+}
+
+// Helper: Minecraft Server List Ping (SLP) with SRV support
+async function pingMinecraftServer(host, port, timeout = 4000) {
+  const target = await resolveMinecraftHost(host, port);
+  const targetHost = target.host;
+  const targetPort = target.port;
+
   return new Promise((resolve) => {
     const startTime = Date.now();
     const socket = new net.Socket();
@@ -62,25 +102,19 @@ function pingMinecraftServer(host, port, timeout = 3500) {
 
     socket.setTimeout(timeout);
 
-    socket.on('connect', () => {
-      // Handshake packet (protocol 763 for 1.20+)
-      const hostBuf = Buffer.from(host, 'utf8');
-      const handshakePayload = Buffer.concat([
-        Buffer.from([0x00]), // Packet ID 0x00
-        Buffer.from([0xfd, 0x05]), // Protocol version VarInt (765)
-        Buffer.from([hostBuf.length]), // Host length
-        hostBuf,
-        Buffer.from([(port >> 8) & 0xff, port & 0xff]), // Port short
-        Buffer.from([0x01]), // Next state 1 (status)
-      ]);
+    socket.connect(targetPort, targetHost, () => {
+      const hostBuf = Buffer.from(targetHost, 'utf8');
+      const portBuf = Buffer.alloc(2);
+      portBuf.writeUInt16BE(targetPort);
 
-      const handshakePacket = Buffer.concat([
-        Buffer.from([handshakePayload.length]),
-        handshakePayload,
-      ]);
+      const packetId = writeVarInt(0x00);
+      const protocol = writeVarInt(765); // 1.20.4+ / 1.21.x compatible
+      const hostLen = writeVarInt(hostBuf.length);
+      const nextState = writeVarInt(1); // 1 = status query
 
-      // Request packet (0x00)
-      const requestPacket = Buffer.from([0x01, 0x00]);
+      const handshakePayload = Buffer.concat([packetId, protocol, hostLen, hostBuf, portBuf, nextState]);
+      const handshakePacket = Buffer.concat([writeVarInt(handshakePayload.length), handshakePayload]);
+      const requestPacket = Buffer.concat([writeVarInt(1), writeVarInt(0x00)]);
 
       socket.write(Buffer.concat([handshakePacket, requestPacket]));
     });
@@ -101,6 +135,7 @@ function pingMinecraftServer(host, port, timeout = 3500) {
           resolve({
             online: true,
             latency,
+            resolvedTarget: `${targetHost}:${targetPort}`,
             version: parsed.version?.name || '1.20.1',
             protocol: parsed.version?.protocol,
             players: {
@@ -120,23 +155,40 @@ function pingMinecraftServer(host, port, timeout = 3500) {
 
     socket.on('timeout', () => {
       cleanup();
-      resolve({ online: false, latency: 0, players: { online: 0, max: 0, sample: [] }, error: 'Ping timed out' });
+      resolve({
+        online: false,
+        latency: 0,
+        resolvedTarget: `${targetHost}:${targetPort}`,
+        players: { online: 0, max: 0, sample: [] },
+        error: 'Ping timed out',
+      });
     });
 
     socket.on('error', (err) => {
       cleanup();
-      resolve({ online: false, latency: 0, players: { online: 0, max: 0, sample: [] }, error: err.message });
+      resolve({
+        online: false,
+        latency: 0,
+        resolvedTarget: `${targetHost}:${targetPort}`,
+        players: { online: 0, max: 0, sample: [] },
+        error: err.message,
+      });
     });
   });
 }
 
 // Helper: Lightweight Minecraft RCON Client
-function sendRconCommand(host, port, password, command, timeout = 5000) {
-  return new Promise((resolve) => {
-    if (!password) {
-      return resolve({ success: false, output: 'RCON password not configured for this server' });
-    }
+async function sendRconCommand(host, port, password, command, timeout = 5000) {
+  if (!password) {
+    return { success: false, output: 'RCON password not configured for this server' };
+  }
 
+  // Resolve target host if domain
+  const target = await resolveMinecraftHost(host, port);
+  const targetHost = target.host;
+  const targetPort = target.port;
+
+  return new Promise((resolve) => {
     const socket = new net.Socket();
     let authenticated = false;
     let resolved = false;
@@ -163,7 +215,7 @@ function sendRconCommand(host, port, password, command, timeout = 5000) {
       return buf;
     };
 
-    socket.connect(port, host, () => {
+    socket.connect(targetPort, targetHost, () => {
       // Packet type 3 = Login / Auth
       socket.write(createPacket(1, 3, password));
     });
@@ -217,12 +269,13 @@ router.get('/servers', async (_req, res) => {
           rconPort: srv.rconPort,
           hasRcon: Boolean(srv.rconPassword),
           type: srv.type,
-          version: srv.version,
+          version: pingResult.version || srv.version,
           description: srv.description,
           online: pingResult.online,
           latency: pingResult.latency,
           players: pingResult.players,
           motd: pingResult.motd,
+          resolvedTarget: pingResult.resolvedTarget,
         };
       })
     );
@@ -243,45 +296,43 @@ router.get('/servers', async (_req, res) => {
 
 // GET /api/minecraft/analytics — Query MariaDB :3307 for Plan & LuckPerms
 router.get('/analytics', async (_req, res) => {
-  const mcDbUrl = process.env.MC_DATABASE_URL;
-  if (!mcDbUrl) {
-    return res.json({
-      configured: false,
-      topPlayers: [],
-      rankDistribution: [],
-      message: 'MC_DATABASE_URL not configured for MariaDB :3307',
-    });
-  }
+  const mcDbUrl = process.env.MC_DATABASE_URL || 'mysql://petablocks:mOgsrNJ6lEQQXx77YnPcVd0jxAmQDRud@10.20.110.117:3307/petablocks';
 
   try {
     const conn = await mysql.createConnection(mcDbUrl);
     
-    // Top players by playtime (Plan or custom tracking)
+    // Top players by playtime from plan_sessions
     let topPlayers = [];
     try {
       const [rows] = await conn.query(
-        `SELECT name, uuid, registered as firstJoined, (activity / 1000) as playtimeSeconds
-         FROM plan_users
-         ORDER BY activity DESC
+        `SELECT
+           u.name,
+           u.uuid,
+           COALESCE(u.registered, 0) as firstJoined,
+           FLOOR(COALESCE(SUM(s.session_end - s.session_start), 0) / 1000) as playtimeSeconds
+         FROM plan_users u
+         JOIN plan_sessions s ON u.id = s.user_id
+         GROUP BY u.id
+         HAVING playtimeSeconds > 0
+         ORDER BY playtimeSeconds DESC
          LIMIT 10`
       );
       topPlayers = rows;
     } catch {
-      // Fallback if Plan tables have alternate schema
+      // Fallback
     }
 
-    // LuckPerms group breakdown
+    // LuckPerms ranks breakdown
     let rankDistribution = [];
     try {
       const [lpRows] = await conn.query(
-        `SELECT permission as groupName, COUNT(*) as count
-         FROM luckperms_user_permissions
-         WHERE permission LIKE 'group.%'
-         GROUP BY permission
+        `SELECT primary_group as groupName, COUNT(*) as count
+         FROM luckperms_players
+         GROUP BY primary_group
          ORDER BY count DESC`
       );
       rankDistribution = lpRows.map(r => ({
-        group: r.groupName.replace('group.', ''),
+        group: r.groupName || 'default',
         count: r.count,
       }));
     } catch {
@@ -346,9 +397,10 @@ router.post('/broadcast', async (req, res) => {
   );
 
   res.json({
-    ok: true,
-    sentTo: targetServers.map((s) => s.name),
+    success: true,
+    targeted: targetServers.length,
     results,
+    timestamp: new Date().toISOString(),
   });
 });
 

@@ -24,6 +24,7 @@ interface ServerData {
   host: string
   port: number
   displayHost?: string
+  resolvedTarget?: string
   rconPort: number
   hasRcon: boolean
   type: string
@@ -247,7 +248,9 @@ export default function MinecraftServersPage() {
 
               <div className="text-xs font-mono text-muted-foreground bg-muted/40 px-2.5 py-1.5 rounded-md border border-border/50 flex items-center justify-between">
                 <span className="font-bold text-foreground">{srv.displayHost || srv.host}</span>
-                <span className="text-[11px] text-muted-foreground">({srv.host}:{srv.port})</span>
+                <span className="text-[11px] text-muted-foreground">
+                  {srv.resolvedTarget ? `(SRV ${srv.resolvedTarget})` : `(:${srv.port})`}
+                </span>
               </div>
 
               {srv.motd && (
