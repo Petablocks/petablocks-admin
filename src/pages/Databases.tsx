@@ -17,53 +17,60 @@ export default function DatabasesPage() {
   })
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold">Databases</h1>
-        <p className="text-muted-foreground text-sm mt-1">Status of MariaDB instances running on PETABLOCKS-DB (10.20.110.117)</p>
+        <h1 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+          <Database className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+          Databases
+        </h1>
+        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 sm:mt-1">
+          Status of MariaDB instances running on PETABLOCKS-DB (10.20.110.117)
+        </p>
       </div>
 
       <div className="grid gap-4">
         {dbs.map((db) => (
-          <div key={db.name} className="rounded-lg border border-border bg-card p-5">
-            <div className="flex items-center justify-between mb-4">
+          <div key={db.name} className="rounded-xl border border-border bg-card p-4 sm:p-5 space-y-4">
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <Database className="h-5 w-5 text-primary" />
+                <Database className="h-5 w-5 text-primary shrink-0" />
                 <div>
-                  <p className="font-semibold">{db.name}</p>
-                  <p className="text-xs text-muted-foreground">{db.host}:{db.port}</p>
+                  <p className="font-bold text-sm sm:text-base">{db.name}</p>
+                  <p className="text-xs text-muted-foreground font-mono">{db.host}:{db.port}</p>
                 </div>
               </div>
               <span className={cn(
-                'inline-flex items-center gap-1.5 text-xs font-medium',
-                db.connected ? 'text-emerald-400' : 'text-rose-400'
+                'inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] sm:text-xs font-bold',
+                db.connected ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
               )}>
-                <Circle className="h-2 w-2 fill-current" />
+                <Circle className="h-1.5 w-1.5 sm:h-2 sm:w-2 fill-current" />
                 {db.connected ? 'Connected' : 'Disconnected'}
               </span>
             </div>
 
             {db.databases && db.databases.length > 0 ? (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-border text-muted-foreground">
-                    <th className="text-left py-2 font-medium">Database</th>
-                    <th className="text-left py-2 font-medium">Tables</th>
-                    <th className="text-right py-2 font-medium">Data Size</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {db.databases.map((d) => (
-                    <tr key={d.name} className="border-b border-border last:border-0">
-                      <td className="py-2 font-mono text-xs">{d.name}</td>
-                      <td className="py-2 text-muted-foreground">{d.tables}</td>
-                      <td className="py-2 text-right text-muted-foreground">{d.sizeMb.toFixed(1)} MB</td>
+              <div className="overflow-x-auto touch-scroll border border-border/60 rounded-lg">
+                <table className="w-full text-xs sm:text-sm min-w-[320px]">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/30 text-muted-foreground text-xs">
+                      <th className="text-left p-2.5 sm:px-4 sm:py-3 font-medium">Database</th>
+                      <th className="text-left p-2.5 sm:px-4 sm:py-3 font-medium">Tables</th>
+                      <th className="text-right p-2.5 sm:px-4 sm:py-3 font-medium">Data Size</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {db.databases.map((d) => (
+                      <tr key={d.name} className="border-b border-border/40 last:border-0 hover:bg-muted/10">
+                        <td className="p-2.5 sm:px-4 sm:py-3 font-mono text-xs font-bold text-foreground">{d.name}</td>
+                        <td className="p-2.5 sm:px-4 sm:py-3 text-muted-foreground font-mono text-xs">{d.tables}</td>
+                        <td className="p-2.5 sm:px-4 sm:py-3 text-right text-muted-foreground font-mono text-xs">{d.sizeMb.toFixed(1)} MB</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             ) : (
-              <p className="text-xs text-muted-foreground">No user database schema detected or service unreachable.</p>
+              <p className="text-xs text-muted-foreground font-mono py-2">No user database schema detected or service unreachable.</p>
             )}
           </div>
         ))}

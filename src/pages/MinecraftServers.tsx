@@ -392,21 +392,21 @@ export function MinecraftServersPage() {
   }))
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {/* Header & Tab Navigation */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2.5 text-foreground">
-            <Gamepad2 className="h-7 w-7 text-primary" />
-            Minecraft Server Operations & Management
+          <h1 className="text-lg sm:text-2xl font-bold tracking-tight flex items-center gap-2 text-foreground">
+            <Gamepad2 className="h-5 w-5 sm:h-7 sm:w-7 text-primary" />
+            Minecraft Server Operations
           </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Real-time server telemetry, live console log streaming, Web RCON terminal, and player moderation
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
+            Real-time telemetry, console log streaming, Web RCON, and player moderation
           </p>
         </div>
 
         {/* Action Controls & Global Badge */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={() => setShowBridgeModal(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-mono font-bold transition-colors"
@@ -425,7 +425,7 @@ export function MinecraftServersPage() {
           <button
             onClick={() => refetch()}
             disabled={isLoading}
-            className="flex items-center gap-2 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-accent transition-colors"
+            className="flex items-center gap-1.5 sm:gap-2 px-3 py-1.5 border border-border rounded-lg text-xs font-medium hover:bg-accent transition-colors"
             title="Refresh Telemetry"
           >
             <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
@@ -436,12 +436,12 @@ export function MinecraftServersPage() {
 
       {/* Telemetry Bridge Modal */}
       {showBridgeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-          <div className="bg-card border border-border rounded-2xl max-w-xl w-full p-6 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-3 sm:p-4">
+          <div className="bg-card border border-border rounded-2xl max-w-xl w-full p-4 sm:p-6 space-y-4 sm:space-y-5 shadow-2xl max-h-[90dvh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-emerald-400" />
-                <h3 className="text-base font-bold text-foreground">PETABLOCKS Telemetry Bridge Credentials</h3>
+                <h3 className="text-sm sm:text-base font-bold text-foreground">PETABLOCKS Telemetry Bridge Credentials</h3>
               </div>
               <button
                 onClick={() => setShowBridgeModal(false)}
@@ -543,46 +543,46 @@ export function MinecraftServersPage() {
       )}
 
       {/* Main Tabs */}
-      <div className="flex border-b border-border gap-2">
+      <div className="flex border-b border-border gap-1 sm:gap-2 overflow-x-auto no-scrollbar pb-1 text-xs sm:text-sm">
         <button
           onClick={() => setActiveTab('overview')}
           className={cn(
-            'flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all',
+            'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 font-semibold border-b-2 whitespace-nowrap shrink-0 transition-all',
             activeTab === 'overview'
               ? 'border-primary text-primary bg-primary/5'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
-          <Activity className="h-4 w-4" />
+          <Activity className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           Telemetry & Web RCON
         </button>
 
         <button
           onClick={() => setActiveTab('logs')}
           className={cn(
-            'flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all',
+            'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 font-semibold border-b-2 whitespace-nowrap shrink-0 transition-all',
             activeTab === 'logs'
               ? 'border-primary text-primary bg-primary/5'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
-          <ScrollText className="h-4 w-4" />
-          Live Console Log Stream
+          <ScrollText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          Live Console Logs
           {sseConnected && (
-            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+            <span className="h-1.5 w-1.5 sm:h-2 sm:w-2 rounded-full bg-emerald-400 animate-pulse" />
           )}
         </button>
 
         <button
           onClick={() => setActiveTab('moderation')}
           className={cn(
-            'flex items-center gap-2 px-4 py-2.5 text-sm font-semibold border-b-2 transition-all',
+            'flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 font-semibold border-b-2 whitespace-nowrap shrink-0 transition-all',
             activeTab === 'moderation'
               ? 'border-primary text-primary bg-primary/5'
               : 'border-transparent text-muted-foreground hover:text-foreground'
           )}
         >
-          <Gavel className="h-4 w-4" />
+          <Gavel className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
           Player Moderation & Bans
         </button>
       </div>
@@ -1355,8 +1355,8 @@ export function MinecraftServersPage() {
                 No moderation audit events recorded yet. Actions taken will appear here.
               </div>
             ) : (
-              <div className="border border-border rounded-xl overflow-hidden">
-                <table className="w-full text-left text-xs font-mono">
+              <div className="border border-border rounded-xl overflow-x-auto touch-scroll">
+                <table className="w-full text-left text-xs font-mono min-w-[600px]">
                   <thead className="bg-muted/40 text-muted-foreground border-b border-border">
                     <tr>
                       <th className="p-3">Time</th>

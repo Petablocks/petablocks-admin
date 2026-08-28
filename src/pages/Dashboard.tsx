@@ -74,10 +74,10 @@ export default function DashboardPage() {
   ]
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground text-sm mt-1">
+        <h1 className="text-xl sm:text-2xl font-bold">Dashboard</h1>
+        <p className="text-muted-foreground text-xs sm:text-sm mt-0.5 sm:mt-1">
           Overview of PETABLOCKS Minecraft Network, FEA Containers, and DB Services
         </p>
       </div>
