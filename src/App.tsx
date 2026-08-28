@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import Layout from './components/Layout'
 import DashboardPage from './pages/Dashboard'
 import MinecraftServersPage from './pages/MinecraftServers'
+import MinecraftServerDetailPage from './pages/MinecraftServerDetail'
 import ContainersPage from './pages/Containers'
 import MonitoringPage from './pages/Monitoring'
 import DatabasesPage from './pages/Databases'
@@ -26,6 +27,7 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="minecraft" element={<MinecraftServersPage />} />
+          <Route path="minecraft/:id" element={<MinecraftServerDetailPage />} />
           <Route path="containers" element={<ContainersPage />} />
           <Route path="monitoring" element={<MonitoringPage />} />
           <Route path="databases" element={<DatabasesPage />} />

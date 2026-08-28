@@ -25,17 +25,14 @@ import {
   Key,
   Copy,
   Check,
-  HardDrive,
-  Globe,
-  Layers,
-  Gauge,
   ChevronRight,
-  X,
   Sparkles,
 } from 'lucide-react'
 import { useState, useRef, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { cn } from '@/lib/utils'
+import MinecraftMotd from '@/components/MinecraftMotd'
 
 interface ServerData {
   id: string
@@ -117,15 +114,10 @@ const QUICK_MACROS = [
 export function MinecraftServersPage() {
   const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'moderation'>('overview')
+  const navigate = useNavigate()
   const [showBridgeModal, setShowBridgeModal] = useState<boolean>(false)
   const [copiedToken, setCopiedToken] = useState<boolean>(false)
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false)
-
-  // Individual Server Deep-Dive Inspector State
-  const [selectedDetailServerId, setSelectedDetailServerId] = useState<string | null>(null)
-  const [detailCmd, setDetailCmd] = useState<string>('')
-  const [detailCmdOutput, setDetailCmdOutput] = useState<string | null>(null)
-  const [detailCmdRunning, setDetailCmdRunning] = useState<boolean>(false)
 
   // Overview / RCON State
   const [selectedServer, setSelectedServer] = useState<string>('fabric-main')
@@ -407,9 +399,6 @@ export function MinecraftServersPage() {
     online: s.online,
   }))
 
-  // Derived detail server
-  const detailedServer = servers.find((s) => s.id === selectedDetailServerId) || null
-
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-7xl mx-auto">
       {/* Header & Tab Navigation */}
@@ -614,15 +603,12 @@ export function MinecraftServersPage() {
             {servers.map((srv) => (
               <div
                 key={srv.id}
-                onClick={() => {
-                  setSelectedDetailServerId(srv.id)
-                  setDetailCmdOutput(null)
-                }}
+                onClick={() => navigate(`/minecraft/${srv.id}`)}
                 className="rounded-2xl border border-border bg-card p-5 flex flex-col justify-between space-y-4 hover:border-primary/60 hover:shadow-lg hover:bg-card/80 transition-all cursor-pointer group"
-                title="Click to view deep-dive metrics & telemetry"
+                title="Click to view deep-dive server page & metrics"
               >
-                <div>
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
                       <div className="flex items-center gap-2">
                         <span className={cn(
@@ -653,18 +639,15 @@ export function MinecraftServersPage() {
                     </div>
                   </div>
 
-                  <div className="text-xs font-mono text-muted-foreground bg-muted/40 px-2.5 py-1.5 rounded-md border border-border/50 flex items-center justify-between">
-                    <span className="font-bold text-foreground">{srv.displayHost || srv.host}</span>
-                    <span className="text-[11px] text-muted-foreground">
+                  <div className="text-xs font-mono text-muted-foreground bg-muted/40 px-2.5 py-1.5 rounded-md border border-border/50 flex flex-wrap items-center justify-between gap-1">
+                    <span className="font-bold text-foreground truncate max-w-[200px] sm:max-w-none">{srv.displayHost || srv.host}</span>
+                    <span className="text-[11px] text-muted-foreground font-mono">
                       {srv.resolvedTarget ? `(SRV ${srv.resolvedTarget})` : `(:${srv.port})`}
                     </span>
                   </div>
 
-                  {srv.motd && (
-                    <p className="text-xs text-muted-foreground mt-2 line-clamp-1 italic">
-                      "{srv.motd}"
-                    </p>
-                  )}
+                  {/* Authentically Formatted In-Game Minecraft MOTD */}
+                  <MinecraftMotd motd={srv.motd} />
                 </div>
 
                 <div className="space-y-3">
@@ -716,399 +699,14 @@ export function MinecraftServersPage() {
 
                   <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground group-hover:text-primary transition-colors pt-1">
                     <span className="flex items-center gap-1.5">
-                      <Sparkles className="h-3.5 w-3.5 text-primary" /> View Detailed Metrics
+                      <Sparkles className="h-3.5 w-3.5 text-primary" /> Open Server Deep-Dive Page
                     </span>
-                    <span className="text-[10px] font-mono opacity-80">Click card ↗</span>
+                    <span className="text-[10px] font-mono opacity-80">View Realm →</span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
-
-          {/* ──────────────── INDIVIDUAL SERVER DETAIL MODAL ──────────────── */}
-          {detailedServer && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-md p-3 sm:p-4 overflow-y-auto">
-              <div className="bg-card border border-border rounded-2xl max-w-4xl w-full p-4 sm:p-6 space-y-5 shadow-2xl max-h-[92dvh] overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
-                {/* Modal Header */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className={cn(
-                        'inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider',
-                        detailedServer.online ? 'text-emerald-400' : 'text-rose-400'
-                      )}>
-                        <Circle className="h-2.5 w-2.5 fill-current" />
-                        {detailedServer.online ? 'Online' : 'Offline'}
-                      </span>
-                      {detailedServer.hasModBridge ? (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                          Mod Bridge Streaming
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                          TCP SLP Ping Only
-                        </span>
-                      )}
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                        {detailedServer.type.toUpperCase()} {detailedServer.version}
-                      </span>
-                    </div>
-                    <h2 className="text-xl font-bold text-foreground mt-1">{detailedServer.name}</h2>
-                    <p className="text-xs text-muted-foreground font-mono mt-0.5">
-                      Host: <span className="text-foreground font-bold">{detailedServer.displayHost || detailedServer.host}</span> (Port: {detailedServer.port}) | Internal: {detailedServer.host}:{detailedServer.port}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => refetch()}
-                      disabled={isLoading}
-                      className="px-3 py-1.5 bg-muted hover:bg-muted/80 text-foreground text-xs font-mono rounded-lg border border-border flex items-center gap-1.5"
-                    >
-                      <RefreshCw className={cn("h-3.5 w-3.5", isLoading && "animate-spin")} /> Refresh
-                    </button>
-                    <button
-                      onClick={() => setSelectedDetailServerId(null)}
-                      className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted text-xs"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-                </div>
-
-                {/* 4-Stat Core Vitals Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {/* Stat 1: Tick Performance */}
-                  <div className="bg-background/80 p-4 rounded-xl border border-border/60 space-y-2">
-                    <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <Gauge className="h-4 w-4 text-emerald-400" />
-                        Tick Rate (TPS)
-                      </span>
-                      <span className="text-[10px] font-mono">Target: 20.0</span>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <span className={cn(
-                        "text-2xl font-bold font-mono",
-                        (detailedServer.tps ?? 20) >= 19.5 ? "text-emerald-400" : (detailedServer.tps ?? 20) >= 15 ? "text-amber-400" : "text-rose-400"
-                      )}>
-                        {detailedServer.tps !== undefined ? detailedServer.tps.toFixed(1) : '20.0'}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">TPS</span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[10px] font-mono text-muted-foreground">
-                        <span>MSPT: {detailedServer.mspt !== undefined ? detailedServer.mspt.toFixed(1) : '15.0'}ms</span>
-                        <span>Load: {(((detailedServer.mspt ?? 15) / 50.0) * 100).toFixed(0)}%</span>
-                      </div>
-                      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                        <div
-                          className={cn(
-                            "h-full rounded-full transition-all",
-                            (detailedServer.mspt ?? 15) <= 35 ? "bg-emerald-400" : (detailedServer.mspt ?? 15) <= 45 ? "bg-amber-400" : "bg-rose-400"
-                          )}
-                          style={{ width: `${Math.min(100, ((detailedServer.mspt ?? 15) / 50.0) * 100)}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Stat 2: JVM Heap RAM */}
-                  <div className="bg-background/80 p-4 rounded-xl border border-border/60 space-y-2">
-                    <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <HardDrive className="h-4 w-4 text-sky-400" />
-                        JVM Heap RAM
-                      </span>
-                      <span className="text-[10px] font-mono">
-                        {detailedServer.memory ? `${((detailedServer.memory.usedMb / detailedServer.memory.maxMb) * 100).toFixed(0)}%` : '—'}
-                      </span>
-                    </div>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl font-bold font-mono text-foreground">
-                        {detailedServer.memory ? (detailedServer.memory.usedMb / 1024).toFixed(1) : '—'}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">
-                        / {detailedServer.memory ? (detailedServer.memory.maxMb / 1024).toFixed(1) : '—'} GB
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-sky-400 rounded-full transition-all"
-                          style={{ width: `${detailedServer.memory ? Math.min(100, (detailedServer.memory.usedMb / detailedServer.memory.maxMb) * 100) : 0}%` }}
-                        />
-                      </div>
-                      <div className="flex justify-between text-[10px] font-mono text-muted-foreground pt-0.5">
-                        <span>Alloc: {detailedServer.memory ? `${(detailedServer.memory.allocatedMb / 1024).toFixed(1)} GB` : '—'}</span>
-                        <span>GC: {detailedServer.memory?.gcPauseDurationMsLastMinute ?? 0}ms</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Stat 3: World & Entities */}
-                  <div className="bg-background/80 p-4 rounded-xl border border-border/60 space-y-2">
-                    <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <Layers className="h-4 w-4 text-cyan-400" />
-                        Loaded World
-                      </span>
-                      <span className="text-[10px] font-mono">
-                        {detailedServer.dimensions?.length || 1} Dims
-                      </span>
-                    </div>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl font-bold font-mono text-cyan-400">
-                        {detailedServer.dimensions?.reduce((acc, d) => acc + d.loadedChunks, 0) || (detailedServer.online ? 'Loaded' : '0')}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">Chunks</span>
-                    </div>
-                    <div className="text-[10px] font-mono text-muted-foreground space-y-0.5 pt-1">
-                      <div className="flex justify-between">
-                        <span>Entities:</span>
-                        <span className="font-bold text-foreground">
-                          {detailedServer.dimensions?.reduce((acc, d) => acc + d.entityCount, 0) || 0}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Block Entities:</span>
-                        <span className="font-bold text-foreground">
-                          {detailedServer.dimensions?.reduce((acc, d) => acc + (d.blockEntityCount || 0), 0) || 0}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Stat 4: Network & Latency */}
-                  <div className="bg-background/80 p-4 rounded-xl border border-border/60 space-y-2">
-                    <div className="flex items-center justify-between text-muted-foreground text-xs font-medium">
-                      <span className="flex items-center gap-1.5">
-                        <Activity className="h-4 w-4 text-emerald-400" />
-                        Network Latency
-                      </span>
-                      <span className="text-[10px] font-mono">SLP Ping</span>
-                    </div>
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="text-2xl font-bold font-mono text-emerald-400">
-                        {detailedServer.online ? detailedServer.latency : 0}
-                      </span>
-                      <span className="text-xs text-muted-foreground font-mono">ms</span>
-                    </div>
-                    <div className="text-[10px] font-mono text-muted-foreground space-y-0.5 pt-1">
-                      <div className="flex justify-between">
-                        <span>Players:</span>
-                        <span className="font-bold text-foreground">{detailedServer.players.online} / {detailedServer.players.max}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>RCON:</span>
-                        <span className={detailedServer.hasRcon ? "text-emerald-400" : "text-muted-foreground"}>
-                          {detailedServer.hasRcon ? `Port ${detailedServer.rconPort}` : "Disabled"}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Dimension Breakdown Matrix */}
-                <div className="rounded-xl border border-border bg-background/50 p-4 space-y-3">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <Globe className="h-4 w-4 text-primary" />
-                    Dimension & World Simulation Breakdown
-                  </h3>
-
-                  {detailedServer.dimensions && detailedServer.dimensions.length > 0 ? (
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                      {detailedServer.dimensions.map((dim) => {
-                        const cleanDimName = dim.id.replace('minecraft:', '').replace('_', ' ')
-                        return (
-                          <div key={dim.id} className="bg-card p-3 rounded-xl border border-border space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-xs font-mono capitalize text-foreground flex items-center gap-1.5">
-                                <span className="h-2 w-2 rounded-full bg-primary" />
-                                {cleanDimName}
-                              </span>
-                              <span className="text-[9px] font-mono text-muted-foreground">{dim.id}</span>
-                            </div>
-                            <div className="grid grid-cols-3 gap-1 pt-1 text-[11px] font-mono text-center">
-                              <div className="bg-background/80 p-1.5 rounded-lg border border-border/40">
-                                <span className="text-[9px] text-muted-foreground block">Chunks</span>
-                                <span className="font-bold text-foreground mt-0.5 block">{dim.loadedChunks}</span>
-                              </div>
-                              <div className="bg-background/80 p-1.5 rounded-lg border border-border/40">
-                                <span className="text-[9px] text-muted-foreground block">Entities</span>
-                                <span className="font-bold text-emerald-400 mt-0.5 block">{dim.entityCount}</span>
-                              </div>
-                              <div className="bg-background/80 p-1.5 rounded-lg border border-border/40">
-                                <span className="text-[9px] text-muted-foreground block">Tiles</span>
-                                <span className="font-bold text-cyan-400 mt-0.5 block">{dim.blockEntityCount ?? 0}</span>
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="text-xs font-mono text-muted-foreground py-2">
-                      Detailed dimension telemetry will populate as the PETABLOCKS companion mod streams world data.
-                    </p>
-                  )}
-                </div>
-
-                {/* Live Connected Players in this Realm */}
-                <div className="rounded-xl border border-border bg-background/50 p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                      <Users className="h-4 w-4 text-primary" />
-                      Live Connected Players ({detailedServer.players.sample?.length || 0})
-                    </h3>
-                  </div>
-
-                  {(detailedServer.players.sample || []).length === 0 ? (
-                    <p className="text-xs text-muted-foreground font-mono py-2">
-                      No players currently online in {detailedServer.name}.
-                    </p>
-                  ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-48 overflow-y-auto">
-                      {detailedServer.players.sample!.map((p) => (
-                        <div
-                          key={p.name}
-                          className="flex items-center justify-between p-2.5 rounded-xl bg-card border border-border"
-                        >
-                          <div className="flex items-center gap-2.5">
-                            <img
-                              src={`https://mc-heads.net/avatar/${p.name}/64`}
-                              alt={p.name}
-                              className="w-8 h-8 rounded-lg bg-black/40 border border-border shrink-0"
-                            />
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className="font-bold text-xs text-foreground font-mono">{p.name}</span>
-                                {p.ping !== undefined && (
-                                  <span className="text-[10px] font-mono text-emerald-400 font-bold">{p.ping}ms</span>
-                                )}
-                                {p.dimension && (
-                                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border">
-                                    {p.dimension.replace('minecraft:', '')}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-[10px] text-muted-foreground font-mono flex items-center gap-2">
-                                {p.pos && (
-                                  <span>Pos: [{Math.round(p.pos[0])}, {Math.round(p.pos[1])}, {Math.round(p.pos[2])}]</span>
-                                )}
-                                {p.health !== undefined && (
-                                  <span className="text-rose-400 font-bold">♥ {p.health.toFixed(0)}</span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              onClick={() => handleQuickKick(detailedServer.id, p.name)}
-                              className="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] font-bold transition-colors"
-                            >
-                              Kick
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Direct Realm Command Diagnostics */}
-                <div className="rounded-xl border border-border bg-background/50 p-4 space-y-3">
-                  <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <Terminal className="h-4 w-4 text-emerald-400" />
-                    Direct Realm Command Runner ({detailedServer.name})
-                  </h3>
-
-                  <div className="flex flex-wrap gap-1.5 text-xs font-mono">
-                    {['tps', 'spark health', 'whitelist list', 'save-all', 'time query daytime'].map((cmd) => (
-                      <button
-                        key={cmd}
-                        onClick={async () => {
-                          setDetailCmdRunning(true);
-                          setDetailCmdOutput(`Executing /${cmd}...`);
-                          try {
-                            const res = await fetch('/api/minecraft/rcon', {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ serverId: detailedServer.id, command: cmd }),
-                            }).then(r => r.json());
-                            setDetailCmdOutput(res.output || 'Command executed.');
-                          } catch (err: any) {
-                            setDetailCmdOutput(`Error: ${err.message}`);
-                          } finally {
-                            setDetailCmdRunning(false);
-                          }
-                        }}
-                        className="px-2.5 py-1 rounded-md bg-muted/80 hover:bg-muted text-foreground border border-border text-[11px] transition-colors"
-                      >
-                        /{cmd}
-                      </button>
-                    ))}
-                  </div>
-
-                  <form
-                    onSubmit={async (e) => {
-                      e.preventDefault();
-                      if (!detailCmd.trim()) return;
-                      setDetailCmdRunning(true);
-                      setDetailCmdOutput(`Executing /${detailCmd}...`);
-                      try {
-                        const res = await fetch('/api/minecraft/rcon', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ serverId: detailedServer.id, command: detailCmd.trim() }),
-                        }).then(r => r.json());
-                        setDetailCmdOutput(res.output || 'Command executed.');
-                        setDetailCmd('');
-                      } catch (err: any) {
-                        setDetailCmdOutput(`Error: ${err.message}`);
-                      } finally {
-                        setDetailCmdRunning(false);
-                      }
-                    }}
-                    className="flex gap-2"
-                  >
-                    <input
-                      type="text"
-                      value={detailCmd}
-                      onChange={(e) => setDetailCmd(e.target.value)}
-                      placeholder={`Send command directly to ${detailedServer.name}...`}
-                      className="flex-1 bg-card border border-border rounded-xl px-3 py-2 text-xs font-mono text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!detailCmd.trim() || detailCmdRunning}
-                      className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs rounded-xl transition-colors disabled:opacity-50 flex items-center gap-1.5"
-                    >
-                      <Send className="h-3.5 w-3.5" /> Execute
-                    </button>
-                  </form>
-
-                  {detailCmdOutput && (
-                    <div className="bg-black/90 p-3 rounded-xl border border-border font-mono text-xs text-emerald-400 whitespace-pre-wrap max-h-36 overflow-y-auto">
-                      {detailCmdOutput}
-                    </div>
-                  )}
-                </div>
-
-                {/* Modal Footer */}
-                <div className="flex justify-end pt-2 border-t border-border">
-                  <button
-                    onClick={() => setSelectedDetailServerId(null)}
-                    className="px-4 py-2 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-lg transition-colors"
-                  >
-                    Done
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Latency Graph & In-Game Broadcast Tool */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
