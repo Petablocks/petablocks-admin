@@ -1,7 +1,8 @@
-name: Deploy Admin Panel to PETABLOCKS-FEA
+name: Deploy Admin Portal to PETABLOCKS-FEA
 on:
   push:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -13,15 +14,18 @@ jobs:
 
       - name: Sync to PETABLOCKS-FEA
         run: |
+          # Sync source files, excluding build artefacts and modules
           rsync -avz --delete \
             --exclude='.git' \
             --exclude='node_modules' \
             --exclude='dist' \
+            --exclude='server/node_modules' \
             -e "ssh -o StrictHostKeyChecking=no" \
             ./ root@10.20.110.116:/opt/petablocks/admin/
 
-      - name: Rebuild & Restart Container
+      - name: Rebuild & Restart Admin Container
         run: |
+          # Rebuild only the admin container and leave others untouched
           ssh -o StrictHostKeyChecking=no root@10.20.110.116 \
             "cd /opt/petablocks && docker compose up -d --build --no-deps admin"
 
@@ -33,8 +37,8 @@ jobs:
           status: ${{ job.status }}
           nofail: true
           ack_no_webhook: true
-          title: "🛠️ Admin Panel Deployment"
-          content: "admin.petablocks.com → ${{ job.status }}"
+          content: "admin.petablocks.com has been updated"
+          title: "⚡ Admin Portal Deployment"
 
       - name: 🖨️ Print Deploy Receipt
         if: always()
