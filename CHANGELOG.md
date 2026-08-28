@@ -4,6 +4,28 @@ All notable changes to the PETABLOCKS Admin & Operations Portal will be document
 
 ---
 
+## [1.4.0] - 2026-08-28
+### Added
+- **🖥️ Dedicated Server Detail Operations Pages (`/minecraft/:id`)**:
+  - Full-page server deep-dive dashboard with dedicated URL routing for each realm (`/minecraft/fabric-main`, `/minecraft/create-2`, `/minecraft/patreon-creative`).
+  - **Core Performance Vitals**: Live TPS gauge with 50ms tick load progress bar, MSPT, and tick headroom calculations.
+  - **JVM Heap Memory & GC Tracking**: Heap utilization (`Used / Max GB`), Allocated RAM, and last-minute GC pause durations.
+  - **Multi-Dimension World Simulation Breakdown**: Real-time loaded chunks, active entity counts, and tile/block entities across Overworld, Nether, The End, and modded dimensions.
+  - **Live Connected Player Roster**: Player head skin avatars, Ping latency (ms), Dimension location, exact coordinates $[X, Y, Z]$, Health ♥ bar, and 1-click Kick moderation.
+  - **Dedicated Web RCON Console**: Realm-scoped interactive console with timestamped execution history and diagnostic macro pills.
+- **🎨 Authentic In-Game Minecraft MOTD Renderer (`<MinecraftMotd />`)**:
+  - Full parser supporting Minecraft formatting codes (`§0` - `§f`, `§l` bold, `§o` italic, `§n` underline, `§m` strikethrough, `§r` reset), hex colors (`§x`), and multi-line breaks (`\n`).
+  - Rendered with authentic Minecraft monospace font, text drop shadow, and dark multiplayer banner styling.
+- **📱 iOS & Mobile Responsive Overhaul**:
+  - Slide-over navigation drawer with backdrop blur, auto-closing links, and animated hamburger toggle.
+  - Injected `viewport-fit=cover`, dynamic viewport heights (`100dvh`), and safe-area insets (`env(safe-area-inset-*)`) for iPhone notch and home indicator bar.
+  - Touch-optimized container action cards on mobile with real-time CPU/RAM stats.
+- **🚀 Automated CI/CD Deployment Pipeline (`.github/workflows/deploy.yml`)**:
+  - Automated deployment workflow triggering on every push to `main` via MDRCloud self-hosted runner pool.
+  - Syncs to `/opt/petablocks/admin/` on `PETABLOCKS-FEA` (`10.20.110.116`), rebuilds `pb-admin` container, and dispatches Discord receipts.
+
+---
+
 ## [1.3.0] - 2026-08-27
 ### Added
 - **🔴 Live Console Log Streaming (`latest.log`)**:
@@ -28,7 +50,7 @@ All notable changes to the PETABLOCKS Admin & Operations Portal will be document
   - Live TCP Server List Ping (SLP) telemetry with real-time ping latency, online player counts vs. max limit, and MOTDs across all realms.
   - Interactive **Web RCON Terminal** with multi-server targeting, command history log, and quick macros (`/tps`, `/list`, `/whitelist list`, `/save-all`, `/seed`).
   - **In-Game Network Broadcast System** (`/tellraw` chat announcements and `/title` full-screen alerts).
-  - **Live Player Roster**: Connected players with 3D avatar head renders (via Crafatar) and direct kick actions.
+  - **Live Player Roster**: Connected players with 3D avatar head renders and direct kick actions.
   - **Plan & LuckPerms DB Analytics**: Rank distribution breakdown and top playtime leaderboard queried from MariaDB `:3307`.
 - **MinIO S3 File Manager**:
   - Direct file browser for object storage with bucket management, drag-and-drop file uploads, folder creation, delete actions, and image lightboxes.

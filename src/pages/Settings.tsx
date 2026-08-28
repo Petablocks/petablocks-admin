@@ -59,8 +59,8 @@ export default function SettingsPage() {
             <div className="flex items-center gap-2.5">
               <GitBranch className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <span className="font-mono font-bold text-foreground">v1.3.0</span>
-                <p className="text-muted-foreground text-[11px]">Mobile responsive iOS UI + PETABLOCKS Telemetry WebSocket bridge</p>
+                <span className="font-mono font-bold text-foreground">v1.4.0</span>
+                <p className="text-muted-foreground text-[11px]">Dedicated server operations pages + Authentic in-game Minecraft MOTD parser</p>
               </div>
             </div>
             <span className="text-muted-foreground font-mono text-[11px] shrink-0">August 2026</span>
