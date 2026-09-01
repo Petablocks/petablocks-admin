@@ -7,6 +7,7 @@ const containersRouter = require('./routes/containers');
 const metricsRouter = require('./routes/metrics');
 const databasesRouter = require('./routes/databases');
 const filesRouter = require('./routes/files');
+const backupsRouter = require('./routes/backups');
 const { router: minecraftRouter, initWebSocket } = require('./routes/minecraft');
 
 const app = express();
@@ -24,6 +25,7 @@ app.use('/api/containers', containersRouter);
 app.use('/api/metrics', metricsRouter);
 app.use('/api/databases', databasesRouter);
 app.use('/api/files', filesRouter);
+app.use('/api/backups', backupsRouter);
 app.use('/api/minecraft', minecraftRouter);
 
 // Health check

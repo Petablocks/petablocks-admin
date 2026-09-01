@@ -8,6 +8,7 @@ import ContainersPage from './pages/Containers'
 import MonitoringPage from './pages/Monitoring'
 import DatabasesPage from './pages/Databases'
 import FileManagerPage from './pages/FileManager'
+import BackupsPage from './pages/Backups'
 import SettingsPage from './pages/Settings'
 
 const queryClient = new QueryClient({
@@ -32,6 +33,7 @@ export default function App() {
           <Route path="monitoring" element={<MonitoringPage />} />
           <Route path="databases" element={<DatabasesPage />} />
           <Route path="files" element={<FileManagerPage />} />
+          <Route path="backups" element={<BackupsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

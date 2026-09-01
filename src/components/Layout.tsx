@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Menu,
   X,
+  ArchiveRestore,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -23,6 +24,7 @@ const navItems = [
   { to: '/monitoring', icon: Activity, label: 'Monitoring' },
   { to: '/databases', icon: Database, label: 'Databases' },
   { to: '/files', icon: FolderOpen, label: 'File Manager' },
+  { to: '/backups', icon: ArchiveRestore, label: 'World Backups' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 
