@@ -4,6 +4,22 @@ All notable changes to the PETABLOCKS Admin & Operations Portal will be document
 
 ---
 
+## [1.6.0] - 2026-09-02
+### Added
+- **🎮 Native Minecraft Server Management Platform (`/servers`)**:
+  - Ground-up Discopanel replacement managing Docker containers across dedicated VM nodes via pure JS `ssh2`.
+  - **Server Fleet Overview**: Live server cards with running/stopped status, CPU %, RAM allocation vs. usage, and quick power controls (Start, Stop with 30s graceful world save, Restart).
+  - **Interactive Real-Time Terminal (`/servers/:nodeId/:serverId`)**: Color-coded Docker logs with severity filtering, auto-scroll toggle, and live command execution prompt via RCON/stdin.
+  - **In-Browser File Manager & Code Editor**: Full directory tree navigation, file upload (up to 500 MB), file deletion, and built-in editor for `server.properties`, JSON configs, TOML files, and KubeJS scripts with safe base64 encoding.
+  - **Mod Manager**: Scans `mods/` directory with live search, file sizes, modification timestamps, and 1-click toggle enable/disable switches (`.jar` $\leftrightarrow$ `.jar.disabled`).
+  - **Player & Access Management**: In-browser inspection and management of Server Operators (`ops.json`), Whitelist (`whitelist.json`), and Banned Players (`banned-players.json`).
+  - **✨ Server Creation Wizard (`CreateServerModal`)**: Multi-step wizard supporting Mod Loaders (`NeoForge`, `Fabric`, `Forge`, `Vanilla`, `Paper/Purpur`), Minecraft version selection, RAM allocation (`4G` to `32G`), target VM node selection, and automatic port binding.
+- **🌐 VM Cluster & Node Infrastructure Manager (`/nodes`)**:
+  - Live health monitoring of dedicated server host VMs (`PETABLOCKS-MCS`, `PETABLOCKS-FEA`) with real-time CPU core counts, RAM utilization gauges, NVMe disk headroom, and SSH latency.
+  - **1-Line VM Provisioning Script**: Automated bootstrap command to connect new dedicated Minecraft VMs to the cluster with zero manual configuration.
+
+---
+
 ## [1.5.0] - 2026-09-02
 ### Added
 - **🗃️ World & Full Server Backup System (`/backups`)**:

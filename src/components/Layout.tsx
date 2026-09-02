@@ -13,18 +13,21 @@ import {
   Menu,
   X,
   ArchiveRestore,
+  Layers,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
 
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/minecraft', icon: Gamepad2, label: 'Minecraft Servers' },
+  { to: '/servers', icon: Server, label: 'Server Fleet' },
+  { to: '/nodes', icon: Layers, label: 'VM Nodes' },
+  { to: '/backups', icon: ArchiveRestore, label: 'World Backups' },
+  { to: '/minecraft', icon: Gamepad2, label: 'Live Telemetry' },
   { to: '/containers', icon: Box, label: 'Containers' },
-  { to: '/monitoring', icon: Activity, label: 'Monitoring' },
+  { to: '/monitoring', icon: Activity, label: 'System Vitals' },
   { to: '/databases', icon: Database, label: 'Databases' },
   { to: '/files', icon: FolderOpen, label: 'File Manager' },
-  { to: '/backups', icon: ArchiveRestore, label: 'World Backups' },
   { to: '/settings', icon: Settings, label: 'Settings' },
 ]
 

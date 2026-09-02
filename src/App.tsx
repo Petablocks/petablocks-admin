@@ -4,6 +4,9 @@ import Layout from './components/Layout'
 import DashboardPage from './pages/Dashboard'
 import MinecraftServersPage from './pages/MinecraftServers'
 import MinecraftServerDetailPage from './pages/MinecraftServerDetail'
+import ServerFleetPage from './pages/ServerFleet'
+import ServerDashboardPage from './pages/ServerDashboard'
+import NodesPage from './pages/Nodes'
 import ContainersPage from './pages/Containers'
 import MonitoringPage from './pages/Monitoring'
 import DatabasesPage from './pages/Databases'
@@ -27,6 +30,9 @@ export default function App() {
         <Route path="/" element={<Layout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="servers" element={<ServerFleetPage />} />
+          <Route path="servers/:nodeId/:serverId" element={<ServerDashboardPage />} />
+          <Route path="nodes" element={<NodesPage />} />
           <Route path="minecraft" element={<MinecraftServersPage />} />
           <Route path="minecraft/:id" element={<MinecraftServerDetailPage />} />
           <Route path="containers" element={<ContainersPage />} />
