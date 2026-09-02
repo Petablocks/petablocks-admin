@@ -56,7 +56,7 @@ const SERVERS = [
     host: process.env.MC_PATREON_HOST || 'createcreative.petablocks.com',
     port: parseInt(process.env.MC_PATREON_PORT || '11651', 10),
     displayHost: 'createcreative.petablocks.com',
-    rconHost: process.env.MC_PATREON_RCON_HOST || '10.20.110.115',
+    rconHost: process.env.MC_PATREON_RCON_HOST || '10.20.110.120',
     rconPort: parseInt(process.env.MC_PATREON_RCON_PORT || '11661', 10),
     rconPassword: process.env.MC_PATREON_RCON_PASSWORD || 'discopanel_a91d1a56',
     containerName: 'petablocks-patreon-creative',

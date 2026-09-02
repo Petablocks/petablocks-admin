@@ -94,7 +94,7 @@ const SERVERS_REGISTRY = [
   },
   {
     id: 'patreon-creative',
-    nodeId: 'mcs-legacy',
+    nodeId: 'mcs-03',
     name: 'PETABLOCKS Patreon Creative',
     containerName: 'petablocks-patreon-creative',
     dataPath: '/home/user/data/servers/patreon_create_server_a91d1a56-6130-4daa-88c9-3f7a1082dcb4',
