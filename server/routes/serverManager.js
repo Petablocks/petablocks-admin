@@ -248,7 +248,7 @@ router.get('/nodes', async (_req, res) => {
         const { stdout } = await runSshCommand(
           node,
           `echo "===MEM===" && free -m && echo "===CPU===" && nproc && echo "===DISK===" && df -h / && echo "===DOCKER===" && docker info --format '{{.ContainersRunning}}/{{.Containers}}'`,
-          4000
+          8000
         );
         const pingMs = Date.now() - pingStart;
 
