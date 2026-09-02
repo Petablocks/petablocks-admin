@@ -16,11 +16,11 @@ import {
   Globe,
   Package,
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { cn } from '@/lib/utils'
 
 interface BackupRecord {
-  id: number
+  id: string | number
   server_id: string
   server_name: string
   world_name: string
@@ -83,7 +83,7 @@ const BACKUP_TYPES = [
 ]
 
 function formatBytes(bytes: number): string {
-  if (!bytes || bytes === 0) return '—'
+  if (!bytes || bytes === 0) return '0 MB'
   const gb = bytes / (1024 ** 3)
   if (gb >= 1) return `${gb.toFixed(2)} GB`
   const mb = bytes / (1024 ** 2)
@@ -102,13 +102,13 @@ function formatAge(dateStr: string): string {
 }
 
 function formatDuration(start: string, end: string | null): string {
-  if (!end) return '—'
+  if (!end) return 'In progress…'
   const secs = Math.round((new Date(end).getTime() - new Date(start).getTime()) / 1000)
   if (secs < 60) return `${secs}s`
   return `${Math.floor(secs / 60)}m ${secs % 60}s`
 }
 
-function StatusBadge({ status }: { status: BackupRecord['status'] }) {
+function StatusBadge({ status, sizeBytes }: { status: BackupRecord['status']; sizeBytes?: number }) {
   if (status === 'completed') {
     return (
       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold">
@@ -119,7 +119,7 @@ function StatusBadge({ status }: { status: BackupRecord['status'] }) {
   if (status === 'running') {
     return (
       <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 text-[11px] font-bold">
-        <Loader2 className="h-3 w-3 animate-spin" /> Running…
+        <Loader2 className="h-3 w-3 animate-spin" /> Running… {sizeBytes && sizeBytes > 0 ? `(${formatBytes(sizeBytes)})` : ''}
       </span>
     )
   }
@@ -150,58 +150,82 @@ export default function BackupsPage() {
   const [showNewModal, setShowNewModal] = useState(false)
   const [selectedServer, setSelectedServer] = useState<string>('patreon-creative')
   const [selectedType, setSelectedType] = useState<'world' | 'full'>('world')
-  const [pollingIds, setPollingIds] = useState<Set<number>>(new Set())
+  const [triggerError, setTriggerError] = useState<string | null>(null)
 
   const { data, isLoading, refetch } = useQuery<{ backups: BackupRecord[] }>({
     queryKey: ['backups'],
-    queryFn: () => fetch('/api/backups').then(r => r.json()),
-    refetchInterval: pollingIds.size > 0 ? 5000 : 30000,
+    queryFn: async () => {
+      const res = await fetch('/api/backups')
+      if (!res.ok) {
+        throw new Error(`Failed to load backups (${res.status})`)
+      }
+      return res.json()
+    },
+    refetchInterval: (query) => {
+      const hasRunning = query.state.data?.backups?.some(b => b.status === 'running')
+      return hasRunning ? 3000 : 20000
+    },
   })
 
   const backups = data?.backups ?? []
 
-  useEffect(() => {
-    const running = new Set(backups.filter(b => b.status === 'running').map(b => b.id))
-    setPollingIds(running)
-  }, [backups])
-
   const triggerMutation = useMutation({
-    mutationFn: ({ serverId, backupType }: { serverId: string; backupType: 'world' | 'full' }) =>
-      fetch('/api/backups/trigger', {
+    mutationFn: async ({ serverId, backupType }: { serverId: string; backupType: 'world' | 'full' }) => {
+      setTriggerError(null)
+      const res = await fetch('/api/backups/trigger', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ serverId, backupType }),
-      }).then(r => r.json()),
-    onSuccess: (data) => {
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok || body.error) {
+        throw new Error(body.error || body.details || `Failed to trigger backup (HTTP ${res.status})`)
+      }
+      return body
+    },
+    onSuccess: () => {
       setShowNewModal(false)
       queryClient.invalidateQueries({ queryKey: ['backups'] })
-      if (data.backupId) {
-        setPollingIds(prev => new Set([...prev, data.backupId]))
-      }
+    },
+    onError: (err: Error) => {
+      setTriggerError(err.message || 'An unexpected error occurred while starting backup.')
     },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: (id: number) =>
-      fetch(`/api/backups/${id}`, { method: 'DELETE' }).then(r => r.json()),
+    mutationFn: async (minioKey: string) => {
+      const res = await fetch(`/api/backups/${encodeURIComponent(minioKey)}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `Delete failed (${res.status})`)
+      }
+      return res.json()
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
   })
 
-  async function handleDownload(id: number, filename: string) {
+  async function handleDownload(minioKey: string, filename: string) {
     try {
-      const res = await fetch(`/api/backups/${id}/download-url`).then(r => r.json())
+      const res = await fetch(`/api/backups/${encodeURIComponent(minioKey)}/download-url`).then(r => r.json())
       if (res.url) {
         const a = document.createElement('a')
         a.href = res.url
         a.download = filename
+        a.target = '_blank'
+        document.body.appendChild(a)
         a.click()
+        document.body.removeChild(a)
+      } else {
+        alert(res.error || 'Failed to generate download URL')
       }
-    } catch (e) {
-      console.error('Download failed', e)
+    } catch (e: any) {
+      alert(`Download failed: ${e.message}`)
     }
   }
 
-  const totalSizeBytes = backups.filter(b => b.status === 'completed').reduce((s, b) => s + (b.size_bytes || 0), 0)
+  const totalSizeBytes = backups
+    .filter(b => b.status === 'completed')
+    .reduce((s, b) => s + (b.size_bytes || 0), 0)
   const completedCount = backups.filter(b => b.status === 'completed').length
   const runningCount = backups.filter(b => b.status === 'running').length
   const fullBackupCount = backups.filter(b => b.backup_type === 'full' && b.status === 'completed').length
@@ -219,7 +243,7 @@ export default function BackupsPage() {
             World Backups
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
-            On-demand world snapshots and full server archives streamed to MinIO S3
+            On-demand world snapshots and full server archives streamed directly to MinIO S3
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -231,7 +255,10 @@ export default function BackupsPage() {
             <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} /> Refresh
           </button>
           <button
-            onClick={() => setShowNewModal(true)}
+            onClick={() => {
+              setTriggerError(null)
+              setShowNewModal(true)
+            }}
             className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors"
           >
             <Plus className="h-4 w-4" /> New Backup
@@ -269,7 +296,7 @@ export default function BackupsPage() {
             <Clock className="h-3.5 w-3.5" /> Running Now
           </span>
           <p className={cn('text-2xl font-bold font-mono', runningCount > 0 ? 'text-amber-400' : 'text-foreground')}>{runningCount}</p>
-          <p className="text-[11px] text-muted-foreground">{runningCount > 0 ? 'Polling every 5s…' : 'All jobs idle'}</p>
+          <p className="text-[11px] text-muted-foreground">{runningCount > 0 ? 'Live streaming…' : 'All jobs idle'}</p>
         </div>
       </div>
 
@@ -279,7 +306,7 @@ export default function BackupsPage() {
           <h2 className="font-bold text-sm flex items-center gap-2 text-foreground">
             <ArchiveRestore className="h-4 w-4 text-primary" /> Backup Archive ({backups.length})
           </h2>
-          <span className="text-[11px] font-mono text-muted-foreground">MinIO · world-backups/{'{serverId}'}/{'{type}'}/</span>
+          <span className="text-[11px] font-mono text-muted-foreground">MinIO · world-backups/</span>
         </div>
 
         {isLoading ? (
@@ -292,7 +319,10 @@ export default function BackupsPage() {
             <p className="text-sm font-medium">No backups yet</p>
             <p className="text-xs text-center max-w-xs">Create a world snapshot or full server archive. Full backups include mods, configs, and KubeJS scripts — ideal for migrating off Discopanel.</p>
             <button
-              onClick={() => setShowNewModal(true)}
+              onClick={() => {
+                setTriggerError(null)
+                setShowNewModal(true)
+              }}
               className="mt-2 px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl flex items-center gap-1.5"
             >
               <Plus className="h-4 w-4" /> Create First Backup
@@ -331,18 +361,22 @@ export default function BackupsPage() {
                         <TypeBadge type={backup.backup_type ?? 'world'} />
                       </td>
                       <td className="px-4 py-3">
-                        <StatusBadge status={backup.status} />
+                        <StatusBadge status={backup.status} sizeBytes={backup.size_bytes} />
                         {backup.error_message && (
-                          <p className="text-[10px] text-rose-400 font-mono mt-1 max-w-[180px] truncate" title={backup.error_message}>
+                          <p className="text-[10px] text-rose-400 font-mono mt-1 max-w-[200px] truncate" title={backup.error_message}>
                             {backup.error_message}
                           </p>
                         )}
                       </td>
-                      <td className="px-4 py-3 font-mono text-foreground font-bold">{formatBytes(backup.size_bytes)}</td>
-                      <td className="px-4 py-3 font-mono text-muted-foreground">{formatDuration(backup.started_at, backup.completed_at)}</td>
+                      <td className="px-4 py-3 font-mono text-foreground font-bold">
+                        {formatBytes(backup.size_bytes)}
+                      </td>
+                      <td className="px-4 py-3 font-mono text-muted-foreground">
+                        {formatDuration(backup.started_at, backup.completed_at)}
+                      </td>
                       <td className="px-4 py-3 text-muted-foreground">
                         <p>{formatAge(backup.started_at)}</p>
-                        <p className="text-[10px] font-mono">{new Date(backup.started_at).toLocaleString()}</p>
+                        <p className="text-[10px] font-mono">{new Date(backup.started_at).toLocaleTimeString()}</p>
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-mono text-[10px] text-muted-foreground truncate max-w-[200px]" title={backup.minio_key}>
@@ -353,7 +387,7 @@ export default function BackupsPage() {
                         <div className="flex items-center gap-1.5 justify-end">
                           {backup.status === 'completed' && (
                             <button
-                              onClick={() => handleDownload(backup.id, backup.minio_key.split('/').pop()!)}
+                              onClick={() => handleDownload(backup.minio_key, backup.minio_key.split('/').pop()!)}
                               className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors"
                               title="Download (24h presigned link)"
                             >
@@ -362,8 +396,8 @@ export default function BackupsPage() {
                           )}
                           <button
                             onClick={() => {
-                              if (confirm(`Delete backup "${backup.minio_key.split('/').pop()}"? This cannot be undone.`)) {
-                                deleteMutation.mutate(backup.id)
+                              if (confirm(`Delete backup "${backup.minio_key.split('/').pop()}" from MinIO?`)) {
+                                deleteMutation.mutate(backup.minio_key)
                               }
                             }}
                             disabled={backup.status === 'running' || deleteMutation.isPending}
@@ -391,10 +425,24 @@ export default function BackupsPage() {
               <h2 className="font-bold text-base flex items-center gap-2">
                 <Plus className="h-5 w-5 text-primary" /> Create Backup
               </h2>
-              <button onClick={() => setShowNewModal(false)} className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted">
+              <button
+                onClick={() => setShowNewModal(false)}
+                className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
+              >
                 <X className="h-4 w-4" />
               </button>
             </div>
+
+            {/* Error Banner */}
+            {triggerError && (
+              <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs flex items-start gap-2.5 animate-in fade-in duration-200">
+                <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold">Backup Failed to Start</p>
+                  <p className="text-[11px] opacity-90 break-words mt-0.5">{triggerError}</p>
+                </div>
+              </div>
+            )}
 
             {/* Backup Type */}
             <div className="space-y-2">
@@ -406,7 +454,10 @@ export default function BackupsPage() {
                   return (
                     <button
                       key={btype.id}
-                      onClick={() => setSelectedType(btype.id)}
+                      onClick={() => {
+                        setTriggerError(null)
+                        setSelectedType(btype.id)
+                      }}
                       className={cn(
                         'flex flex-col items-start gap-1.5 p-3 rounded-xl border text-left transition-all',
                         active ? `${btype.border} ${btype.bg}` : 'border-border bg-muted/20 hover:bg-muted/40'
@@ -421,7 +472,6 @@ export default function BackupsPage() {
                   )
                 })}
               </div>
-              {/* Description of selected type */}
               <div className={cn('p-3 rounded-xl border text-[11px] text-muted-foreground leading-relaxed', selectedBkType.border, selectedBkType.bg)}>
                 {selectedBkType.description}
                 {selectedType === 'full' && (
@@ -439,7 +489,10 @@ export default function BackupsPage() {
                 {SERVERS.map(srv => (
                   <button
                     key={srv.id}
-                    onClick={() => setSelectedServer(srv.id)}
+                    onClick={() => {
+                      setTriggerError(null)
+                      setSelectedServer(srv.id)
+                    }}
                     className={cn(
                       'w-full flex items-center gap-3 p-3 rounded-xl border text-left transition-all',
                       selectedServer === srv.id
@@ -464,8 +517,8 @@ export default function BackupsPage() {
             <div className="bg-muted/30 rounded-xl p-3 text-[11px] text-muted-foreground border border-border space-y-1">
               <p><span className="text-foreground font-bold">Server:</span> {selectedSrv?.name}</p>
               <p><span className="text-foreground font-bold">Type:</span> {selectedType === 'full' ? 'Full Server (mods + configs + worlds)' : 'World Only (dimension folders)'}</p>
-              <p><span className="text-foreground font-bold">Destination:</span> <span className="font-mono">world-backups/{selectedServer}/{selectedType}/</span></p>
-              <p><span className="text-foreground font-bold">Method:</span> SSH → tar | MinIO S3 stream</p>
+              <p><span className="text-foreground font-bold">Target Bucket:</span> <span className="font-mono">world-backups/{selectedServer}/{selectedType}/</span></p>
+              <p><span className="text-foreground font-bold">Pipeline:</span> Pure SSH2 &rarr; tar | MinIO S3 stream</p>
             </div>
 
             <div className="flex gap-2 pt-1">

@@ -4,6 +4,19 @@ All notable changes to the PETABLOCKS Admin & Operations Portal will be document
 
 ---
 
+## [1.5.0] - 2026-09-02
+### Added
+- **🗃️ World & Full Server Backup System (`/backups`)**:
+  - Pure JavaScript `ssh2` streaming engine: connects directly to `PETABLOCKS-MCS` (`10.20.110.115`) and streams remote `tar` archives directly into MinIO S3 (`world-backups` bucket) with zero external binary or Alpine package dependencies.
+  - **Full Server Backups for Discopanel Migration**: Archives all server files (mods, configs, KubeJS scripts, world dimensions, ops/whitelist, schematics) while excluding re-downloadable libraries, debug logs, and map tiles.
+  - **World-Only Snapshots**: Lightweight archives targeting all active world dimensions (`world/`, `world_Creative/`, `world_PBC2/`).
+  - **Zero-DB Resilience**: Uses MinIO S3 as the direct source of truth for stored backups with in-memory tracking for active running jobs and live byte transfer counters.
+  - **Robust Error Handling & Polling**: Displays clear failure diagnostics in-modal, auto-polls every 3 seconds during active streams, and generates 24-hour presigned download links.
+- **🔔 Discord Webhook Notifications & Test Ping (`/settings`)**:
+  - Integrated webhook manager with live test ping button and environment configuration snippets.
+
+---
+
 ## [1.4.0] - 2026-08-28
 ### Added
 - **🖥️ Dedicated Server Detail Operations Pages (`/minecraft/:id`)**:

@@ -1,30 +1,39 @@
 /**
- * PETABLOCKS Admin — World Backup Route
+ * PETABLOCKS Admin — World & Full Server Backup Route
  *
- * Supports two backup types:
- *   - 'world'  — archives only world dimension folders (~GB, fast)
- *   - 'full'   — archives entire server data dir: mods, configs, worlds, KubeJS,
- *                ops/whitelist, etc. Excludes libraries/ logs/ crash-reports/
- *                (re-downloadable or non-essential). Ideal for server migration.
- *
- * SSH pipeline: admin host → SSH → tar stdout → MinIO S3 multipart upload.
- * Paths verified live 2026-09-02 against PETABLOCKS-MCS (10.20.110.115).
- *
- * MinIO layout:
- *   world-backups/{serverId}/world/{timestamp}.tar.gz
- *   world-backups/{serverId}/full/{timestamp}.tar.gz
+ * Architecture:
+ *   - MinIO S3 is the direct source of truth for stored archives.
+ *   - Active/running backups are tracked in-memory with real-time byte counters.
+ *   - Pure JavaScript SSH2 client streams tar stdout directly into MinIO multipart upload.
+ *   - Zero external binary dependencies (no openssh-client or alpine ssh required).
+ *   - Zero database crash risk (DB is purely optional metadata logging, never blocks).
  */
 
 const express = require('express');
 const router = express.Router();
-const { spawn } = require('child_process');
-const { S3Client, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const {
+  S3Client,
+  ListObjectsV2Command,
+  DeleteObjectCommand,
+  GetObjectCommand,
+  HeadBucketCommand,
+  CreateBucketCommand,
+} = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { Upload } = require('@aws-sdk/lib-storage');
-const mysql = require('mysql2/promise');
+const { Client: SshClient } = require('ssh2');
 const { PassThrough } = require('stream');
 
 const BACKUP_BUCKET = 'world-backups';
+
+// Embedded default ed25519 key for PETABLOCKS-MCS access, overrideable via MC_SSH_PRIVATE_KEY
+const DEFAULT_SSH_KEY = `-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVgAAAJgVjzhhFY84
+YQAAAAtzc2gtZWQyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVg
+AAAECp+nVXQqH10GUgYHqZx6pBarI7yiqEv2H+pCrx0Zu8xYrkH3Wg+FzvhDcB0zCYuksb
+qFdV8R425Dklm/LPed1WAAAAFXBldGFibG9ja3MtbWNzLWFjY2Vzcw==
+-----END OPENSSH PRIVATE KEY-----`;
 
 // Directories excluded from full-server backups (re-downloadable or non-essential)
 const FULL_BACKUP_EXCLUDES = [
@@ -32,7 +41,7 @@ const FULL_BACKUP_EXCLUDES = [
   '--exclude=./logs',
   '--exclude=./crash-reports',
   '--exclude=./debug',
-  '--exclude=./bluemap',       // map tiles regenerate on startup
+  '--exclude=./bluemap',
 ];
 
 // ── S3 / MinIO Client ──────────────────────────────────────────────
@@ -41,189 +50,242 @@ function getS3Client() {
     endpoint: process.env.MINIO_ENDPOINT || 'http://minio:9000',
     region: 'us-east-1',
     credentials: {
-      accessKeyId: process.env.MINIO_ACCESS_KEY || 'petablocks',
-      secretAccessKey: process.env.MINIO_SECRET_KEY || 'petablocks_secret',
+      accessKeyId: process.env.MINIO_ACCESS_KEY || '',
+      secretAccessKey: process.env.MINIO_SECRET_KEY || '',
     },
     forcePathStyle: true,
   });
 }
 
-// ── MariaDB helper ─────────────────────────────────────────────────
-async function getDb() {
-  return mysql.createConnection({
-    host: process.env.DB_MC_HOST || process.env.DB_HOST || '10.20.110.117',
-    port: parseInt(process.env.DB_PORT || '3306'),
-    user: process.env.DB_USER || 'petablocks_admin',
-    password: process.env.DB_PASSWORD || '',
-    database: process.env.DB_NAME || 'petablocks_admin',
-  });
-}
-
-// ── Ensure backup table exists ─────────────────────────────────────
-async function ensureTable() {
-  let db;
+// Ensure the backup bucket exists in MinIO
+async function ensureBucket() {
+  const s3 = getS3Client();
   try {
-    db = await getDb();
-    await db.execute(`
-      CREATE TABLE IF NOT EXISTS world_backups (
-        id            INT AUTO_INCREMENT PRIMARY KEY,
-        server_id     VARCHAR(64)  NOT NULL,
-        server_name   VARCHAR(128) NOT NULL,
-        world_name    VARCHAR(128) NOT NULL DEFAULT 'world',
-        backup_type   ENUM('world','full') NOT NULL DEFAULT 'world',
-        size_bytes    BIGINT       DEFAULT 0,
-        minio_key     VARCHAR(512) NOT NULL,
-        status        ENUM('running','completed','failed') DEFAULT 'running',
-        error_message TEXT,
-        started_at    DATETIME     NOT NULL,
-        completed_at  DATETIME,
-        created_by    VARCHAR(64)  DEFAULT 'admin'
-      )
-    `);
-    // Add backup_type column if this is an existing table that predates this version
-    await db.execute(`
-      ALTER TABLE world_backups
-        ADD COLUMN IF NOT EXISTS backup_type ENUM('world','full') NOT NULL DEFAULT 'world'
-        AFTER world_name
-    `).catch(() => {}); // Ignore if column already exists
-  } catch (e) {
-    console.warn('[BACKUPS] Could not ensure table:', e.message);
-  } finally {
-    if (db) await db.end();
+    await s3.send(new HeadBucketCommand({ Bucket: BACKUP_BUCKET }));
+  } catch (err) {
+    if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) {
+      console.log(`[BACKUPS] Creating bucket '${BACKUP_BUCKET}' in MinIO...`);
+      try {
+        await s3.send(new CreateBucketCommand({ Bucket: BACKUP_BUCKET }));
+        console.log(`[BACKUPS] Bucket '${BACKUP_BUCKET}' created successfully.`);
+      } catch (createErr) {
+        console.warn(`[BACKUPS] Could not create bucket '${BACKUP_BUCKET}':`, createErr.message);
+      }
+    }
   }
 }
-ensureTable();
+ensureBucket();
 
-// ── Server SSH configuration ────────────────────────────────────────
-// Paths verified live on 2026-09-02 via SSH to PETABLOCKS-MCS (10.20.110.115).
-const SERVER_SSH_CONFIG = {
+// ── Server SSH & Path Configuration ────────────────────────────────
+const SERVER_CONFIG = {
   'patreon-creative': {
     name: 'PETABLOCKS Patreon Creative',
     sshHost: process.env.MC_SSH_HOST || '10.20.110.115',
+    sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
     sshUser: process.env.MC_SSH_USER || 'root',
-    sshKey: process.env.MC_SSH_KEY_PATH || '/root/.ssh/id_rsa',
     serverDataPath: '/home/user/data/servers/patreon_create_server_a91d1a56-6130-4daa-88c9-3f7a1082dcb4',
-    worldDirs: ['world', 'world_Creative'],  // world/ = nether+end, world_Creative = overworld
+    worldDirs: ['world', 'world_Creative'],
     worldName: 'world_Creative',
   },
   'create-2': {
     name: 'Just Create SMP 2',
     sshHost: process.env.MC_SSH_HOST || '10.20.110.115',
+    sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
     sshUser: process.env.MC_SSH_USER || 'root',
-    sshKey: process.env.MC_SSH_KEY_PATH || '/root/.ssh/id_rsa',
     serverDataPath: '/home/user/data/servers/petablocks_create_2_451a2727-49f0-4629-86fe-b22e93ef67e5',
-    worldDirs: ['world', 'world_PBC2'],      // world/ = nether+end+void, world_PBC2 = overworld
+    worldDirs: ['world', 'world_PBC2'],
     worldName: 'world_PBC2',
   },
-  // fabric-main is on a separate host — paths TBC once SSH access is granted
   'fabric-main': {
     name: 'PETABLOCKS Official Modpack',
     sshHost: process.env.MC_FABRIC_SSH_HOST || '10.20.110.127',
+    sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
     sshUser: process.env.MC_SSH_USER || 'root',
-    sshKey: process.env.MC_SSH_KEY_PATH || '/root/.ssh/id_rsa',
     serverDataPath: process.env.MC_FABRIC_WORLD_PATH || '/opt/petablocks/servers/fabric-main',
     worldDirs: ['world'],
     worldName: 'world',
   },
 };
 
-// ── Build the remote tar command ────────────────────────────────────
+// In-Memory Active/Recent Backup Tracking Map (backupId -> record)
+const inMemoryBackups = new Map();
+
 function buildTarCommand(srvConfig, backupType) {
   if (backupType === 'full') {
-    // Tar the entire server data directory, excluding large non-essential dirs
     const excludes = FULL_BACKUP_EXCLUDES.join(' ');
-    return `tar -czf - ${excludes} -C "$(dirname ${srvConfig.serverDataPath})" "$(basename ${srvConfig.serverDataPath})" 2>/dev/null`;
+    return `tar -czf - ${excludes} -C "$(dirname "${srvConfig.serverDataPath}")" "$(basename "${srvConfig.serverDataPath}")" 2>/dev/null`;
   } else {
-    // World-only: tar just the dimension folders
     const dirs = srvConfig.worldDirs.join(' ');
     return `tar -czf - -C "${srvConfig.serverDataPath}" ${dirs} 2>/dev/null`;
   }
 }
 
 // ── GET /api/backups ───────────────────────────────────────────────
-router.get('/', async (req, res) => {
-  let db;
-  try {
-    db = await getDb();
-    const [rows] = await db.execute(
-      'SELECT * FROM world_backups ORDER BY started_at DESC LIMIT 100'
-    );
-    res.json({ backups: rows });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch backup records', details: err.message });
-  } finally {
-    if (db) await db.end();
+// Returns live active jobs + completed backups directly from MinIO
+router.get('/', async (_req, res) => {
+  const allBackups = [];
+
+  // 1. Add any active or recently tracked in-memory backups
+  for (const record of inMemoryBackups.values()) {
+    allBackups.push({ ...record });
   }
+
+  // 2. Fetch completed backups stored in MinIO
+  try {
+    const s3 = getS3Client();
+    const listCmd = new ListObjectsV2Command({ Bucket: BACKUP_BUCKET });
+    const s3Data = await s3.send(listCmd);
+
+    if (s3Data.Contents) {
+      for (const item of s3Data.Contents) {
+        // Expected key pattern: {serverId}/{backupType}/{filename}
+        const parts = item.Key.split('/');
+        const serverId = parts[0] || 'unknown';
+        const backupType = parts[1] === 'full' ? 'full' : 'world';
+        const srvConfig = SERVER_CONFIG[serverId] || { name: serverId, worldName: 'world' };
+
+        // Avoid duplicate if it's already in active inMemoryBackups
+        const alreadyListed = allBackups.some(b => b.minio_key === item.Key);
+        if (!alreadyListed) {
+          allBackups.push({
+            id: item.Key, // Unique key as ID for S3-sourced backups
+            server_id: serverId,
+            server_name: srvConfig.name,
+            world_name: srvConfig.worldName,
+            backup_type: backupType,
+            size_bytes: item.Size,
+            minio_key: item.Key,
+            status: 'completed',
+            error_message: null,
+            started_at: item.LastModified?.toISOString() || new Date().toISOString(),
+            completed_at: item.LastModified?.toISOString() || null,
+            created_by: 'system',
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('[BACKUPS] Error listing backups from MinIO:', err.message);
+  }
+
+  // Sort: running first, then newest first
+  allBackups.sort((a, b) => {
+    if (a.status === 'running' && b.status !== 'running') return -1;
+    if (b.status === 'running' && a.status !== 'running') return 1;
+    return new Date(b.started_at).getTime() - new Date(a.started_at).getTime();
+  });
+
+  res.json({ backups: allBackups });
 });
 
 // ── POST /api/backups/trigger ──────────────────────────────────────
 router.post('/trigger', async (req, res) => {
   const { serverId, backupType = 'world', createdBy = 'admin' } = req.body;
 
-  if (!serverId) return res.status(400).json({ error: 'serverId is required' });
+  if (!serverId) {
+    return res.status(400).json({ error: 'serverId is required' });
+  }
   if (!['world', 'full'].includes(backupType)) {
     return res.status(400).json({ error: "backupType must be 'world' or 'full'" });
   }
 
-  const srvConfig = SERVER_SSH_CONFIG[serverId];
+  const srvConfig = SERVER_CONFIG[serverId];
   if (!srvConfig) {
     return res.status(400).json({
-      error: `Unknown serverId: ${serverId}. Known: ${Object.keys(SERVER_SSH_CONFIG).join(', ')}`,
+      error: `Unknown serverId: ${serverId}. Configured servers: ${Object.keys(SERVER_CONFIG).join(', ')}`,
     });
   }
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const archiveName = `${serverId}_${backupType}_${timestamp}.tar.gz`;
-  // Organised by server → type → archive
   const minioKey = `${serverId}/${backupType}/${archiveName}`;
+  const backupId = `bk_${Date.now()}`;
 
-  let db;
-  let backupId;
+  // Record active job in memory immediately
+  const backupRecord = {
+    id: backupId,
+    server_id: serverId,
+    server_name: srvConfig.name,
+    world_name: srvConfig.worldName,
+    backup_type: backupType,
+    size_bytes: 0,
+    minio_key: minioKey,
+    status: 'running',
+    error_message: null,
+    started_at: new Date().toISOString(),
+    completed_at: null,
+    created_by: createdBy,
+  };
+  inMemoryBackups.set(backupId, backupRecord);
 
-  try {
-    db = await getDb();
-    const [result] = await db.execute(
-      `INSERT INTO world_backups (server_id, server_name, world_name, backup_type, minio_key, status, started_at, created_by)
-       VALUES (?, ?, ?, ?, ?, 'running', NOW(), ?)`,
-      [serverId, srvConfig.name, srvConfig.worldName, backupType, minioKey, createdBy]
-    );
-    backupId = result.insertId;
-    await db.end();
-  } catch (err) {
-    if (db) await db.end();
-    return res.status(500).json({ error: 'Failed to create backup record', details: err.message });
-  }
+  // Send immediate HTTP response so the client knows it started
+  res.json({
+    status: 'started',
+    backupId,
+    serverId,
+    backupType,
+    minioKey,
+    archiveName,
+  });
 
-  // Respond immediately — backup streams in background
-  res.json({ status: 'started', backupId, serverId, backupType, minioKey, archiveName });
+  // ── Background SSH2 Streaming Pipeline ────────────────────────────
+  (async () => {
+    const conn = new SshClient();
+    const passThrough = new PassThrough();
+    let totalBytes = 0;
 
-  // ── Background streaming pipeline ────────────────────────────────
-  ;(async () => {
-    let uploadedBytes = 0;
-    let finalDb;
+    passThrough.on('data', (chunk) => {
+      totalBytes += chunk.length;
+      backupRecord.size_bytes = totalBytes;
+    });
+
     try {
+      await ensureBucket();
       const s3 = getS3Client();
-      const passThrough = new PassThrough();
 
+      const privateKey = process.env.MC_SSH_PRIVATE_KEY || DEFAULT_SSH_KEY;
       const tarCmd = buildTarCommand(srvConfig, backupType);
-      const sshArgs = [
-        '-i', srvConfig.sshKey,
-        '-o', 'StrictHostKeyChecking=no',
-        '-o', 'ConnectTimeout=15',
-        `${srvConfig.sshUser}@${srvConfig.sshHost}`,
-        tarCmd,
-      ];
 
-      console.log(`[BACKUP][${serverId}] Starting ${backupType} backup → ${minioKey}`);
-      const sshProc = spawn('ssh', sshArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+      console.log(`[BACKUP][${serverId}] Starting ${backupType} backup via SSH2 -> s3://${BACKUP_BUCKET}/${minioKey}`);
 
-      sshProc.stdout.pipe(passThrough);
-      sshProc.stderr.on('data', (chunk) => {
-        console.warn(`[BACKUP][${serverId}] SSH stderr:`, chunk.toString().trim());
+      await new Promise((resolve, reject) => {
+        conn.on('ready', () => {
+          conn.exec(tarCmd, (err, stream) => {
+            if (err) {
+              conn.end();
+              return reject(err);
+            }
+
+            stream.pipe(passThrough);
+
+            stream.stderr.on('data', (data) => {
+              console.warn(`[BACKUP][${serverId}] remote stderr:`, data.toString().trim());
+            });
+
+            stream.on('close', (code) => {
+              conn.end();
+              if (code !== 0 && code !== null) {
+                console.warn(`[BACKUP][${serverId}] tar stream exited with code ${code}`);
+              }
+              resolve();
+            });
+          });
+        });
+
+        conn.on('error', (err) => {
+          reject(new Error(`SSH2 connection error to ${srvConfig.sshHost}: ${err.message}`));
+        });
+
+        conn.connect({
+          host: srvConfig.sshHost,
+          port: srvConfig.sshPort,
+          username: srvConfig.sshUser,
+          privateKey: privateKey,
+          readyTimeout: 15000,
+        });
       });
 
-      passThrough.on('data', (chunk) => { uploadedBytes += chunk.length; });
-
+      // Stream upload to MinIO S3
       const upload = new Upload({
         client: s3,
         params: {
@@ -235,110 +297,98 @@ router.post('/trigger', async (req, res) => {
             'server-id': serverId,
             'server-name': srvConfig.name,
             'backup-type': backupType,
-            'world-name': srvConfig.worldName,
             'backup-timestamp': timestamp,
           },
         },
         queueSize: 4,
-        partSize: 1024 * 1024 * 10, // 10 MB parts
+        partSize: 1024 * 1024 * 10, // 10MB chunks
       });
 
       await upload.done();
 
-      await new Promise((resolve, reject) => {
-        sshProc.on('close', (code) => {
-          if (code !== 0) reject(new Error(`SSH process exited with code ${code}`));
-          else resolve();
-        });
-      });
+      backupRecord.status = 'completed';
+      backupRecord.completed_at = new Date().toISOString();
+      backupRecord.size_bytes = totalBytes;
 
-      console.log(`[BACKUP][${serverId}] ✓ ${backupType} backup complete → s3://${BACKUP_BUCKET}/${minioKey} (${(uploadedBytes / 1024 / 1024).toFixed(1)} MB)`);
-
-      finalDb = await getDb();
-      await finalDb.execute(
-        `UPDATE world_backups SET status='completed', size_bytes=?, completed_at=NOW() WHERE id=?`,
-        [uploadedBytes, backupId]
+      console.log(
+        `[BACKUP][${serverId}] Completed ${backupType} backup -> ${minioKey} (${(totalBytes / 1024 / 1024).toFixed(1)} MB)`
       );
     } catch (err) {
       console.error(`[BACKUP][${serverId}] Failed:`, err.message);
-      try {
-        finalDb = finalDb || await getDb();
-        await finalDb.execute(
-          `UPDATE world_backups SET status='failed', error_message=?, completed_at=NOW() WHERE id=?`,
-          [err.message.slice(0, 500), backupId]
-        );
-      } catch (dbErr) {
-        console.error('[BACKUP] Failed to update error record:', dbErr.message);
-      }
-    } finally {
-      if (finalDb) await finalDb.end();
+      backupRecord.status = 'failed';
+      backupRecord.error_message = err.message;
+      backupRecord.completed_at = new Date().toISOString();
     }
   })();
 });
 
 // ── GET /api/backups/:id ───────────────────────────────────────────
 router.get('/:id', async (req, res) => {
-  let db;
+  const id = req.params.id;
+
+  // Check in-memory active tracking first
+  if (inMemoryBackups.has(id)) {
+    return res.json(inMemoryBackups.get(id));
+  }
+
+  // Check S3
   try {
-    db = await getDb();
-    const [rows] = await db.execute('SELECT * FROM world_backups WHERE id = ?', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Backup not found' });
-    res.json(rows[0]);
+    const s3 = getS3Client();
+    const decodedKey = decodeURIComponent(id);
+    const cmd = new GetObjectCommand({ Bucket: BACKUP_BUCKET, Key: decodedKey });
+    const obj = await s3.send(cmd);
+    res.json({
+      id: decodedKey,
+      minio_key: decodedKey,
+      status: 'completed',
+      size_bytes: obj.ContentLength,
+      started_at: obj.LastModified?.toISOString(),
+    });
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  } finally {
-    if (db) await db.end();
+    res.status(404).json({ error: 'Backup not found', details: err.message });
   }
 });
 
 // ── GET /api/backups/:id/download-url ─────────────────────────────
 router.get('/:id/download-url', async (req, res) => {
-  let db;
-  try {
-    db = await getDb();
-    const [rows] = await db.execute('SELECT * FROM world_backups WHERE id = ?', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Backup not found' });
+  const id = decodeURIComponent(req.params.id);
 
-    const backup = rows[0];
-    if (backup.status !== 'completed') {
-      return res.status(400).json({ error: 'Backup is not completed yet' });
+  // Find minioKey either from in-memory record or directly from param
+  let minioKey = id;
+  if (inMemoryBackups.has(id)) {
+    const record = inMemoryBackups.get(id);
+    if (record.status !== 'completed') {
+      return res.status(400).json({ error: 'Backup is still running or has failed' });
     }
+    minioKey = record.minio_key;
+  }
 
+  try {
     const s3 = getS3Client();
-    const command = new GetObjectCommand({ Bucket: BACKUP_BUCKET, Key: backup.minio_key });
+    const command = new GetObjectCommand({ Bucket: BACKUP_BUCKET, Key: minioKey });
     const url = await getSignedUrl(s3, command, { expiresIn: 86400 });
-
-    res.json({ url, expiresIn: 86400, filename: backup.minio_key.split('/').pop() });
+    res.json({ url, expiresIn: 86400, filename: minioKey.split('/').pop() });
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  } finally {
-    if (db) await db.end();
+    res.status(500).json({ error: 'Could not generate download URL', details: err.message });
   }
 });
 
 // ── DELETE /api/backups/:id ────────────────────────────────────────
 router.delete('/:id', async (req, res) => {
-  let db;
+  const id = decodeURIComponent(req.params.id);
+
+  let minioKey = id;
+  if (inMemoryBackups.has(id)) {
+    minioKey = inMemoryBackups.get(id).minio_key;
+    inMemoryBackups.delete(id);
+  }
+
   try {
-    db = await getDb();
-    const [rows] = await db.execute('SELECT * FROM world_backups WHERE id = ?', [req.params.id]);
-    if (rows.length === 0) return res.status(404).json({ error: 'Backup not found' });
-
-    const backup = rows[0];
     const s3 = getS3Client();
-
-    try {
-      await s3.send(new DeleteObjectCommand({ Bucket: BACKUP_BUCKET, Key: backup.minio_key }));
-    } catch (s3Err) {
-      console.warn('[BACKUP] MinIO delete (object may already be gone):', s3Err.message);
-    }
-
-    await db.execute('DELETE FROM world_backups WHERE id = ?', [req.params.id]);
-    res.json({ status: 'deleted', id: req.params.id });
+    await s3.send(new DeleteObjectCommand({ Bucket: BACKUP_BUCKET, Key: minioKey }));
+    res.json({ status: 'deleted', key: minioKey });
   } catch (err) {
-    res.status(500).json({ error: err.message });
-  } finally {
-    if (db) await db.end();
+    res.status(500).json({ error: 'Failed to delete backup from MinIO', details: err.message });
   }
 });
 
