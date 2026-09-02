@@ -239,65 +239,67 @@ function sendRconCommand(host, port, password, command) {
 // ── GET /api/server-manager/nodes ──────────────────────────────────
 // Returns list of registered VM nodes with live hardware stats & ping
 router.get('/nodes', async (_req, res) => {
-  const results = [];
+  const nodeList = Object.values(NODES);
 
-  for (const node of Object.values(NODES)) {
-    try {
-      const pingStart = Date.now();
-      const { stdout } = await runSshCommand(
-        node,
-        `echo "===MEM===" && free -m && echo "===CPU===" && nproc && echo "===DISK===" && df -h / && echo "===DOCKER===" && docker info --format '{{.ContainersRunning}}/{{.Containers}}'`,
-        8000
-      );
-      const pingMs = Date.now() - pingStart;
+  const results = await Promise.all(
+    nodeList.map(async (node) => {
+      try {
+        const pingStart = Date.now();
+        const { stdout } = await runSshCommand(
+          node,
+          `echo "===MEM===" && free -m && echo "===CPU===" && nproc && echo "===DISK===" && df -h / && echo "===DOCKER===" && docker info --format '{{.ContainersRunning}}/{{.Containers}}'`,
+          4000
+        );
+        const pingMs = Date.now() - pingStart;
 
-      // Parse memory
-      const memMatch = stdout.match(/Mem:\s+(\d+)\s+(\d+)\s+(\d+)/);
-      const totalMemMb = memMatch ? parseInt(memMatch[1], 10) : 0;
-      const usedMemMb = memMatch ? parseInt(memMatch[2], 10) : 0;
+        // Parse memory
+        const memMatch = stdout.match(/Mem:\s+(\d+)\s+(\d+)\s+(\d+)/);
+        const totalMemMb = memMatch ? parseInt(memMatch[1], 10) : 0;
+        const usedMemMb = memMatch ? parseInt(memMatch[2], 10) : 0;
 
-      // Parse CPU cores
-      const cpuMatch = stdout.match(/===CPU===\s+(\d+)/);
-      const cpuCores = cpuMatch ? parseInt(cpuMatch[1], 10) : 0;
+        // Parse CPU cores
+        const cpuMatch = stdout.match(/===CPU===\s+(\d+)/);
+        const cpuCores = cpuMatch ? parseInt(cpuMatch[1], 10) : 0;
 
-      // Parse disk
-      const diskMatch = stdout.match(/\/dev\/\S+\s+(\S+)\s+(\S+)\s+(\S+)\s+(\d+)%\s+\//);
-      const diskTotal = diskMatch ? diskMatch[1] : '—';
-      const diskUsed = diskMatch ? diskMatch[2] : '—';
-      const diskAvail = diskMatch ? diskMatch[3] : '—';
-      const diskPercent = diskMatch ? parseInt(diskMatch[4], 10) : 0;
+        // Parse disk
+        const diskMatch = stdout.match(/\/dev\/\S+\s+(\S+)\s+(\S+)\s+(\S+)\s+(\d+)%\s+\//);
+        const diskTotal = diskMatch ? diskMatch[1] : '—';
+        const diskUsed = diskMatch ? diskMatch[2] : '—';
+        const diskAvail = diskMatch ? diskMatch[3] : '—';
+        const diskPercent = diskMatch ? parseInt(diskMatch[4], 10) : 0;
 
-      // Parse docker
-      const dockerMatch = stdout.match(/===DOCKER===\s+(\d+)\/(\d+)/);
-      const dockerRunning = dockerMatch ? parseInt(dockerMatch[1], 10) : 0;
-      const dockerTotal = dockerMatch ? parseInt(dockerMatch[2], 10) : 0;
+        // Parse docker
+        const dockerMatch = stdout.match(/===DOCKER===\s+(\d+)\/(\d+)/);
+        const dockerRunning = dockerMatch ? parseInt(dockerMatch[1], 10) : 0;
+        const dockerTotal = dockerMatch ? parseInt(dockerMatch[2], 10) : 0;
 
-      results.push({
-        ...node,
-        online: true,
-        pingMs,
-        cpuCores,
-        memory: {
-          totalGb: (totalMemMb / 1024).toFixed(1),
-          usedGb: (usedMemMb / 1024).toFixed(1),
-          percent: totalMemMb ? Math.round((usedMemMb / totalMemMb) * 100) : 0,
-        },
-        disk: { total: diskTotal, used: diskUsed, avail: diskAvail, percent: diskPercent },
-        docker: { running: dockerRunning, total: dockerTotal },
-      });
-    } catch (err) {
-      results.push({
-        ...node,
-        online: false,
-        pingMs: 0,
-        error: err.message,
-        cpuCores: 0,
-        memory: { totalGb: '0', usedGb: '0', percent: 0 },
-        disk: { total: '—', used: '—', avail: '—', percent: 0 },
-        docker: { running: 0, total: 0 },
-      });
-    }
-  }
+        return {
+          ...node,
+          online: true,
+          pingMs,
+          cpuCores,
+          memory: {
+            totalGb: (totalMemMb / 1024).toFixed(1),
+            usedGb: (usedMemMb / 1024).toFixed(1),
+            percent: totalMemMb ? Math.round((usedMemMb / totalMemMb) * 100) : 0,
+          },
+          disk: { total: diskTotal, used: diskUsed, avail: diskAvail, percent: diskPercent },
+          docker: { running: dockerRunning, total: dockerTotal },
+        };
+      } catch (err) {
+        return {
+          ...node,
+          online: false,
+          pingMs: 0,
+          error: err.message,
+          cpuCores: 0,
+          memory: { totalGb: '0', usedGb: '0', percent: 0 },
+          disk: { total: '—', used: '—', avail: '—', percent: 0 },
+          docker: { running: 0, total: 0 },
+        };
+      }
+    })
+  );
 
   res.json({ nodes: results });
 });
