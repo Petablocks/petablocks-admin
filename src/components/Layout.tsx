@@ -175,7 +175,7 @@ export default function Layout() {
         {/* Footer info & MDRCloud attribution */}
         <div className="px-6 py-4 border-t border-border space-y-2.5">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-mono text-muted-foreground text-[11px]">v1.3.0</span>
+            <span className="font-mono text-muted-foreground text-[11px]">v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.6.0'}</span>
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
               PROD
             </span>
@@ -196,6 +196,10 @@ export default function Layout() {
           </div>
 
           <div className="text-[10px] text-muted-foreground/80 font-mono space-y-0.5">
+            <div className="flex justify-between">
+              <span>MCS:</span>
+              <span>10.20.110.115</span>
+            </div>
             <div className="flex justify-between">
               <span>FEA:</span>
               <span>10.20.110.116</span>
