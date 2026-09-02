@@ -31,6 +31,7 @@ interface ServerData {
   rconPort: number
   hasRcon: boolean
   hasModBridge?: boolean
+  telemetrySource?: 'websocket-mod' | 'spark-profiler' | 'tcp-ping'
   type: string
   version: string
   description: string
@@ -233,10 +234,15 @@ export default function MinecraftServerDetailPage() {
                 {server.online ? 'Online' : 'Offline'}
               </span>
 
-              {server.hasModBridge ? (
+              {server.telemetrySource === 'websocket-mod' ? (
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1.5">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Mod Bridge WebSocket Active
+                  Mod Bridge Active
+                </span>
+              ) : server.telemetrySource === 'spark-profiler' ? (
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  ⚡ Spark Profiler Live
                 </span>
               ) : (
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground border border-border">

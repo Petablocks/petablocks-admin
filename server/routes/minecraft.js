@@ -3,8 +3,17 @@ const net = require('net');
 const dns = require('dns').promises;
 const mysql = require('mysql2/promise');
 const WebSocket = require('ws');
+const { Client: SshClient } = require('ssh2');
 
 const router = Router();
+
+const DEFAULT_SSH_KEY = `-----BEGIN OPENSSH PRIVATE KEY-----
+b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
+QyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVgAAAJgVjzhhFY84
+YQAAAAtzc2gtZWQyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVg
+AAAECp+nVXQqH10GUgYHqZx6pBarI7yiqEv2H+pCrx0Zu8xYrkH3Wg+FzvhDcB0zCYuksb
+qFdV8R425Dklm/LPed1WAAAAFXBldGFibG9ja3MtbWNzLWFjY2Vzcw==
+-----END OPENSSH PRIVATE KEY-----`;
 
 const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN || '845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728';
 
@@ -30,9 +39,11 @@ const SERVERS = [
     host: process.env.MC_CREATE2_HOST || 'create2.petablocks.com',
     port: parseInt(process.env.MC_CREATE2_PORT || '11681', 10),
     displayHost: 'create2.petablocks.com',
-    rconHost: process.env.MC_CREATE2_RCON_HOST || 'create2.petablocks.com',
-    rconPort: parseInt(process.env.MC_CREATE2_RCON_PORT || '25576', 10),
-    rconPassword: process.env.MC_CREATE2_RCON_PASSWORD || '',
+    rconHost: process.env.MC_CREATE2_RCON_HOST || '10.20.110.115',
+    rconPort: parseInt(process.env.MC_CREATE2_RCON_PORT || '11691', 10),
+    rconPassword: process.env.MC_CREATE2_RCON_PASSWORD || 'discopanel_451a2727',
+    containerName: 'petablocks-create-2',
+    logPath: '/home/user/data/servers/petablocks_create_2_451a2727-49f0-4629-86fe-b22e93ef67e5/logs/latest.log',
     type: 'neoforge',
     version: '1.21.1',
     description: 'NeoForge 1.21.1 Create 2 SMP Server',
@@ -44,14 +55,80 @@ const SERVERS = [
     host: process.env.MC_PATREON_HOST || 'createcreative.petablocks.com',
     port: parseInt(process.env.MC_PATREON_PORT || '11651', 10),
     displayHost: 'createcreative.petablocks.com',
-    rconHost: process.env.MC_PATREON_RCON_HOST || 'createcreative.petablocks.com',
-    rconPort: parseInt(process.env.MC_PATREON_RCON_PORT || '25577', 10),
-    rconPassword: process.env.MC_PATREON_RCON_PASSWORD || '',
+    rconHost: process.env.MC_PATREON_RCON_HOST || '10.20.110.115',
+    rconPort: parseInt(process.env.MC_PATREON_RCON_PORT || '11661', 10),
+    rconPassword: process.env.MC_PATREON_RCON_PASSWORD || 'discopanel_a91d1a56',
+    containerName: 'petablocks-patreon-creative',
+    logPath: '/home/user/data/servers/patreon_create_server_a91d1a56-6130-4daa-88c9-3f7a1082dcb4/logs/latest.log',
     type: 'neoforge',
     version: '1.21.1',
-    description: 'NeoForge 1.21.1 Whitelisted Patreon Creative Server (DiscoPanel)',
+    description: 'NeoForge 1.21.1 Whitelisted Patreon Creative Server',
   },
 ];
+
+// Cache for background Spark metrics
+const sparkTelemetryCache = new Map();
+
+// Helper to scrape latest Spark tick metrics over SSH2
+async function fetchSparkMetrics(srv) {
+  if (!srv.logPath) return null;
+  return new Promise((resolve) => {
+    const conn = new SshClient();
+    let stdout = '';
+    const timer = setTimeout(() => {
+      conn.end();
+      resolve(null);
+    }, 4000);
+
+    conn.on('ready', () => {
+      conn.exec(`grep -iE 'Average:|included GC lasting' '${srv.logPath}' | tail -n 10`, (err, stream) => {
+        if (err) {
+          clearTimeout(timer);
+          conn.end();
+          return resolve(null);
+        }
+        stream.on('data', d => stdout += d.toString());
+        stream.on('close', () => {
+          clearTimeout(timer);
+          conn.end();
+
+          const avgMatch = stdout.match(/Average:\s+([\d\.]+)ms/);
+          const gcMatches = [...stdout.matchAll(/included GC lasting\s+(\d+)\s+ms/g)];
+          let gcTotalLastMin = 0;
+          for (const m of gcMatches) {
+            gcTotalLastMin += parseInt(m[1], 10);
+          }
+
+          if (avgMatch) {
+            const mspt = parseFloat(avgMatch[1]);
+            const tps = Math.min(20.0, Math.max(0.1, 1000.0 / mspt));
+            resolve({
+              tps: parseFloat(tps.toFixed(1)),
+              mspt: parseFloat(mspt.toFixed(1)),
+              gcPauseMs: gcTotalLastMin,
+              source: 'spark-logs',
+            });
+          } else {
+            resolve(null);
+          }
+        });
+      });
+    });
+
+    conn.on('error', () => {
+      clearTimeout(timer);
+      resolve(null);
+    });
+
+    conn.connect({
+      host: '10.20.110.115',
+      port: 22,
+      username: 'root',
+      privateKey: process.env.MC_SSH_PRIVATE_KEY || DEFAULT_SSH_KEY,
+      readyTimeout: 3000,
+    });
+  });
+}
 
 // In-Memory Circular Console Log Buffers (up to 500 lines per server)
 const serverLogBuffers = {
@@ -435,6 +512,21 @@ router.get('/servers', async (_req, res) => {
         const modData = modTelemetryStore.get(srv.id);
         const hasModBridge = modConnectedSockets.has(srv.id) && modConnectedSockets.get(srv.id).readyState === WebSocket.OPEN;
 
+        // Fetch live Spark log scraper metrics if no websocket mod bridge is active
+        let sparkData = sparkTelemetryCache.get(srv.id) || null;
+        if (!hasModBridge && srv.logPath && pingResult.online) {
+          try {
+            const freshSpark = await fetchSparkMetrics(srv);
+            if (freshSpark) {
+              sparkTelemetryCache.set(srv.id, freshSpark);
+              sparkData = freshSpark;
+            }
+          } catch (_) {}
+        }
+
+        const calculatedTps = hasModBridge && modData ? modData.tps : (sparkData ? sparkData.tps : (pingResult.online ? 20.0 : 0));
+        const calculatedMspt = hasModBridge && modData ? modData.mspt : (sparkData ? sparkData.mspt : (pingResult.online ? 15.0 : 0));
+
         return {
           id: srv.id,
           modServerId: srv.modServerId,
@@ -444,7 +536,8 @@ router.get('/servers', async (_req, res) => {
           displayHost: srv.displayHost || srv.host,
           rconPort: srv.rconPort,
           hasRcon: Boolean(srv.rconPassword),
-          hasModBridge,
+          hasModBridge: hasModBridge || Boolean(sparkData),
+          telemetrySource: hasModBridge ? 'websocket-mod' : (sparkData ? 'spark-profiler' : 'tcp-ping'),
           type: srv.type,
           version: pingResult.version || srv.version,
           description: srv.description,
@@ -455,9 +548,11 @@ router.get('/servers', async (_req, res) => {
             : pingResult.players,
           motd: pingResult.motd,
           resolvedTarget: pingResult.resolvedTarget,
-          tps: hasModBridge && modData ? modData.tps : (pingResult.online ? 20.0 : 0),
-          mspt: hasModBridge && modData ? modData.mspt : (pingResult.online ? 15.0 : 0),
-          memory: hasModBridge && modData?.memory ? modData.memory : null,
+          tps: calculatedTps,
+          mspt: calculatedMspt,
+          memory: hasModBridge && modData?.memory
+            ? modData.memory
+            : (sparkData ? { usedMb: 0, allocatedMb: 0, maxMb: 0, gcPauseDurationMsLastMinute: sparkData.gcPauseMs } : null),
           dimensions: hasModBridge && modData?.dimensions ? modData.dimensions : [],
           cpuUsagePercent: hasModBridge && modData ? modData.cpuUsagePercent : 0,
         };
