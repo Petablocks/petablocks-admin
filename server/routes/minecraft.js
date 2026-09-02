@@ -4,6 +4,7 @@ const dns = require('dns').promises;
 const mysql = require('mysql2/promise');
 const WebSocket = require('ws');
 const { Client: SshClient } = require('ssh2');
+const discordService = require('../services/discordWebhookService');
 
 const router = Router();
 
@@ -229,8 +230,32 @@ function initWebSocket(httpServer) {
           });
         } else if (msg.type === 'EVENT_PLAYER_JOIN' && msg.payload) {
           addServerLog(serverId, 'INFO', `Player joined: ${msg.payload.name} (${msg.payload.uuid})`, 'Game');
+          discordService.sendChatBroadcast(serverId, {
+            username: msg.payload.name,
+            message: `📥 **${msg.payload.name}** joined the game.`,
+            eventType: 'join',
+          });
         } else if (msg.type === 'EVENT_PLAYER_QUIT' && msg.payload) {
           addServerLog(serverId, 'INFO', `Player left: ${msg.payload.name}`, 'Game');
+          discordService.sendChatBroadcast(serverId, {
+            username: msg.payload.name,
+            message: `📤 **${msg.payload.name}** left the game.`,
+            eventType: 'leave',
+          });
+        } else if (msg.type === 'EVENT_PLAYER_CHAT' && msg.payload) {
+          addServerLog(serverId, 'INFO', `<${msg.payload.name}> ${msg.payload.message}`, 'Chat');
+          discordService.sendChatBroadcast(serverId, {
+            username: msg.payload.name,
+            message: msg.payload.message,
+            eventType: 'chat',
+          });
+        } else if (msg.type === 'EVENT_PLAYER_DEATH' && msg.payload) {
+          addServerLog(serverId, 'INFO', `Player death: ${msg.payload.deathMessage || msg.payload.name}`, 'Game');
+          discordService.sendChatBroadcast(serverId, {
+            username: msg.payload.name,
+            message: `☠️ ${msg.payload.deathMessage || `${msg.payload.name} died`}`,
+            eventType: 'death',
+          });
         } else if (msg.type === 'COMMAND_RESPONSE' && msg.payload) {
           const reqId = msg.payload.requestId;
           if (pendingCommandCallbacks.has(reqId)) {

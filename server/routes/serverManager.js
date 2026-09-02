@@ -13,6 +13,7 @@ const { Client: SshClient } = require('ssh2');
 const multer = require('multer');
 const path = require('path');
 const net = require('net');
+const discordService = require('../services/discordWebhookService');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB max upload
 
@@ -421,8 +422,39 @@ router.post('/servers/:id/power', async (req, res) => {
 
     const { stdout, stderr, code } = await runSshCommand(node, cmd, 45000);
     if (code !== 0) {
+      discordService.sendConsoleAlert(srv.id, {
+        title: `🚨 Server Action Failed: ${action.toUpperCase()}`,
+        description: `Failed to execute \`${action}\` on container \`${srv.containerName}\` on **${node.name}**.\n\`\`\`${stderr || stdout}\`\`\``,
+        color: 0xef4444, // Red
+      });
       return res.status(500).json({ error: `Command failed: ${stderr || stdout}` });
     }
+
+    // Send Discord console lifecycle notification
+    const actionColorMap = {
+      start: 0x10b981,   // Green
+      stop: 0x6b7280,    // Gray
+      restart: 0xf59e0b, // Amber
+      kill: 0xef4444,    // Red
+    };
+    const actionTitleMap = {
+      start: '🟢 Server Starting',
+      stop: '🛑 Server Stopping',
+      restart: '🔄 Server Restarting',
+      kill: '⚠️ Server Force-Killed',
+    };
+
+    discordService.sendConsoleAlert(srv.id, {
+      title: actionTitleMap[action] || `Server ${action}`,
+      description: `Container \`${srv.containerName}\` was triggered to **${action}** via the Admin Portal.`,
+      color: actionColorMap[action] || 0x3b82f6,
+      fields: [
+        { name: 'Node', value: node.name, inline: true },
+        { name: 'Game Port', value: `${srv.gamePort}`, inline: true },
+        { name: 'Allocated Memory', value: srv.memory, inline: true },
+      ],
+    });
+
     res.json({ success: true, action, serverId: srv.id, output: stdout });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -460,6 +492,17 @@ router.post('/servers/:id/command', async (req, res) => {
   // Try RCON directly first
   try {
     const rconRes = await sendRconCommand(node.host, srv.rconHostPort, srv.rconPassword, command);
+    
+    // Log admin command to Discord Console channel if enabled
+    const cfg = discordService.getServerWebhookConfig(srv.id);
+    if (cfg.consoleEnabled && cfg.consoleEvents?.rconCommands && !command.startsWith('list') && !command.startsWith('spark')) {
+      discordService.sendConsoleAlert(srv.id, {
+        title: '💻 Console Command Executed',
+        description: `Command: \`/${command}\`\nOutput: \`\`\`${(rconRes || 'No output').slice(0, 500)}\`\`\``,
+        color: 0x6366f1, // Indigo
+      });
+    }
+
     return res.json({ response: rconRes || 'Command executed (no output returned)' });
   } catch (rconErr) {
     // Fallback to docker exec rcon-cli inside container
@@ -807,6 +850,89 @@ docker run -d \
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/server-manager/servers/:id/discord ───────────────────
+// Returns configured Discord webhooks for a server
+router.get('/servers/:id/discord', (req, res) => {
+  const srv = SERVERS_REGISTRY.find(s => s.id === req.params.id);
+  if (!srv) return res.status(404).json({ error: 'Server not found' });
+
+  const config = discordService.getServerWebhookConfig(srv.id);
+  res.json({ serverId: srv.id, config });
+});
+
+// ── POST /api/server-manager/servers/:id/discord ──────────────────
+// Updates Discord webhook configuration for a server
+router.post('/servers/:id/discord', (req, res) => {
+  const srv = SERVERS_REGISTRY.find(s => s.id === req.params.id);
+  if (!srv) return res.status(404).json({ error: 'Server not found' });
+
+  const updated = discordService.setServerWebhookConfig(srv.id, req.body);
+  res.json({ success: true, serverId: srv.id, config: updated });
+});
+
+// ── POST /api/server-manager/servers/:id/discord/test ─────────────
+// Sends a test webhook message to verify setup
+router.post('/servers/:id/discord/test', async (req, res) => {
+  const { channelType } = req.body; // 'chat' | 'console'
+  const srv = SERVERS_REGISTRY.find(s => s.id === req.params.id);
+  if (!srv) return res.status(404).json({ error: 'Server not found' });
+
+  const cfg = discordService.getServerWebhookConfig(srv.id);
+
+  if (channelType === 'chat') {
+    if (!cfg.chatWebhookUrl) {
+      return res.status(400).json({ error: 'Chat Webhook URL is not configured.' });
+    }
+    try {
+      await discordService.postToDiscord(cfg.chatWebhookUrl, {
+        username: 'PETABLOCKS Chat Bot',
+        avatar_url: 'https://i.ibb.co/6RQ5VVhm/Gemini-Generated-Image-kuabj3kuabj3kuab-removebg-preview.png',
+        embeds: [
+          {
+            title: '💬 Chat Webhook Connected',
+            description: `This channel is now connected to **${srv.name}** for in-game chat, joins, and deaths.`,
+            color: 0x10b981,
+            timestamp: new Date().toISOString(),
+            footer: { text: `PETABLOCKS • ${srv.id}` },
+          },
+        ],
+      });
+      return res.json({ success: true, message: 'Test message delivered to Chat channel!' });
+    } catch (err) {
+      return res.status(500).json({ error: `Discord delivery failed: ${err.message}` });
+    }
+  } else if (channelType === 'console') {
+    if (!cfg.consoleWebhookUrl) {
+      return res.status(400).json({ error: 'Console Webhook URL is not configured.' });
+    }
+    try {
+      await discordService.postToDiscord(cfg.consoleWebhookUrl, {
+        username: 'PETABLOCKS Console',
+        avatar_url: 'https://i.ibb.co/6RQ5VVhm/Gemini-Generated-Image-kuabj3kuabj3kuab-removebg-preview.png',
+        embeds: [
+          {
+            title: '🖥️ Console Webhook Connected',
+            description: `This channel is now connected to **${srv.name}** for lifecycle events, restarts, and console alerts.`,
+            color: 0x3b82f6,
+            fields: [
+              { name: 'Server', value: srv.name, inline: true },
+              { name: 'Node', value: srv.nodeId, inline: true },
+              { name: 'Status', value: 'Ready', inline: true },
+            ],
+            timestamp: new Date().toISOString(),
+            footer: { text: `PETABLOCKS • ${srv.id}` },
+          },
+        ],
+      });
+      return res.json({ success: true, message: 'Test alert delivered to Console channel!' });
+    } catch (err) {
+      return res.status(500).json({ error: `Discord delivery failed: ${err.message}` });
+    }
+  } else {
+    return res.status(400).json({ error: "Invalid channelType. Expected 'chat' or 'console'" });
   }
 });
 

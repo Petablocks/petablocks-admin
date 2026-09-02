@@ -27,6 +27,7 @@ import {
   ToggleLeft,
   ToggleRight,
   Shield,
+  MessageSquare,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -55,7 +56,7 @@ function formatBytes(bytes: number): string {
 
 export default function ServerDashboardPage() {
   const { nodeId = 'mcs-01', serverId } = useParams<{ nodeId: string; serverId: string }>()
-  const [activeTab, setActiveTab] = useState<'console' | 'files' | 'mods' | 'players' | 'backups'>('console')
+  const [activeTab, setActiveTab] = useState<'console' | 'files' | 'mods' | 'players' | 'discord' | 'backups'>('console')
 
   // Console state
   const [commandInput, setCommandInput] = useState('')
@@ -227,6 +228,73 @@ export default function ServerDashboardPage() {
     }
   }
 
+  // Discord Webhooks query & mutations
+  const { data: discordData, refetch: refetchDiscord } = useQuery({
+    queryKey: ['server-discord', serverId],
+    queryFn: () => fetch(`/api/server-manager/servers/${serverId}/discord`).then(r => r.json()),
+    enabled: activeTab === 'discord',
+  })
+
+  const [chatWebhookUrl, setChatWebhookUrl] = useState('')
+  const [chatEnabled, setChatEnabled] = useState(false)
+  const [consoleWebhookUrl, setConsoleWebhookUrl] = useState('')
+  const [consoleEnabled, setConsoleEnabled] = useState(false)
+  const [discordSaveSuccess, setDiscordSaveSuccess] = useState(false)
+  const [testStatus, setTestStatus] = useState<{ channel?: string; success?: boolean; message?: string } | null>(null)
+
+  useEffect(() => {
+    if (discordData?.config) {
+      setChatWebhookUrl(discordData.config.chatWebhookUrl || '')
+      setChatEnabled(discordData.config.chatEnabled || false)
+      setConsoleWebhookUrl(discordData.config.consoleWebhookUrl || '')
+      setConsoleEnabled(discordData.config.consoleEnabled || false)
+    }
+  }, [discordData])
+
+  const saveDiscordMutation = useMutation({
+    mutationFn: async () => {
+      setDiscordSaveSuccess(false)
+      const res = await fetch(`/api/server-manager/servers/${serverId}/discord`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatWebhookUrl,
+          chatEnabled,
+          consoleWebhookUrl,
+          consoleEnabled,
+        }),
+      })
+      return res.json()
+    },
+    onSuccess: () => {
+      setDiscordSaveSuccess(true)
+      refetchDiscord()
+      setTimeout(() => setDiscordSaveSuccess(false), 3000)
+    },
+  })
+
+  const testDiscordMutation = useMutation({
+    mutationFn: async (channelType: 'chat' | 'console') => {
+      setTestStatus(null)
+      const res = await fetch(`/api/server-manager/servers/${serverId}/discord/test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channelType }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to send test message')
+      return { channelType, ...data }
+    },
+    onSuccess: (res) => {
+      setTestStatus({ channel: res.channelType, success: true, message: res.message })
+      setTimeout(() => setTestStatus(null), 5000)
+    },
+    onError: (err: any) => {
+      setTestStatus({ success: false, message: err.message })
+      setTimeout(() => setTestStatus(null), 6000)
+    },
+  })
+
   const server = serverData?.server
   const node = serverData?.node
   const container = serverData?.container
@@ -357,6 +425,15 @@ export default function ServerDashboardPage() {
           )}
         >
           <Users className="h-4 w-4" /> Players & Access
+        </button>
+        <button
+          onClick={() => { setActiveTab('discord'); setEditingFile(null) }}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all',
+            activeTab === 'discord' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+          )}
+        >
+          <MessageSquare className="h-4 w-4 text-indigo-400" /> Discord Webhooks
         </button>
         <Link
           to="/backups"
@@ -764,6 +841,167 @@ export default function ServerDashboardPage() {
                 ))}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: DISCORD WEBHOOKS */}
+      {activeTab === 'discord' && (
+        <div className="space-y-6">
+          {/* Header Banner */}
+          <div className="bg-card rounded-2xl border border-border p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="font-bold text-base text-foreground flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-indigo-400" /> Discord Fleet Integration
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Configure dedicated webhooks for in-game chat broadcasts and server console/lifecycle alerts for <strong className="text-foreground">{server.name}</strong>.
+              </p>
+            </div>
+            <button
+              onClick={() => saveDiscordMutation.mutate()}
+              disabled={saveDiscordMutation.isPending}
+              className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-1.5 transition-colors self-start sm:self-auto disabled:opacity-50"
+            >
+              {saveDiscordMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : discordSaveSuccess ? (
+                <Check className="h-3.5 w-3.5 text-emerald-300" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              {discordSaveSuccess ? 'Saved Successfully!' : 'Save Webhooks'}
+            </button>
+          </div>
+
+          {/* Test Status Alert */}
+          {testStatus && (
+            <div
+              className={cn(
+                'p-3.5 rounded-xl border text-xs flex items-center gap-2 font-mono transition-all',
+                testStatus.success
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                  : 'bg-rose-500/10 text-rose-400 border-rose-500/30'
+              )}
+            >
+              {testStatus.success ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <AlertTriangle className="h-4 w-4 shrink-0" />}
+              <span>{testStatus.message}</span>
+            </div>
+          )}
+
+          {/* Webhook Configuration Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Card 1: In-Game Chat Channel */}
+            <div className="bg-card rounded-2xl border border-border p-5 space-y-4 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+                    <h3 className="font-bold text-sm text-foreground">In-Game Server Chat</h3>
+                  </div>
+                  <button
+                    onClick={() => setChatEnabled(!chatEnabled)}
+                    className="flex items-center gap-1.5 text-xs font-medium"
+                  >
+                    {chatEnabled ? (
+                      <ToggleRight className="h-6 w-6 text-emerald-400" />
+                    ) : (
+                      <ToggleLeft className="h-6 w-6 text-muted-foreground" />
+                    )}
+                    <span className={cn('text-[11px] font-mono', chatEnabled ? 'text-emerald-400' : 'text-muted-foreground')}>
+                      {chatEnabled ? 'Active' : 'Disabled'}
+                    </span>
+                  </button>
+                </div>
+
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Broadcasts player chat messages with custom player avatar heads, join and leave announcements, and death events into your Discord chat channel.
+                </p>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Discord Webhook URL
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="https://discord.com/api/webhooks/..."
+                    value={chatWebhookUrl}
+                    onChange={(e) => setChatWebhookUrl(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-muted/40 border border-border text-xs font-mono text-foreground focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Obtained from Discord: <em>Edit Channel &rarr; Integrations &rarr; Webhooks &rarr; Copy Webhook URL</em>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border flex items-center justify-between">
+                <button
+                  onClick={() => testDiscordMutation.mutate('chat')}
+                  disabled={!chatWebhookUrl || testDiscordMutation.isPending}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                >
+                  <Send className="h-3.5 w-3.5" /> Send Test Chat
+                </button>
+                <span className="text-[10px] text-muted-foreground font-mono">1-way broadcast</span>
+              </div>
+            </div>
+
+            {/* Card 2: Server Console & Lifecycle Alerts */}
+            <div className="bg-card rounded-2xl border border-border p-5 space-y-4 flex flex-col justify-between">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.5)]" />
+                    <h3 className="font-bold text-sm text-foreground">Console & Lifecycle Alerts</h3>
+                  </div>
+                  <button
+                    onClick={() => setConsoleEnabled(!consoleEnabled)}
+                    className="flex items-center gap-1.5 text-xs font-medium"
+                  >
+                    {consoleEnabled ? (
+                      <ToggleRight className="h-6 w-6 text-indigo-400" />
+                    ) : (
+                      <ToggleLeft className="h-6 w-6 text-muted-foreground" />
+                    )}
+                    <span className={cn('text-[11px] font-mono', consoleEnabled ? 'text-indigo-400' : 'text-muted-foreground')}>
+                      {consoleEnabled ? 'Active' : 'Disabled'}
+                    </span>
+                  </button>
+                </div>
+
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Sends rich embeds for server lifecycle events (starting, ready, stopping, restarts), crash alerts, and executed admin RCON commands to your private console channel.
+                </p>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Discord Webhook URL
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="https://discord.com/api/webhooks/..."
+                    value={consoleWebhookUrl}
+                    onChange={(e) => setConsoleWebhookUrl(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-muted/40 border border-border text-xs font-mono text-foreground focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Recommended: Use a private channel visible only to Server Admins and Moderators.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border flex items-center justify-between">
+                <button
+                  onClick={() => testDiscordMutation.mutate('console')}
+                  disabled={!consoleWebhookUrl || testDiscordMutation.isPending}
+                  className="px-3 py-1.5 rounded-lg bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 text-xs font-bold border border-indigo-500/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                >
+                  <Send className="h-3.5 w-3.5" /> Send Test Alert
+                </button>
+                <span className="text-[10px] text-muted-foreground font-mono">Lifecycle & Admin</span>
+              </div>
+            </div>
           </div>
         </div>
       )}
