@@ -77,8 +77,24 @@ const NODES = {
 // Known Server definitions (mapped to actual Docker containers)
 const SERVERS_REGISTRY = [
   {
-    id: 'patreon-creative',
+    id: 'fabric-main',
     nodeId: 'mcs-01',
+    name: 'PETABLOCKS Modpack Server',
+    containerName: 'petablocks-modpack-main',
+    dataPath: '/home/user/data/servers/petablocks-modpack-main',
+    gamePort: 11691,
+    rconPort: 25575,
+    rconHostPort: 16901,
+    rconPassword: 'P3tabl0cksrc0n!!',
+    type: 'Fabric',
+    version: '1.20.1',
+    memory: '20G',
+    color: 'text-emerald-400',
+    border: 'border-emerald-500/30',
+  },
+  {
+    id: 'patreon-creative',
+    nodeId: 'mcs-legacy',
     name: 'PETABLOCKS Patreon Creative',
     containerName: 'petablocks-patreon-creative',
     dataPath: '/home/user/data/servers/patreon_create_server_a91d1a56-6130-4daa-88c9-3f7a1082dcb4',
@@ -94,7 +110,7 @@ const SERVERS_REGISTRY = [
   },
   {
     id: 'create-2',
-    nodeId: 'mcs-01',
+    nodeId: 'mcs-legacy',
     name: 'Just Create SMP 2',
     containerName: 'petablocks-create-2',
     dataPath: '/home/user/data/servers/petablocks_create_2_451a2727-49f0-4629-86fe-b22e93ef67e5',
