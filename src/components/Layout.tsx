@@ -197,8 +197,8 @@ export default function Layout() {
 
           <div className="text-[10px] text-muted-foreground/80 font-mono space-y-0.5">
             <div className="flex justify-between">
-              <span>MCS:</span>
-              <span>10.20.110.115</span>
+              <span>MCS1-3:</span>
+              <span>10.20.110.118-120</span>
             </div>
             <div className="flex justify-between">
               <span>FEA:</span>

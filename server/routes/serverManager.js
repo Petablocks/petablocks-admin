@@ -29,12 +29,39 @@ qFdV8R425Dklm/LPed1WAAAAFXBldGFibG9ja3MtbWNzLWFjY2Vzcw==
 const NODES = {
   'mcs-01': {
     id: 'mcs-01',
-    name: 'PETABLOCKS-MCS (Primary Game Node)',
+    name: 'PETABLOCKS-MCS1 (Game Node 1)',
+    host: process.env.MC_MCS1_HOST || '10.20.110.118',
+    port: parseInt(process.env.MC_MCS1_PORT || '22', 10),
+    user: 'root',
+    baseDataDir: '/home/user/data/servers',
+    description: 'Dedicated Ubuntu 24.04 Docker Node — Main Modpack Server',
+  },
+  'mcs-02': {
+    id: 'mcs-02',
+    name: 'PETABLOCKS-MCS2 (Game Node 2)',
+    host: process.env.MC_MCS2_HOST || '10.20.110.119',
+    port: parseInt(process.env.MC_MCS2_PORT || '22', 10),
+    user: 'root',
+    baseDataDir: '/home/user/data/servers',
+    description: 'Dedicated Ubuntu 24.04 Docker Node — Create 2 SMP',
+  },
+  'mcs-03': {
+    id: 'mcs-03',
+    name: 'PETABLOCKS-MCS3 (Game Node 3)',
+    host: process.env.MC_MCS3_HOST || '10.20.110.120',
+    port: parseInt(process.env.MC_MCS3_PORT || '22', 10),
+    user: 'root',
+    baseDataDir: '/home/user/data/servers',
+    description: 'Dedicated Ubuntu 24.04 Docker Node — Patreon Creative',
+  },
+  'mcs-legacy': {
+    id: 'mcs-legacy',
+    name: 'PETABLOCKS-MCS (Legacy Host)',
     host: process.env.MC_SSH_HOST || '10.20.110.115',
     port: parseInt(process.env.MC_SSH_PORT || '22', 10),
     user: process.env.MC_SSH_USER || 'root',
     baseDataDir: '/home/user/data/servers',
-    description: '12 Cores, 62 GB RAM — Hosts Patreon Creative and Create 2',
+    description: 'Current 12-Core 62GB Host (Active servers before migration)',
   },
   'fea-01': {
     id: 'fea-01',
@@ -43,7 +70,7 @@ const NODES = {
     port: 22,
     user: 'root',
     baseDataDir: '/opt/petablocks/servers',
-    description: 'Hosts Admin Panel, Web Services & Modpack Server',
+    description: 'Hosts Admin Panel & Public Web Services',
   },
 };
 
