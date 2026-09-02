@@ -147,16 +147,17 @@ router.get('/', async (_req, res) => {
         // Avoid duplicate if it's already in active inMemoryBackups
         const alreadyListed = allBackups.some(b => b.minio_key === item.Key);
         if (!alreadyListed) {
+          const isZeroByte = !item.Size || item.Size === 0;
           allBackups.push({
             id: item.Key, // Unique key as ID for S3-sourced backups
             server_id: serverId,
             server_name: srvConfig.name,
             world_name: srvConfig.worldName,
             backup_type: backupType,
-            size_bytes: item.Size,
+            size_bytes: item.Size || 0,
             minio_key: item.Key,
-            status: 'completed',
-            error_message: null,
+            status: isZeroByte ? 'failed' : 'completed',
+            error_message: isZeroByte ? 'Empty archive (0 bytes) - stream interrupted' : null,
             started_at: item.LastModified?.toISOString() || new Date().toISOString(),
             completed_at: item.LastModified?.toISOString() || null,
             created_by: 'system',
@@ -248,44 +249,7 @@ router.post('/trigger', async (req, res) => {
 
       console.log(`[BACKUP][${serverId}] Starting ${backupType} backup via SSH2 -> s3://${BACKUP_BUCKET}/${minioKey}`);
 
-      await new Promise((resolve, reject) => {
-        conn.on('ready', () => {
-          conn.exec(tarCmd, (err, stream) => {
-            if (err) {
-              conn.end();
-              return reject(err);
-            }
-
-            stream.pipe(passThrough);
-
-            stream.stderr.on('data', (data) => {
-              console.warn(`[BACKUP][${serverId}] remote stderr:`, data.toString().trim());
-            });
-
-            stream.on('close', (code) => {
-              conn.end();
-              if (code !== 0 && code !== null) {
-                console.warn(`[BACKUP][${serverId}] tar stream exited with code ${code}`);
-              }
-              resolve();
-            });
-          });
-        });
-
-        conn.on('error', (err) => {
-          reject(new Error(`SSH2 connection error to ${srvConfig.sshHost}: ${err.message}`));
-        });
-
-        conn.connect({
-          host: srvConfig.sshHost,
-          port: srvConfig.sshPort,
-          username: srvConfig.sshUser,
-          privateKey: privateKey,
-          readyTimeout: 15000,
-        });
-      });
-
-      // Stream upload to MinIO S3
+      // 1. Initialize S3 Upload concurrently so it starts draining passThrough immediately
       const upload = new Upload({
         client: s3,
         params: {
@@ -304,7 +268,53 @@ router.post('/trigger', async (req, res) => {
         partSize: 1024 * 1024 * 10, // 10MB chunks
       });
 
-      await upload.done();
+      // 2. Connect SSH2 and pipe remote tar stream directly into passThrough
+      const sshPromise = new Promise((resolve, reject) => {
+        conn.on('ready', () => {
+          conn.exec(tarCmd, (err, stream) => {
+            if (err) {
+              conn.end();
+              passThrough.destroy(err);
+              return reject(err);
+            }
+
+            stream.pipe(passThrough);
+
+            stream.stderr.on('data', (data) => {
+              console.warn(`[BACKUP][${serverId}] remote stderr:`, data.toString().trim());
+            });
+
+            stream.on('close', (code) => {
+              conn.end();
+              if (code !== 0 && code !== null) {
+                console.warn(`[BACKUP][${serverId}] tar stream exited with code ${code}`);
+              }
+              resolve();
+            });
+
+            stream.on('error', (streamErr) => {
+              passThrough.destroy(streamErr);
+              reject(streamErr);
+            });
+          });
+        });
+
+        conn.on('error', (err) => {
+          passThrough.destroy(err);
+          reject(new Error(`SSH2 connection error to ${srvConfig.sshHost}: ${err.message}`));
+        });
+
+        conn.connect({
+          host: srvConfig.sshHost,
+          port: srvConfig.sshPort,
+          username: srvConfig.sshUser,
+          privateKey: privateKey,
+          readyTimeout: 15000,
+        });
+      });
+
+      // 3. Await both upload completion and SSH tar stream in parallel
+      await Promise.all([upload.done(), sshPromise]);
 
       backupRecord.status = 'completed';
       backupRecord.completed_at = new Date().toISOString();

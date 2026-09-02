@@ -376,11 +376,11 @@ export default function BackupsPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 justify-end">
-                          {backup.status === 'completed' && (
+                          {backup.status === 'completed' && backup.size_bytes > 0 && (
                             <button
                               onClick={() => handleDownload(backup.minio_key, backup.minio_key.split('/').pop()!)}
                               className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors"
-                              title="Download (24h presigned link)"
+                              title="Download archive (.tar.gz)"
                             >
                               <Download className="h-3.5 w-3.5" />
                             </button>
