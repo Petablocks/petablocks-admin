@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Discord Webhook Engine for PETABLOCKS Server Fleet
  *
  * Manages dual Discord webhooks per Minecraft server:
@@ -64,6 +64,14 @@ function getServerWebhookConfig(serverId) {
         crashes: true,
         rconCommands: true,
         tpsWarnings: true,
+      },
+      trainWebhookUrl: '',
+      trainEnabled: false,
+      trainEvents: {
+        assembly: true,
+        derailments: true,
+        crashes: true,
+        stations: true,
       },
     }
   );
@@ -195,10 +203,59 @@ async function sendChatBroadcast(serverId, { username, message, avatarUrl, event
   }
 }
 
+/**
+ * Send a Create Train / Railway event to the Train Dispatch Channel
+ */
+async function sendTrainEvent(serverId, { title, trainName, eventType = 'derail', description, location, player }) {
+  const cfg = getServerWebhookConfig(serverId);
+  if (!cfg.trainEnabled || !cfg.trainWebhookUrl) return;
+
+  const colorMap = {
+    assembly: 0x10b981,   // Green
+    disassembly: 0x6b7280,// Gray
+    derail: 0xf59e0b,     // Amber
+    crash: 0xef4444,      // Red
+    station: 0x3b82f6,    // Blue
+  };
+
+  const embed = {
+    title: title || `🚆 Train Event: ${trainName || 'Unknown Train'}`,
+    description: description || `Event triggered on railway network.`,
+    color: colorMap[eventType] || 0x8b5cf6,
+    fields: [
+      { name: 'Train Name', value: `\`${trainName || 'Standard Train'}\``, inline: true },
+      { name: 'Event Type', value: eventType.toUpperCase(), inline: true },
+    ],
+    timestamp: new Date().toISOString(),
+    footer: {
+      text: `Create Railway Dispatch • ${serverId}`,
+      icon_url: 'https://admin.petablocks.com/favicon.ico',
+    },
+  };
+
+  if (location) {
+    embed.fields.push({ name: 'Coordinates', value: `\`${location}\``, inline: true });
+  }
+  if (player) {
+    embed.fields.push({ name: 'Conductor / Engineer', value: player, inline: true });
+  }
+
+  try {
+    await postToDiscord(cfg.trainWebhookUrl, {
+      username: 'Railway Dispatcher',
+      avatar_url: 'https://i.ibb.co/6RQ5VVhm/Gemini-Generated-Image-kuabj3kuabj3kuab-removebg-preview.png',
+      embeds: [embed],
+    });
+  } catch (err) {
+    console.error(`[DISCORD-WEBHOOK] Failed to send train event for ${serverId}:`, err.message);
+  }
+}
+
 module.exports = {
   getServerWebhookConfig,
   setServerWebhookConfig,
   postToDiscord,
   sendConsoleAlert,
   sendChatBroadcast,
+  sendTrainEvent,
 };

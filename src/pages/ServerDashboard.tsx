@@ -239,6 +239,8 @@ export default function ServerDashboardPage() {
   const [chatEnabled, setChatEnabled] = useState(false)
   const [consoleWebhookUrl, setConsoleWebhookUrl] = useState('')
   const [consoleEnabled, setConsoleEnabled] = useState(false)
+  const [trainWebhookUrl, setTrainWebhookUrl] = useState('')
+  const [trainEnabled, setTrainEnabled] = useState(false)
   const [discordSaveSuccess, setDiscordSaveSuccess] = useState(false)
   const [testStatus, setTestStatus] = useState<{ channel?: string; success?: boolean; message?: string } | null>(null)
 
@@ -248,6 +250,8 @@ export default function ServerDashboardPage() {
       setChatEnabled(discordData.config.chatEnabled || false)
       setConsoleWebhookUrl(discordData.config.consoleWebhookUrl || '')
       setConsoleEnabled(discordData.config.consoleEnabled || false)
+      setTrainWebhookUrl(discordData.config.trainWebhookUrl || '')
+      setTrainEnabled(discordData.config.trainEnabled || false)
     }
   }, [discordData])
 
@@ -262,6 +266,8 @@ export default function ServerDashboardPage() {
           chatEnabled,
           consoleWebhookUrl,
           consoleEnabled,
+          trainWebhookUrl,
+          trainEnabled,
         }),
       })
       return res.json()
@@ -274,7 +280,7 @@ export default function ServerDashboardPage() {
   })
 
   const testDiscordMutation = useMutation({
-    mutationFn: async (channelType: 'chat' | 'console') => {
+    mutationFn: async (channelType: 'chat' | 'console' | 'train') => {
       setTestStatus(null)
       const res = await fetch(`/api/server-manager/servers/${serverId}/discord/test`, {
         method: 'POST',
@@ -1000,6 +1006,62 @@ export default function ServerDashboardPage() {
                   <Send className="h-3.5 w-3.5" /> Send Test Alert
                 </button>
                 <span className="text-[10px] text-muted-foreground font-mono">Lifecycle & Admin</span>
+              </div>
+            </div>
+
+            {/* Card 3: Create Train & Railway Dispatch */}
+            <div className="bg-card rounded-2xl border border-border p-5 space-y-4 flex flex-col justify-between md:col-span-2">
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.5)]" />
+                    <h3 className="font-bold text-sm text-foreground">🚂 Create Train & Railway Dispatch</h3>
+                  </div>
+                  <button
+                    onClick={() => setTrainEnabled(!trainEnabled)}
+                    className="flex items-center gap-1.5 text-xs font-medium"
+                  >
+                    {trainEnabled ? (
+                      <ToggleRight className="h-6 w-6 text-purple-400" />
+                    ) : (
+                      <ToggleLeft className="h-6 w-6 text-muted-foreground" />
+                    )}
+                    <span className={cn('text-[11px] font-mono', trainEnabled ? 'text-purple-400' : 'text-muted-foreground')}>
+                      {trainEnabled ? 'Active' : 'Disabled'}
+                    </span>
+                  </button>
+                </div>
+
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  Pipes Create mod railway telemetry: train assemblies, station arrivals & schedule stops, signal deadlocks, collisions, and derailment crash alerts into your community train dispatch channel.
+                </p>
+
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                    Discord Webhook URL
+                  </label>
+                  <input
+                    type="password"
+                    placeholder="https://discord.com/api/webhooks/..."
+                    value={trainWebhookUrl}
+                    onChange={(e) => setTrainWebhookUrl(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-muted/40 border border-border text-xs font-mono text-foreground focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Recommended: Connect to a dedicated <code>#train-dispatch</code> or <code>#railway-log</code> channel.
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-border flex items-center justify-between">
+                <button
+                  onClick={() => testDiscordMutation.mutate('train')}
+                  disabled={!trainWebhookUrl || testDiscordMutation.isPending}
+                  className="px-3 py-1.5 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 text-purple-400 text-xs font-bold border border-purple-500/30 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+                >
+                  <Send className="h-3.5 w-3.5" /> Send Test Train Dispatch
+                </button>
+                <span className="text-[10px] text-muted-foreground font-mono">Create: Steam &apos;n Rails</span>
               </div>
             </div>
           </div>

@@ -931,8 +931,34 @@ router.post('/servers/:id/discord/test', async (req, res) => {
     } catch (err) {
       return res.status(500).json({ error: `Discord delivery failed: ${err.message}` });
     }
+  } else if (channelType === 'train') {
+    if (!cfg.trainWebhookUrl) {
+      return res.status(400).json({ error: 'Create Train Webhook URL is not configured.' });
+    }
+    try {
+      await discordService.postToDiscord(cfg.trainWebhookUrl, {
+        username: 'Railway Dispatcher',
+        avatar_url: 'https://i.ibb.co/6RQ5VVhm/Gemini-Generated-Image-kuabj3kuabj3kuab-removebg-preview.png',
+        embeds: [
+          {
+            title: '🚆 Railway Dispatch Connected',
+            description: `This channel is now connected to **${srv.name}** for Create train events, assembly alerts, and derailments.`,
+            color: 0x8b5cf6,
+            fields: [
+              { name: 'Server', value: srv.name, inline: true },
+              { name: 'Dispatcher Status', value: '🟢 Monitoring Tracks', inline: true },
+            ],
+            timestamp: new Date().toISOString(),
+            footer: { text: `Create Railway Dispatch • ${srv.id}` },
+          },
+        ],
+      });
+      return res.json({ success: true, message: 'Test dispatch delivered to Train channel!' });
+    } catch (err) {
+      return res.status(500).json({ error: `Discord delivery failed: ${err.message}` });
+    }
   } else {
-    return res.status(400).json({ error: "Invalid channelType. Expected 'chat' or 'console'" });
+    return res.status(400).json({ error: "Invalid channelType. Expected 'chat', 'console', or 'train'" });
   }
 });
 

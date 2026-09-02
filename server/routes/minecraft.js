@@ -256,6 +256,16 @@ function initWebSocket(httpServer) {
             message: `☠️ ${msg.payload.deathMessage || `${msg.payload.name} died`}`,
             eventType: 'death',
           });
+        } else if (msg.type === 'EVENT_TRAIN' && msg.payload) {
+          addServerLog(serverId, 'INFO', `Train Event: ${msg.payload.trainName || 'Train'} (${msg.payload.eventType})`, 'Railways');
+          discordService.sendTrainEvent(serverId, {
+            title: msg.payload.title,
+            trainName: msg.payload.trainName,
+            eventType: msg.payload.eventType,
+            description: msg.payload.description,
+            location: msg.payload.location,
+            player: msg.payload.player,
+          });
         } else if (msg.type === 'COMMAND_RESPONSE' && msg.payload) {
           const reqId = msg.payload.requestId;
           if (pendingCommandCallbacks.has(reqId)) {
