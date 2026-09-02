@@ -204,23 +204,14 @@ export default function BackupsPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['backups'] }),
   })
 
-  async function handleDownload(minioKey: string, filename: string) {
-    try {
-      const res = await fetch(`/api/backups/${encodeURIComponent(minioKey)}/download-url`).then(r => r.json())
-      if (res.url) {
-        const a = document.createElement('a')
-        a.href = res.url
-        a.download = filename
-        a.target = '_blank'
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-      } else {
-        alert(res.error || 'Failed to generate download URL')
-      }
-    } catch (e: any) {
-      alert(`Download failed: ${e.message}`)
-    }
+  function handleDownload(minioKey: string, filename: string) {
+    const downloadUrl = `/api/backups/${encodeURIComponent(minioKey)}/download`
+    const a = document.createElement('a')
+    a.href = downloadUrl
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
   }
 
   const totalSizeBytes = backups

@@ -37,11 +37,11 @@ qFdV8R425Dklm/LPed1WAAAAFXBldGFibG9ja3MtbWNzLWFjY2Vzcw==
 
 // Directories excluded from full-server backups (re-downloadable or non-essential)
 const FULL_BACKUP_EXCLUDES = [
-  '--exclude=./libraries',
-  '--exclude=./logs',
-  '--exclude=./crash-reports',
-  '--exclude=./debug',
-  '--exclude=./bluemap',
+  '--exclude=libraries',
+  '--exclude=logs',
+  '--exclude=crash-reports',
+  '--exclude=debug',
+  '--exclude=bluemap',
 ];
 
 // ── S3 / MinIO Client ──────────────────────────────────────────────
@@ -349,11 +349,11 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// ── GET /api/backups/:id/download-url ─────────────────────────────
-router.get('/:id/download-url', async (req, res) => {
+// ── GET /api/backups/:id/download ─────────────────────────────────
+// Streams the backup archive directly from MinIO to client browser
+router.get('/:id/download', async (req, res) => {
   const id = decodeURIComponent(req.params.id);
 
-  // Find minioKey either from in-memory record or directly from param
   let minioKey = id;
   if (inMemoryBackups.has(id)) {
     const record = inMemoryBackups.get(id);
@@ -366,11 +366,42 @@ router.get('/:id/download-url', async (req, res) => {
   try {
     const s3 = getS3Client();
     const command = new GetObjectCommand({ Bucket: BACKUP_BUCKET, Key: minioKey });
-    const url = await getSignedUrl(s3, command, { expiresIn: 86400 });
-    res.json({ url, expiresIn: 86400, filename: minioKey.split('/').pop() });
+    const s3Response = await s3.send(command);
+
+    const filename = minioKey.split('/').pop() || 'backup.tar.gz';
+
+    res.setHeader('Content-Type', s3Response.ContentType || 'application/gzip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    if (s3Response.ContentLength) {
+      res.setHeader('Content-Length', s3Response.ContentLength);
+    }
+
+    s3Response.Body.pipe(res);
   } catch (err) {
-    res.status(500).json({ error: 'Could not generate download URL', details: err.message });
+    console.error('[BACKUPS] Direct stream download error:', err.message);
+    res.status(500).json({ error: 'Failed to stream backup file', details: err.message });
   }
+});
+
+// ── GET /api/backups/:id/download-url ─────────────────────────────
+router.get('/:id/download-url', async (req, res) => {
+  const id = decodeURIComponent(req.params.id);
+
+  let minioKey = id;
+  if (inMemoryBackups.has(id)) {
+    const record = inMemoryBackups.get(id);
+    if (record.status !== 'completed') {
+      return res.status(400).json({ error: 'Backup is still running or has failed' });
+    }
+    minioKey = record.minio_key;
+  }
+
+  const filename = minioKey.split('/').pop() || 'backup.tar.gz';
+  res.json({
+    url: `/api/backups/${encodeURIComponent(minioKey)}/download`,
+    expiresIn: 86400,
+    filename,
+  });
 });
 
 // ── DELETE /api/backups/:id ────────────────────────────────────────
