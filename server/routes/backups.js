@@ -1,30 +1,39 @@
 /**
  * PETABLOCKS Admin — World Backup Route
  *
- * Handles on-demand world backups via SSH → tar → MinIO S3 pipeline.
- * Per-server prefix folders inside a single `world-backups` bucket.
+ * Supports two backup types:
+ *   - 'world'  — archives only world dimension folders (~GB, fast)
+ *   - 'full'   — archives entire server data dir: mods, configs, worlds, KubeJS,
+ *                ops/whitelist, etc. Excludes libraries/ logs/ crash-reports/
+ *                (re-downloadable or non-essential). Ideal for server migration.
  *
- * Environment vars:
- *   MINIO_ENDPOINT       e.g. http://minio:9000
- *   MINIO_ACCESS_KEY
- *   MINIO_SECRET_KEY
- *   MC_SSH_HOST          e.g. 10.20.110.127
- *   MC_SSH_USER          e.g. mdrcloud
- *   MC_SSH_KEY_PATH      e.g. /root/.ssh/id_rsa
- *   MC_WORLD_BASE_PATH   e.g. /opt/petablocks/servers
- *   DB_HOST / DB_USER / DB_PASSWORD / DB_NAME (MariaDB for backup records)
+ * SSH pipeline: admin host → SSH → tar stdout → MinIO S3 multipart upload.
+ * Paths verified live 2026-09-02 against PETABLOCKS-MCS (10.20.110.115).
+ *
+ * MinIO layout:
+ *   world-backups/{serverId}/world/{timestamp}.tar.gz
+ *   world-backups/{serverId}/full/{timestamp}.tar.gz
  */
 
 const express = require('express');
 const router = express.Router();
-const { exec, spawn } = require('child_process');
-const { S3Client, ListObjectsV2Command, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
+const { spawn } = require('child_process');
+const { S3Client, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { Upload } = require('@aws-sdk/lib-storage');
 const mysql = require('mysql2/promise');
 const { PassThrough } = require('stream');
 
 const BACKUP_BUCKET = 'world-backups';
+
+// Directories excluded from full-server backups (re-downloadable or non-essential)
+const FULL_BACKUP_EXCLUDES = [
+  '--exclude=./libraries',
+  '--exclude=./logs',
+  '--exclude=./crash-reports',
+  '--exclude=./debug',
+  '--exclude=./bluemap',       // map tiles regenerate on startup
+];
 
 // ── S3 / MinIO Client ──────────────────────────────────────────────
 function getS3Client() {
@@ -57,19 +66,26 @@ async function ensureTable() {
     db = await getDb();
     await db.execute(`
       CREATE TABLE IF NOT EXISTS world_backups (
-        id           INT AUTO_INCREMENT PRIMARY KEY,
-        server_id    VARCHAR(64)  NOT NULL,
-        server_name  VARCHAR(128) NOT NULL,
-        world_name   VARCHAR(128) NOT NULL DEFAULT 'world',
-        size_bytes   BIGINT       DEFAULT 0,
-        minio_key    VARCHAR(512) NOT NULL,
-        status       ENUM('running','completed','failed') DEFAULT 'running',
+        id            INT AUTO_INCREMENT PRIMARY KEY,
+        server_id     VARCHAR(64)  NOT NULL,
+        server_name   VARCHAR(128) NOT NULL,
+        world_name    VARCHAR(128) NOT NULL DEFAULT 'world',
+        backup_type   ENUM('world','full') NOT NULL DEFAULT 'world',
+        size_bytes    BIGINT       DEFAULT 0,
+        minio_key     VARCHAR(512) NOT NULL,
+        status        ENUM('running','completed','failed') DEFAULT 'running',
         error_message TEXT,
-        started_at   DATETIME     NOT NULL,
-        completed_at DATETIME,
-        created_by   VARCHAR(64)  DEFAULT 'admin'
+        started_at    DATETIME     NOT NULL,
+        completed_at  DATETIME,
+        created_by    VARCHAR(64)  DEFAULT 'admin'
       )
     `);
+    // Add backup_type column if this is an existing table that predates this version
+    await db.execute(`
+      ALTER TABLE world_backups
+        ADD COLUMN IF NOT EXISTS backup_type ENUM('world','full') NOT NULL DEFAULT 'world'
+        AFTER world_name
+    `).catch(() => {}); // Ignore if column already exists
   } catch (e) {
     console.warn('[BACKUPS] Could not ensure table:', e.message);
   } finally {
@@ -78,27 +94,53 @@ async function ensureTable() {
 }
 ensureTable();
 
-// Server configuration for SSH-based backups
+// ── Server SSH configuration ────────────────────────────────────────
+// Paths verified live on 2026-09-02 via SSH to PETABLOCKS-MCS (10.20.110.115).
 const SERVER_SSH_CONFIG = {
-  'fabric-main': {
-    name: 'PETABLOCKS Official Modpack',
-    worldPath: '/opt/petablocks/servers/fabric-main/world',
-    worldName: 'world',
-  },
   'patreon-creative': {
     name: 'PETABLOCKS Patreon Creative',
-    worldPath: '/opt/petablocks/servers/patreon-creative/world',
-    worldName: 'world',
+    sshHost: process.env.MC_SSH_HOST || '10.20.110.115',
+    sshUser: process.env.MC_SSH_USER || 'root',
+    sshKey: process.env.MC_SSH_KEY_PATH || '/root/.ssh/id_rsa',
+    serverDataPath: '/home/user/data/servers/patreon_create_server_a91d1a56-6130-4daa-88c9-3f7a1082dcb4',
+    worldDirs: ['world', 'world_Creative'],  // world/ = nether+end, world_Creative = overworld
+    worldName: 'world_Creative',
   },
   'create-2': {
     name: 'Just Create SMP 2',
-    worldPath: '/opt/petablocks/servers/create-2/world',
+    sshHost: process.env.MC_SSH_HOST || '10.20.110.115',
+    sshUser: process.env.MC_SSH_USER || 'root',
+    sshKey: process.env.MC_SSH_KEY_PATH || '/root/.ssh/id_rsa',
+    serverDataPath: '/home/user/data/servers/petablocks_create_2_451a2727-49f0-4629-86fe-b22e93ef67e5',
+    worldDirs: ['world', 'world_PBC2'],      // world/ = nether+end+void, world_PBC2 = overworld
+    worldName: 'world_PBC2',
+  },
+  // fabric-main is on a separate host — paths TBC once SSH access is granted
+  'fabric-main': {
+    name: 'PETABLOCKS Official Modpack',
+    sshHost: process.env.MC_FABRIC_SSH_HOST || '10.20.110.127',
+    sshUser: process.env.MC_SSH_USER || 'root',
+    sshKey: process.env.MC_SSH_KEY_PATH || '/root/.ssh/id_rsa',
+    serverDataPath: process.env.MC_FABRIC_WORLD_PATH || '/opt/petablocks/servers/fabric-main',
+    worldDirs: ['world'],
     worldName: 'world',
   },
 };
 
+// ── Build the remote tar command ────────────────────────────────────
+function buildTarCommand(srvConfig, backupType) {
+  if (backupType === 'full') {
+    // Tar the entire server data directory, excluding large non-essential dirs
+    const excludes = FULL_BACKUP_EXCLUDES.join(' ');
+    return `tar -czf - ${excludes} -C "$(dirname ${srvConfig.serverDataPath})" "$(basename ${srvConfig.serverDataPath})" 2>/dev/null`;
+  } else {
+    // World-only: tar just the dimension folders
+    const dirs = srvConfig.worldDirs.join(' ');
+    return `tar -czf - -C "${srvConfig.serverDataPath}" ${dirs} 2>/dev/null`;
+  }
+}
+
 // ── GET /api/backups ───────────────────────────────────────────────
-// List all backup records from MariaDB
 router.get('/', async (req, res) => {
   let db;
   try {
@@ -115,37 +157,35 @@ router.get('/', async (req, res) => {
 });
 
 // ── POST /api/backups/trigger ──────────────────────────────────────
-// Trigger an on-demand backup for a given server
 router.post('/trigger', async (req, res) => {
-  const { serverId, createdBy = 'admin' } = req.body;
+  const { serverId, backupType = 'world', createdBy = 'admin' } = req.body;
 
-  if (!serverId) {
-    return res.status(400).json({ error: 'serverId is required' });
+  if (!serverId) return res.status(400).json({ error: 'serverId is required' });
+  if (!['world', 'full'].includes(backupType)) {
+    return res.status(400).json({ error: "backupType must be 'world' or 'full'" });
   }
 
   const srvConfig = SERVER_SSH_CONFIG[serverId];
   if (!srvConfig) {
-    return res.status(400).json({ error: `Unknown serverId: ${serverId}. Known: ${Object.keys(SERVER_SSH_CONFIG).join(', ')}` });
+    return res.status(400).json({
+      error: `Unknown serverId: ${serverId}. Known: ${Object.keys(SERVER_SSH_CONFIG).join(', ')}`,
+    });
   }
 
-  const sshHost = process.env.MC_SSH_HOST || '10.20.110.127';
-  const sshUser = process.env.MC_SSH_USER || 'mdrcloud';
-  const sshKey = process.env.MC_SSH_KEY_PATH || '/root/.ssh/id_rsa';
-
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const archiveName = `${serverId}_${timestamp}.tar.gz`;
-  const minioKey = `${serverId}/${archiveName}`;
+  const archiveName = `${serverId}_${backupType}_${timestamp}.tar.gz`;
+  // Organised by server → type → archive
+  const minioKey = `${serverId}/${backupType}/${archiveName}`;
 
   let db;
   let backupId;
 
-  // Insert "running" record immediately so UI can show progress
   try {
     db = await getDb();
     const [result] = await db.execute(
-      `INSERT INTO world_backups (server_id, server_name, world_name, minio_key, status, started_at, created_by)
-       VALUES (?, ?, ?, ?, 'running', NOW(), ?)`,
-      [serverId, srvConfig.name, srvConfig.worldName, minioKey, createdBy]
+      `INSERT INTO world_backups (server_id, server_name, world_name, backup_type, minio_key, status, started_at, created_by)
+       VALUES (?, ?, ?, ?, ?, 'running', NOW(), ?)`,
+      [serverId, srvConfig.name, srvConfig.worldName, backupType, minioKey, createdBy]
     );
     backupId = result.insertId;
     await db.end();
@@ -154,29 +194,27 @@ router.post('/trigger', async (req, res) => {
     return res.status(500).json({ error: 'Failed to create backup record', details: err.message });
   }
 
-  // Respond immediately — backup runs in background
-  res.json({ status: 'started', backupId, serverId, minioKey, archiveName });
+  // Respond immediately — backup streams in background
+  res.json({ status: 'started', backupId, serverId, backupType, minioKey, archiveName });
 
-  // ── Run backup pipeline in background ─────────────────────────────
+  // ── Background streaming pipeline ────────────────────────────────
   ;(async () => {
     let uploadedBytes = 0;
     let finalDb;
     try {
       const s3 = getS3Client();
-
-      // SSH → tar → stream → MinIO upload
       const passThrough = new PassThrough();
 
+      const tarCmd = buildTarCommand(srvConfig, backupType);
       const sshArgs = [
-        '-i', sshKey,
+        '-i', srvConfig.sshKey,
         '-o', 'StrictHostKeyChecking=no',
         '-o', 'ConnectTimeout=15',
-        `${sshUser}@${sshHost}`,
-        // RCON save-all is handled via the admin RCON endpoint before this
-        // Then tar the world directory to stdout
-        `tar -czf - -C "$(dirname ${srvConfig.worldPath})" "$(basename ${srvConfig.worldPath})" 2>/dev/null`,
+        `${srvConfig.sshUser}@${srvConfig.sshHost}`,
+        tarCmd,
       ];
 
+      console.log(`[BACKUP][${serverId}] Starting ${backupType} backup → ${minioKey}`);
       const sshProc = spawn('ssh', sshArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
 
       sshProc.stdout.pipe(passThrough);
@@ -184,7 +222,6 @@ router.post('/trigger', async (req, res) => {
         console.warn(`[BACKUP][${serverId}] SSH stderr:`, chunk.toString().trim());
       });
 
-      // Count bytes as they stream
       passThrough.on('data', (chunk) => { uploadedBytes += chunk.length; });
 
       const upload = new Upload({
@@ -197,6 +234,7 @@ router.post('/trigger', async (req, res) => {
           Metadata: {
             'server-id': serverId,
             'server-name': srvConfig.name,
+            'backup-type': backupType,
             'world-name': srvConfig.worldName,
             'backup-timestamp': timestamp,
           },
@@ -207,7 +245,6 @@ router.post('/trigger', async (req, res) => {
 
       await upload.done();
 
-      // Wait for SSH process to exit cleanly
       await new Promise((resolve, reject) => {
         sshProc.on('close', (code) => {
           if (code !== 0) reject(new Error(`SSH process exited with code ${code}`));
@@ -215,7 +252,7 @@ router.post('/trigger', async (req, res) => {
         });
       });
 
-      console.log(`[BACKUP][${serverId}] Completed → s3://${BACKUP_BUCKET}/${minioKey} (${(uploadedBytes / 1024 / 1024).toFixed(2)} MB)`);
+      console.log(`[BACKUP][${serverId}] ✓ ${backupType} backup complete → s3://${BACKUP_BUCKET}/${minioKey} (${(uploadedBytes / 1024 / 1024).toFixed(1)} MB)`);
 
       finalDb = await getDb();
       await finalDb.execute(
@@ -240,7 +277,6 @@ router.post('/trigger', async (req, res) => {
 });
 
 // ── GET /api/backups/:id ───────────────────────────────────────────
-// Get a single backup record by DB ID (for polling progress)
 router.get('/:id', async (req, res) => {
   let db;
   try {
@@ -256,7 +292,6 @@ router.get('/:id', async (req, res) => {
 });
 
 // ── GET /api/backups/:id/download-url ─────────────────────────────
-// Generate a 24-hour presigned MinIO download URL
 router.get('/:id/download-url', async (req, res) => {
   let db;
   try {
@@ -271,7 +306,7 @@ router.get('/:id/download-url', async (req, res) => {
 
     const s3 = getS3Client();
     const command = new GetObjectCommand({ Bucket: BACKUP_BUCKET, Key: backup.minio_key });
-    const url = await getSignedUrl(s3, command, { expiresIn: 86400 }); // 24 hours
+    const url = await getSignedUrl(s3, command, { expiresIn: 86400 });
 
     res.json({ url, expiresIn: 86400, filename: backup.minio_key.split('/').pop() });
   } catch (err) {
@@ -282,7 +317,6 @@ router.get('/:id/download-url', async (req, res) => {
 });
 
 // ── DELETE /api/backups/:id ────────────────────────────────────────
-// Delete a backup from MinIO and remove the DB record
 router.delete('/:id', async (req, res) => {
   let db;
   try {
@@ -293,11 +327,10 @@ router.delete('/:id', async (req, res) => {
     const backup = rows[0];
     const s3 = getS3Client();
 
-    // Delete from MinIO (best effort — don't fail if object missing)
     try {
       await s3.send(new DeleteObjectCommand({ Bucket: BACKUP_BUCKET, Key: backup.minio_key }));
     } catch (s3Err) {
-      console.warn('[BACKUP] MinIO delete failed (object may already be gone):', s3Err.message);
+      console.warn('[BACKUP] MinIO delete (object may already be gone):', s3Err.message);
     }
 
     await db.execute('DELETE FROM world_backups WHERE id = ?', [req.params.id]);
