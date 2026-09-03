@@ -20,16 +20,54 @@ if (!fs.existsSync(DATA_DIR)) {
   } catch (e) {}
 }
 
+// Default production webhook configurations
+const DEFAULT_PRODUCTION_CONFIGS = {
+  'patreon-creative': {
+    chatWebhookUrl: 'https://discord.com/api/webhooks/1544838645956223030/0AGAVWZ4IjEeZibIHf8F1SUxRgMG4vFCD5K9OYVEB5CVBQ28GLEd6FOGmFoFfBn7a7BB',
+    chatEnabled: true,
+    chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
+    consoleWebhookUrl: 'https://discord.com/api/webhooks/1544838013568290837/JFoLXmxE-UmCazaaABC0faPeyTw9d7QtAKHJiWKg41g1DZasByc7EDvAY6bIj526lvMl',
+    consoleEnabled: true,
+    consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
+    trainWebhookUrl: 'https://discord.com/api/webhooks/1544839092338958407/lIwKGD-RdN2ELm7NZFc4K3SSsafxD6wHh6cv6gLh22n1QmS3yxK1LtXl_nvRFPBWsnPT',
+    trainEnabled: true,
+    trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
+  },
+  'create-2': {
+    chatWebhookUrl: '',
+    chatEnabled: false,
+    chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
+    consoleWebhookUrl: 'https://discord.com/api/webhooks/1544837178029244539/IZIb70pWUHS_-cHKLucoofToYTkhpzhiRnEULCtrv2gSe7zLPXbJsznlaEX1FJOUd0By',
+    consoleEnabled: true,
+    consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
+    trainWebhookUrl: 'https://discord.com/api/webhooks/1544836484404744264/FSnTgDAm-YBys-Bv4-9qDrlA7j8GuaaZGPuuV6OCy3t6YGThHZaAE4GP6C_TqyKRWpyB',
+    trainEnabled: true,
+    trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
+  },
+  'fabric-main': {
+    chatWebhookUrl: '',
+    chatEnabled: false,
+    chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
+    consoleWebhookUrl: 'https://discord.com/api/webhooks/1544840146451562586/-hui75hNw45j5tVlg5K5kUvR175S9PdC-QHi1I5il4kgxYhBMOe3Ly9gcRNNdpuIZgWN',
+    consoleEnabled: true,
+    consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
+    trainWebhookUrl: '',
+    trainEnabled: false,
+    trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
+  },
+};
+
 // Load all webhook configs
 function loadConfigs() {
   try {
     if (fs.existsSync(CONFIG_FILE)) {
-      return JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      const loaded = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8'));
+      return { ...DEFAULT_PRODUCTION_CONFIGS, ...loaded };
     }
   } catch (e) {
-    console.warn('[DISCORD-WEBHOOK] Could not load config file, initializing empty:', e.message);
+    console.warn('[DISCORD-WEBHOOK] Could not load config file, using production defaults:', e.message);
   }
-  return {};
+  return { ...DEFAULT_PRODUCTION_CONFIGS };
 }
 
 // Save webhook configs
