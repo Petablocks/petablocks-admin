@@ -44,10 +44,17 @@ function saveConfigs(configs) {
   }
 }
 
-// Get config for a specific server
+// Get config for a specific server (with alias support)
 function getServerWebhookConfig(serverId) {
   const all = loadConfigs();
+  const aliasMap = {
+    'create2-smp': 'create-2',
+    'create-patreon': 'patreon-creative',
+    'modpack-fabric': 'fabric-main',
+  };
+  const resolvedId = aliasMap[serverId] || serverId;
   return (
+    all[resolvedId] ||
     all[serverId] || {
       chatWebhookUrl: '',
       chatEnabled: false,

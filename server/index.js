@@ -10,6 +10,7 @@ const filesRouter = require('./routes/files');
 const backupsRouter = require('./routes/backups');
 const serverManagerRouter = require('./routes/serverManager');
 const { router: minecraftRouter, initWebSocket } = require('./routes/minecraft');
+const { initLogWatcher } = require('./services/logWatcherService');
 
 const app = express();
 const server = http.createServer(app);
@@ -20,6 +21,9 @@ app.use(express.json());
 
 // Initialize WebSocket Bridge on the shared HTTP server
 initWebSocket(server);
+
+// Initialize Fleet Container Log Streamer for instant Discord chat & events
+initLogWatcher();
 
 // API routes
 app.use('/api/containers', containersRouter);
