@@ -91,6 +91,8 @@ router.post('/', async (req, res) => {
       estimatedDurationMin,
       notifyDiscord,
       notifyIngame,
+      autoExecute,
+      pipelineConfig,
       createdBy,
     });
 
@@ -98,6 +100,31 @@ router.post('/', async (req, res) => {
   } catch (err) {
     console.error('[API-MAINTENANCE] Create error:', err.message);
     res.status(500).json({ error: 'Failed to create maintenance window', message: err.message });
+  }
+});
+
+// POST /api/maintenance/:id/trigger-pipeline - Trigger autonomous pipeline execution immediately
+router.post('/:id/trigger-pipeline', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const maintenanceRunner = require('../services/maintenanceRunner');
+    const win = await maintenanceService.getMaintenanceById(id);
+    if (!win) {
+      return res.status(404).json({ error: 'Maintenance window not found.' });
+    }
+
+    if (win.status === 'scheduled') {
+      await maintenanceService.updateMaintenance(id, { status: 'in_progress', pipelineState: 'starting' });
+    }
+
+    maintenanceRunner.triggerPipeline(Number(id)).catch((err) => {
+      console.error(`[API-MAINTENANCE] Error triggering pipeline for #${id}:`, err);
+    });
+
+    res.json({ success: true, message: `Automated pipeline triggered for #${id}` });
+  } catch (err) {
+    console.error('[API-MAINTENANCE] Trigger pipeline error:', err.message);
+    res.status(500).json({ error: 'Failed to trigger maintenance pipeline', message: err.message });
   }
 });
 

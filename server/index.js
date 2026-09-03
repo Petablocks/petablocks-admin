@@ -78,5 +78,11 @@ app.get('*', (_req, res) => {
 
 server.listen(PORT, () => {
   console.log(`PETABLOCKS Admin Panel & Telemetry Bridge running on port ${PORT}`);
+  try {
+    const maintenanceRunner = require('./services/maintenanceRunner');
+    maintenanceRunner.start();
+  } catch (err) {
+    console.error('[MAINTENANCE-RUNNER] Failed to initialize runner:', err.message);
+  }
 });
 

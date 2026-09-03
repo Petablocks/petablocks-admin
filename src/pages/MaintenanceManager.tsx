@@ -13,6 +13,8 @@ import {
   Trash2,
   Play,
   Check,
+  Bot,
+  Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -27,6 +29,17 @@ interface MaintenanceWindow {
   end_time: number | null
   notify_discord: boolean
   notify_ingame: boolean
+  auto_execute?: boolean
+  pipeline_config?: {
+    saveAll?: boolean
+    restartContainers?: boolean
+    waitForHealth?: boolean
+    autoComplete?: boolean
+    healthTimeoutSec?: number
+  } | null
+  last_warning_min?: number | null
+  pipeline_state?: string
+  pipeline_logs?: Array<{ time: number; step: string; details: string }>
   created_by: string
   created_at: string
 }
@@ -60,6 +73,13 @@ export default function MaintenanceManagerPage() {
   const [notifyDiscord, setNotifyDiscord] = useState(true)
   const [notifyIngame, setNotifyIngame] = useState(true)
 
+  // Pipeline Form States
+  const [autoExecute, setAutoExecute] = useState(true)
+  const [saveAll, setSaveAll] = useState(true)
+  const [restartContainers, setRestartContainers] = useState(true)
+  const [waitForHealth, setWaitForHealth] = useState(true)
+  const [autoComplete, setAutoComplete] = useState(true)
+
   // Config states
   const [webhookUrl, setWebhookUrl] = useState('')
   const [pingRole, setPingRole] = useState('@everyone')
@@ -73,7 +93,7 @@ export default function MaintenanceManagerPage() {
       if (!res.ok) throw new Error('Failed to load maintenance windows')
       return res.json()
     },
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   })
 
   // Fetch config
@@ -98,7 +118,7 @@ export default function MaintenanceManagerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       })
-      if (!res.ok) throw new Error('Failed to create maintenance')
+      if (!res.ok) throw new Error('Failed to create maintenance window')
       return res.json()
     },
     onSuccess: () => {
@@ -109,7 +129,7 @@ export default function MaintenanceManagerPage() {
     },
   })
 
-  // Update status mutation
+  // Update mutation
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => {
       const res = await fetch(`/api/maintenance/${id}`, {
@@ -117,7 +137,21 @@ export default function MaintenanceManagerPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status }),
       })
-      if (!res.ok) throw new Error('Failed to update maintenance')
+      if (!res.ok) throw new Error('Failed to update maintenance window')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['maintenance-windows'] })
+    },
+  })
+
+  // Trigger pipeline mutation
+  const triggerPipelineMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/maintenance/${id}/trigger-pipeline`, {
+        method: 'POST',
+      })
+      if (!res.ok) throw new Error('Failed to trigger pipeline')
       return res.json()
     },
     onSuccess: () => {
@@ -129,7 +163,7 @@ export default function MaintenanceManagerPage() {
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
       const res = await fetch(`/api/maintenance/${id}`, { method: 'DELETE' })
-      if (!res.ok) throw new Error('Failed to delete maintenance')
+      if (!res.ok) throw new Error('Failed to delete maintenance window')
       return res.json()
     },
     onSuccess: () => {
@@ -139,7 +173,7 @@ export default function MaintenanceManagerPage() {
 
   // Save config mutation
   const saveConfigMutation = useMutation({
-    mutationFn: async (payload: any) => {
+    mutationFn: async (payload: Partial<MaintenanceConfig>) => {
       const res = await fetch('/api/maintenance/config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -162,46 +196,66 @@ export default function MaintenanceManagerPage() {
     setScheduledDateTime('')
     setNotifyDiscord(true)
     setNotifyIngame(true)
+    setAutoExecute(true)
+    setSaveAll(true)
+    setRestartContainers(true)
+    setWaitForHealth(true)
+    setAutoComplete(true)
   }
 
-  const handleToggleServer = (sid: string) => {
-    if (sid === 'all') {
+  const handleToggleServer = (serverId: string) => {
+    if (serverId === 'all') {
       setSelectedServers(['all'])
       return
     }
     const filtered = selectedServers.filter((s) => s !== 'all')
-    if (filtered.includes(sid)) {
-      const next = filtered.filter((s) => s !== sid)
-      setSelectedServers(next.length === 0 ? ['all'] : next)
+    if (filtered.includes(serverId)) {
+      const res = filtered.filter((s) => s !== serverId)
+      setSelectedServers(res.length === 0 ? ['all'] : res)
     } else {
-      setSelectedServers([...filtered, sid])
+      setSelectedServers([...filtered, serverId])
     }
   }
 
   const handleTriggerImmediate = () => {
+    if (!title.trim()) return
     createMutation.mutate({
-      title: title || 'Server Optimization & Maintenance',
-      description: description || 'Routine server maintenance and stability updates are currently underway.',
+      title: title.trim(),
+      description: description.trim(),
       serverIds: selectedServers,
       status: 'in_progress',
       startTime: Date.now(),
       estimatedDurationMin: durationMin,
       notifyDiscord,
       notifyIngame,
+      autoExecute: false,
     })
   }
 
-  const handleScheduleMaintenance = () => {
-    const startTs = scheduledDateTime ? new Date(scheduledDateTime).getTime() : Date.now() + 3600000
+  const handleScheduleWindow = () => {
+    if (!title.trim() || !scheduledDateTime) return
+    const startTs = new Date(scheduledDateTime).getTime()
+    if (isNaN(startTs)) return
+
     createMutation.mutate({
-      title: title || 'Scheduled Server Maintenance',
-      description: description || 'Planned maintenance and network upgrades.',
+      title: title.trim(),
+      description: description.trim(),
       serverIds: selectedServers,
       status: 'scheduled',
       startTime: startTs,
       estimatedDurationMin: durationMin,
       notifyDiscord,
       notifyIngame,
+      autoExecute,
+      pipelineConfig: autoExecute
+        ? {
+            saveAll,
+            restartContainers,
+            waitForHealth,
+            autoComplete,
+            healthTimeoutSec: 300,
+          }
+        : null,
     })
   }
 
@@ -210,29 +264,52 @@ export default function MaintenanceManagerPage() {
   const scheduledWindows = windows.filter((w) => w.status === 'scheduled')
   const pastWindows = windows.filter((w) => w.status === 'completed' || w.status === 'cancelled')
 
+  const getPipelineStateLabel = (state?: string) => {
+    switch (state) {
+      case 'starting':
+        return '🚀 Starting'
+      case 'saving':
+        return '💾 Saving World'
+      case 'restarting':
+        return '🔄 Rebooting Containers'
+      case 'verifying':
+        return '🩺 Verifying Health'
+      case 'completed':
+        return '✅ Auto-Completed'
+      case 'health_timeout':
+        return '⚠️ Health Timeout'
+      case 'failed':
+        return '❌ Pipeline Failed'
+      default:
+        return '🤖 Auto-Scheduled'
+    }
+  }
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       {/* ──────────────── HEADER ──────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/40 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-5">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
-              <Wrench className="h-6 w-6" />
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <Wrench className="h-5 w-5" />
             </div>
-            Maintenance Hub
-          </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Schedule downtime, trigger instant maintenance alerts, and sync Discord announcements with website banners.
-          </p>
+            <div>
+              <h1 className="text-xl font-bold text-foreground tracking-tight">Maintenance & Upgrade Hub</h1>
+              <p className="text-xs text-muted-foreground">
+                Autonomous server update scheduling, automated Docker restarts, Discord announcements & live website banners.
+              </p>
+            </div>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setIsConfigModalOpen(true)}
-            className="px-3 py-2 rounded-lg border border-border bg-card hover:bg-muted/40 text-xs font-medium text-muted-foreground hover:text-foreground flex items-center gap-2 transition-colors"
+            className="px-3 py-2 rounded-lg border border-border hover:bg-muted/40 text-xs font-medium text-muted-foreground hover:text-foreground flex items-center gap-1.5 transition-colors"
           >
             <Settings2 className="h-4 w-4" />
-            Discord Config
+            Discord Webhook
           </button>
 
           <button
@@ -251,7 +328,7 @@ export default function MaintenanceManagerPage() {
           <button
             onClick={() => {
               resetForm()
-              setTitle('Scheduled Fleet Maintenance')
+              setTitle('Scheduled Fleet Maintenance & Mod Update')
               setIsScheduleModalOpen(true)
             }}
             className="px-3.5 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold flex items-center gap-2 transition-colors shadow-sm"
@@ -272,7 +349,7 @@ export default function MaintenanceManagerPage() {
             >
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div className="space-y-1.5">
-                  <div className="flex items-center gap-2.5">
+                  <div className="flex items-center gap-2.5 flex-wrap">
                     <span className="flex h-3 w-3 relative">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
@@ -280,6 +357,12 @@ export default function MaintenanceManagerPage() {
                     <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-rose-500/20 border border-rose-500/30 text-rose-400">
                       ACTIVE MAINTENANCE IN PROGRESS
                     </span>
+                    {win.auto_execute && (
+                      <span className="px-2 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider bg-primary/20 border border-primary/30 text-primary flex items-center gap-1">
+                        <Bot className="h-3 w-3" />
+                        {getPipelineStateLabel(win.pipeline_state)}
+                      </span>
+                    )}
                     <span className="text-xs text-muted-foreground font-mono">
                       Started: {new Date(win.start_time).toLocaleTimeString()}
                     </span>
@@ -301,7 +384,19 @@ export default function MaintenanceManagerPage() {
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start md:self-center shrink-0">
+                <div className="flex items-center gap-2 self-start md:self-center shrink-0 flex-wrap">
+                  {win.auto_execute && (
+                    <button
+                      disabled={triggerPipelineMutation.isPending}
+                      onClick={() => triggerPipelineMutation.mutate(win.id)}
+                      className="px-3 py-2 rounded-lg bg-primary/15 hover:bg-primary/25 border border-primary/30 text-primary text-xs font-semibold flex items-center gap-1.5 transition-colors"
+                      title="Run the automated restart & health check pipeline now"
+                    >
+                      <Zap className="h-4 w-4" />
+                      {triggerPipelineMutation.isPending ? 'Executing...' : 'Run Pipeline'}
+                    </button>
+                  )}
+
                   <button
                     disabled={updateStatusMutation.isPending}
                     onClick={() => updateStatusMutation.mutate({ id: win.id, status: 'completed' })}
@@ -378,11 +473,19 @@ export default function MaintenanceManagerPage() {
                   className="p-4 rounded-xl border border-border bg-card space-y-3 flex flex-col justify-between hover:border-amber-500/40 transition-colors"
                 >
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center gap-1.5">
-                        <Calendar className="h-3 w-3" />
-                        SCHEDULED
-                      </span>
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3" />
+                          SCHEDULED
+                        </span>
+                        {win.auto_execute && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-primary/15 border border-primary/30 text-primary flex items-center gap-1">
+                            <Bot className="h-3 w-3" />
+                            AUTO
+                          </span>
+                        )}
+                      </div>
                       <span className="text-[11px] text-muted-foreground font-mono">
                         {new Date(win.start_time).toLocaleString()}
                       </span>
@@ -400,14 +503,28 @@ export default function MaintenanceManagerPage() {
                     </div>
                   </div>
 
-                  <div className="pt-3 border-t border-border/40 flex items-center justify-between">
-                    <button
-                      onClick={() => updateStatusMutation.mutate({ id: win.id, status: 'in_progress' })}
-                      className="px-3 py-1.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-400 text-xs font-medium flex items-center gap-1.5 transition-colors"
-                    >
-                      <Play className="h-3.5 w-3.5" />
-                      Start Now
-                    </button>
+                  <div className="pt-3 border-t border-border/40 flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => updateStatusMutation.mutate({ id: win.id, status: 'in_progress' })}
+                        className="px-3 py-1.5 rounded-md bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-400 text-xs font-medium flex items-center gap-1.5 transition-colors"
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                        Start Now
+                      </button>
+
+                      {win.auto_execute && (
+                        <button
+                          disabled={triggerPipelineMutation.isPending}
+                          onClick={() => triggerPipelineMutation.mutate(win.id)}
+                          className="px-2.5 py-1.5 rounded-md bg-primary/15 hover:bg-primary/25 border border-primary/30 text-primary text-xs font-medium flex items-center gap-1.5 transition-colors"
+                          title="Immediately trigger automated save, restart, and health check"
+                        >
+                          <Zap className="h-3.5 w-3.5" />
+                          Run Pipeline
+                        </button>
+                      )}
+                    </div>
 
                     <div className="flex items-center gap-1.5">
                       <button
@@ -440,6 +557,7 @@ export default function MaintenanceManagerPage() {
                 <tr className="border-b border-border bg-muted/20 text-muted-foreground text-[11px]">
                   <th className="text-left p-3">Title</th>
                   <th className="text-left p-3">Status</th>
+                  <th className="text-left p-3">Type</th>
                   <th className="text-left p-3">Servers</th>
                   <th className="text-left p-3">Date</th>
                   <th className="text-right p-3">Actions</th>
@@ -448,16 +566,16 @@ export default function MaintenanceManagerPage() {
               <tbody>
                 {pastWindows.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="p-6 text-center text-muted-foreground">
-                      No maintenance history recorded yet.
+                    <td colSpan={6} className="p-6 text-center text-muted-foreground">
+                      No past maintenance history recorded yet.
                     </td>
                   </tr>
                 ) : (
                   pastWindows.map((win) => (
-                    <tr key={win.id} className="border-b border-border/40 last:border-0 hover:bg-muted/10">
+                    <tr key={win.id} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
                       <td className="p-3">
-                        <p className="font-semibold text-foreground">{win.title}</p>
-                        <p className="text-[11px] text-muted-foreground line-clamp-1">{win.description}</p>
+                        <div className="font-semibold text-foreground">{win.title}</div>
+                        <div className="text-[11px] text-muted-foreground">{win.description || 'No description'}</div>
                       </td>
                       <td className="p-3">
                         <span
@@ -471,10 +589,20 @@ export default function MaintenanceManagerPage() {
                           {win.status}
                         </span>
                       </td>
-                      <td className="p-3 font-mono text-muted-foreground text-[11px]">
+                      <td className="p-3">
+                        {win.auto_execute ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-primary/10 border border-primary/20 text-primary flex items-center gap-1 w-fit">
+                            <Bot className="h-3 w-3" />
+                            Autonomous
+                          </span>
+                        ) : (
+                          <span className="text-[11px] text-muted-foreground">Manual</span>
+                        )}
+                      </td>
+                      <td className="p-3 font-mono text-[11px] text-muted-foreground">
                         {win.server_ids.join(', ')}
                       </td>
-                      <td className="p-3 font-mono text-muted-foreground text-[11px]">
+                      <td className="p-3 font-mono text-[11px] text-muted-foreground">
                         {new Date(win.start_time).toLocaleString()}
                       </td>
                       <td className="p-3 text-right">
@@ -494,14 +622,14 @@ export default function MaintenanceManagerPage() {
         </div>
       )}
 
-      {/* ──────────────── MODAL: TRIGGER IMMEDIATE MAINTENANCE ──────────────── */}
+      {/* ──────────────── MODAL: IMMEDIATE MAINTENANCE ──────────────── */}
       {isImmediateModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="rounded-xl border border-rose-500/30 bg-card p-6 w-full max-w-lg shadow-2xl space-y-4">
+          <div className="rounded-xl border border-rose-500/40 bg-card p-6 w-full max-w-lg shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-border/40 pb-3">
               <div className="flex items-center gap-2 text-rose-400 font-bold">
                 <Radio className="h-5 w-5 animate-pulse" />
-                <h3>Trigger Immediate Maintenance</h3>
+                <h3>Trigger Immediate Unscheduled Maintenance</h3>
               </div>
               <button onClick={() => setIsImmediateModalOpen(false)} className="text-muted-foreground hover:text-foreground">
                 <XCircle className="h-5 w-5" />
@@ -510,29 +638,29 @@ export default function MaintenanceManagerPage() {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-muted-foreground font-medium mb-1">Maintenance Title</label>
+                <label className="block text-muted-foreground font-medium mb-1">Reason / Operation Title</label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Create 2 SMP Hotfix & Optimizations"
-                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-400"
+                  placeholder="e.g. Emergency Core Optimization & Memory Cleanup"
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-muted-foreground font-medium mb-1">Description / Details</label>
+                <label className="block text-muted-foreground font-medium mb-1">Details & Player Notice</label>
                 <textarea
                   rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="What is being worked on? (Shown on Discord & Website)"
-                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-rose-400"
+                  placeholder="Briefly describe what is being worked on."
+                  className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
 
               <div>
-                <label className="block text-muted-foreground font-medium mb-1.5">Affected Servers</label>
+                <label className="block text-muted-foreground font-medium mb-1.5">Target Servers</label>
                 <div className="grid grid-cols-2 gap-2">
                   {SERVER_OPTIONS.map((srv) => (
                     <button
@@ -622,11 +750,11 @@ export default function MaintenanceManagerPage() {
       {/* ──────────────── MODAL: SCHEDULE MAINTENANCE ──────────────── */}
       {isScheduleModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="rounded-xl border border-border bg-card p-6 w-full max-w-lg shadow-2xl space-y-4">
+          <div className="rounded-xl border border-border bg-card p-6 w-full max-w-lg shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-border/40 pb-3">
               <div className="flex items-center gap-2 text-primary font-bold">
                 <Calendar className="h-5 w-5 text-amber-400" />
-                <h3>Schedule Maintenance Window</h3>
+                <h3>Schedule Maintenance & Update Window</h3>
               </div>
               <button onClick={() => setIsScheduleModalOpen(false)} className="text-muted-foreground hover:text-foreground">
                 <XCircle className="h-5 w-5" />
@@ -640,7 +768,7 @@ export default function MaintenanceManagerPage() {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder="e.g. Scheduled Network Upgrade & Backups"
+                  placeholder="e.g. Scheduled Mod Upgrade & Server Restart"
                   className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                 />
               </div>
@@ -710,7 +838,67 @@ export default function MaintenanceManagerPage() {
                 </div>
               </div>
 
-              <div className="space-y-1.5 pt-2">
+              {/* ──────────────── AUTONOMOUS PIPELINE SECTION ──────────────── */}
+              <div className="p-3.5 rounded-lg border border-primary/30 bg-primary/5 space-y-2.5 mt-2">
+                <label className="flex items-center justify-between cursor-pointer">
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-4 w-4 text-primary" />
+                    <span className="font-semibold text-foreground text-xs">🤖 Autonomous Execution Pipeline</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={autoExecute}
+                    onChange={(e) => setAutoExecute(e.target.checked)}
+                    className="rounded border-border h-4 w-4 text-primary"
+                  />
+                </label>
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  The background engine will execute advance countdowns, lock the gateway, restart target containers, and verify health automatically.
+                </p>
+
+                {autoExecute && (
+                  <div className="pt-2 border-t border-primary/20 space-y-1.5 text-[11px]">
+                    <label className="flex items-center gap-2 cursor-pointer text-muted-foreground hover:text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={saveAll}
+                        onChange={(e) => setSaveAll(e.target.checked)}
+                        className="rounded border-border"
+                      />
+                      <span>💾 Flush world save (<code className="text-primary font-mono">/save-all flush</code>) before reboot</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-muted-foreground hover:text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={restartContainers}
+                        onChange={(e) => setRestartContainers(e.target.checked)}
+                        className="rounded border-border"
+                      />
+                      <span>🔄 Reboot target Docker containers to apply staged mod updates</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-muted-foreground hover:text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={waitForHealth}
+                        onChange={(e) => setWaitForHealth(e.target.checked)}
+                        className="rounded border-border"
+                      />
+                      <span>🩺 Poll TCP ports until servers are healthy & online</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer text-muted-foreground hover:text-foreground">
+                      <input
+                        type="checkbox"
+                        checked={autoComplete}
+                        onChange={(e) => setAutoComplete(e.target.checked)}
+                        className="rounded border-border"
+                      />
+                      <span>✅ Auto-complete maintenance and unlock gateway once healthy</span>
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 <label className="flex items-center gap-2 cursor-pointer text-muted-foreground">
                   <input
                     type="checkbox"
@@ -718,7 +906,16 @@ export default function MaintenanceManagerPage() {
                     onChange={(e) => setNotifyDiscord(e.target.checked)}
                     className="rounded border-border"
                   />
-                  <span>Post announcement to Discord with countdown</span>
+                  <span>Discord Announcement</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={notifyIngame}
+                    onChange={(e) => setNotifyIngame(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  <span>In-Game Warnings (15m, 5m, 1m)</span>
                 </label>
               </div>
             </div>
@@ -733,26 +930,26 @@ export default function MaintenanceManagerPage() {
               </button>
               <button
                 type="button"
-                disabled={createMutation.isPending}
-                onClick={handleScheduleMaintenance}
-                className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-2"
+                disabled={createMutation.isPending || !title.trim() || !scheduledDateTime}
+                onClick={handleScheduleWindow}
+                className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-2 disabled:opacity-50"
               >
                 <Calendar className="h-4 w-4" />
-                {createMutation.isPending ? 'Saving...' : 'Schedule Window'}
+                {createMutation.isPending ? 'Scheduling...' : 'Schedule Maintenance Window'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* ──────────────── MODAL: DISCORD CONFIG ──────────────── */}
+      {/* ──────────────── MODAL: CONFIGURE DISCORD ──────────────── */}
       {isConfigModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="rounded-xl border border-border bg-card p-6 w-full max-w-lg shadow-2xl space-y-4">
+          <div className="rounded-xl border border-border bg-card p-6 w-full max-w-md shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-border/40 pb-3">
-              <div className="flex items-center gap-2 text-foreground font-bold">
-                <Settings2 className="h-5 w-5 text-primary" />
-                <h3>Discord Announcement Configuration</h3>
+              <div className="flex items-center gap-2 text-primary font-bold">
+                <Settings2 className="h-5 w-5" />
+                <h3>Discord Announcement Webhook</h3>
               </div>
               <button onClick={() => setIsConfigModalOpen(false)} className="text-muted-foreground hover:text-foreground">
                 <XCircle className="h-5 w-5" />
@@ -761,7 +958,7 @@ export default function MaintenanceManagerPage() {
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-muted-foreground font-medium mb-1">Announcements Webhook URL</label>
+                <label className="block text-muted-foreground font-medium mb-1">Webhook URL</label>
                 <input
                   type="text"
                   value={webhookUrl}
@@ -772,7 +969,7 @@ export default function MaintenanceManagerPage() {
               </div>
 
               <div>
-                <label className="block text-muted-foreground font-medium mb-1">Mention / Ping Tag</label>
+                <label className="block text-muted-foreground font-medium mb-1">Role / User to Ping</label>
                 <input
                   type="text"
                   value={pingRole}
@@ -780,20 +977,19 @@ export default function MaintenanceManagerPage() {
                   placeholder="@everyone or <@&ROLE_ID>"
                   className="w-full px-3 py-2 rounded-lg bg-background border border-border text-foreground font-mono text-[11px] focus:outline-none focus:ring-1 focus:ring-primary"
                 />
-                <p className="text-[10px] text-muted-foreground mt-1">
-                  Leave as <code>@everyone</code> or replace with custom role mention e.g. <code>&lt;@&amp;123456789&gt;</code>.
-                </p>
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer text-muted-foreground pt-1">
-                <input
-                  type="checkbox"
-                  checked={webhookEnabled}
-                  onChange={(e) => setWebhookEnabled(e.target.checked)}
-                  className="rounded border-border"
-                />
-                <span>Enable Discord automated maintenance broadcasts</span>
-              </label>
+              <div className="pt-2">
+                <label className="flex items-center gap-2 cursor-pointer text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={webhookEnabled}
+                    onChange={(e) => setWebhookEnabled(e.target.checked)}
+                    className="rounded border-border"
+                  />
+                  <span>Enable Discord announcements</span>
+                </label>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-3 border-t border-border/40">
@@ -809,14 +1005,15 @@ export default function MaintenanceManagerPage() {
                 disabled={saveConfigMutation.isPending}
                 onClick={() =>
                   saveConfigMutation.mutate({
-                    announcementWebhookUrl: webhookUrl,
-                    pingRole,
+                    announcementWebhookUrl: webhookUrl.trim(),
+                    pingRole: pingRole.trim(),
                     enabled: webhookEnabled,
                   })
                 }
-                className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold"
+                className="px-4 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-2"
               >
-                {saveConfigMutation.isPending ? 'Saving...' : 'Save Settings'}
+                <Check className="h-4 w-4" />
+                {saveConfigMutation.isPending ? 'Saving...' : 'Save Configuration'}
               </button>
             </div>
           </div>

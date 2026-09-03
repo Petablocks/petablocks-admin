@@ -28,6 +28,58 @@ const SERVER_LABELS = {
 
 let pool = null;
 
+let tableInitialized = false;
+async function ensureTableSchema(p) {
+  if (tableInitialized) return;
+  try {
+    await p.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_windows (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        server_ids JSON NOT NULL,
+        status ENUM('scheduled', 'in_progress', 'completed', 'cancelled') NOT NULL DEFAULT 'scheduled',
+        start_time BIGINT NOT NULL,
+        estimated_duration_min INT NOT NULL DEFAULT 30,
+        end_time BIGINT NULL,
+        notify_discord TINYINT(1) DEFAULT 1,
+        notify_ingame TINYINT(1) DEFAULT 1,
+        auto_execute TINYINT(1) DEFAULT 0,
+        pipeline_config JSON NULL,
+        last_warning_min INT NULL,
+        pipeline_state VARCHAR(64) DEFAULT 'idle',
+        pipeline_logs JSON NULL,
+        created_by VARCHAR(128) DEFAULT 'Admin',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_status (status),
+        INDEX idx_start_time (start_time)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    `);
+
+    const [cols] = await p.query('SHOW COLUMNS FROM maintenance_windows');
+    const colNames = cols.map((c) => c.Field);
+
+    const colsToAdd = [
+      ['auto_execute', 'TINYINT(1) DEFAULT 0'],
+      ['pipeline_config', 'JSON NULL'],
+      ['last_warning_min', 'INT NULL'],
+      ['pipeline_state', "VARCHAR(64) DEFAULT 'idle'"],
+      ['pipeline_logs', 'JSON NULL'],
+    ];
+
+    for (const [colName, colDef] of colsToAdd) {
+      if (!colNames.includes(colName)) {
+        await p.query(`ALTER TABLE maintenance_windows ADD COLUMN ${colName} ${colDef}`);
+        console.log(`[MAINTENANCE] Added column ${colName} to maintenance_windows`);
+      }
+    }
+    tableInitialized = true;
+  } catch (err) {
+    console.warn('[MAINTENANCE] Schema verification warning:', err.message);
+  }
+}
+
 async function getPool() {
   if (!pool) {
     pool = mysql.createPool({
@@ -37,6 +89,7 @@ async function getPool() {
       queueLimit: 0,
     });
   }
+  await ensureTableSchema(pool);
   return pool;
 }
 
@@ -275,6 +328,11 @@ async function listMaintenance({ status, limit = 50 } = {}) {
     end_time: r.end_time ? Number(r.end_time) : null,
     notify_discord: Boolean(r.notify_discord),
     notify_ingame: Boolean(r.notify_ingame),
+    auto_execute: Boolean(r.auto_execute),
+    pipeline_config: typeof r.pipeline_config === 'string' ? JSON.parse(r.pipeline_config) : (r.pipeline_config || null),
+    last_warning_min: r.last_warning_min,
+    pipeline_state: r.pipeline_state || 'idle',
+    pipeline_logs: typeof r.pipeline_logs === 'string' ? JSON.parse(r.pipeline_logs) : (r.pipeline_logs || []),
   }));
 }
 
@@ -303,6 +361,8 @@ async function getActiveMaintenance() {
     startTime: Number(r.start_time),
     estimatedDurationMin: r.estimated_duration_min,
     endTime: r.end_time ? Number(r.end_time) : null,
+    autoExecute: Boolean(r.auto_execute),
+    pipelineState: r.pipeline_state || 'idle',
   }));
 }
 
@@ -318,18 +378,22 @@ async function createMaintenance({
   estimatedDurationMin = 30,
   notifyDiscord = true,
   notifyIngame = true,
+  autoExecute = false,
+  pipelineConfig = null,
   createdBy = 'Admin'
 }) {
   const p = await getPool();
   const sIds = Array.isArray(serverIds) && serverIds.length > 0 ? serverIds : ['all'];
   const startTs = Number(startTime) || Date.now();
   const dur = parseInt(estimatedDurationMin, 10) || 30;
+  const autoExec = autoExecute ? 1 : 0;
+  const pConfig = pipelineConfig ? (typeof pipelineConfig === 'string' ? pipelineConfig : JSON.stringify(pipelineConfig)) : null;
 
   const [res] = await p.query(`
     INSERT INTO maintenance_windows 
-      (title, description, server_ids, status, start_time, estimated_duration_min, notify_discord, notify_ingame, created_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `, [title, description, JSON.stringify(sIds), status, startTs, dur, notifyDiscord ? 1 : 0, notifyIngame ? 1 : 0, createdBy]);
+      (title, description, server_ids, status, start_time, estimated_duration_min, notify_discord, notify_ingame, auto_execute, pipeline_config, pipeline_state, created_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'idle', ?)
+  `, [title, description, JSON.stringify(sIds), status, startTs, dur, notifyDiscord ? 1 : 0, notifyIngame ? 1 : 0, autoExec, pConfig, createdBy]);
 
   const newWindow = {
     id: res.insertId,
@@ -342,6 +406,11 @@ async function createMaintenance({
     end_time: null,
     notify_discord: notifyDiscord,
     notify_ingame: notifyIngame,
+    auto_execute: Boolean(autoExecute),
+    pipeline_config: pipelineConfig,
+    last_warning_min: null,
+    pipeline_state: 'idle',
+    pipeline_logs: [],
     created_by: createdBy,
   };
 
@@ -409,6 +478,26 @@ async function updateMaintenance(id, fields) {
     updates.push('notify_ingame = ?');
     params.push(fields.notifyIngame ? 1 : 0);
   }
+  if (fields.autoExecute !== undefined) {
+    updates.push('auto_execute = ?');
+    params.push(fields.autoExecute ? 1 : 0);
+  }
+  if (fields.pipelineConfig !== undefined) {
+    updates.push('pipeline_config = ?');
+    params.push(fields.pipelineConfig ? (typeof fields.pipelineConfig === 'string' ? fields.pipelineConfig : JSON.stringify(fields.pipelineConfig)) : null);
+  }
+  if (fields.lastWarningMin !== undefined) {
+    updates.push('last_warning_min = ?');
+    params.push(fields.lastWarningMin);
+  }
+  if (fields.pipelineState !== undefined) {
+    updates.push('pipeline_state = ?');
+    params.push(fields.pipelineState);
+  }
+  if (fields.pipelineLogs !== undefined) {
+    updates.push('pipeline_logs = ?');
+    params.push(fields.pipelineLogs ? (typeof fields.pipelineLogs === 'string' ? fields.pipelineLogs : JSON.stringify(fields.pipelineLogs)) : null);
+  }
 
   if (updates.length > 0) {
     params.push(id);
@@ -422,6 +511,11 @@ async function updateMaintenance(id, fields) {
     server_ids: typeof updated.server_ids === 'string' ? JSON.parse(updated.server_ids) : (updated.server_ids || []),
     start_time: Number(updated.start_time),
     end_time: updated.end_time ? Number(updated.end_time) : null,
+    auto_execute: Boolean(updated.auto_execute),
+    pipeline_config: typeof updated.pipeline_config === 'string' ? JSON.parse(updated.pipeline_config) : (updated.pipeline_config || null),
+    last_warning_min: updated.last_warning_min,
+    pipeline_state: updated.pipeline_state || 'idle',
+    pipeline_logs: typeof updated.pipeline_logs === 'string' ? JSON.parse(updated.pipeline_logs) : (updated.pipeline_logs || []),
   };
 
   // If status transitioned, fire appropriate alerts

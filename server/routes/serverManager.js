@@ -953,4 +953,28 @@ router.post('/servers/:id/discord/test', async (req, res) => {
   }
 });
 
+function checkPortOpen(host, port, timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    const s = new net.Socket();
+    s.setTimeout(timeoutMs);
+    s.once('connect', () => {
+      s.destroy();
+      resolve(true);
+    });
+    s.once('timeout', () => {
+      s.destroy();
+      resolve(false);
+    });
+    s.once('error', () => {
+      s.destroy();
+      resolve(false);
+    });
+    s.connect(port, host);
+  });
+}
+
 module.exports = router;
+module.exports.NODES = NODES;
+module.exports.SERVERS_REGISTRY = SERVERS_REGISTRY;
+module.exports.runSshCommand = runSshCommand;
+module.exports.checkPortOpen = checkPortOpen;
