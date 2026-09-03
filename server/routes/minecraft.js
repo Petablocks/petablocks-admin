@@ -229,8 +229,11 @@ function initWebSocket(httpServer) {
             lastUpdated: Date.now(),
             ...msg.payload
           });
-          if (Array.isArray(msg.payload.players?.sample)) {
-            playerAnalyticsService.recordTelemetrySample(serverId, msg.payload.players.sample);
+          const playerList = Array.isArray(msg.payload.players?.list)
+            ? msg.payload.players.list
+            : (Array.isArray(msg.payload.players?.sample) ? msg.payload.players.sample : []);
+          if (playerList.length > 0) {
+            playerAnalyticsService.recordTelemetrySample(serverId, playerList);
           }
         } else if (msg.type === 'EVENT_PLAYER_JOIN' && msg.payload) {
           addServerLog(serverId, 'INFO', `Player joined: ${msg.payload.name} (${msg.payload.uuid})`, 'Game');

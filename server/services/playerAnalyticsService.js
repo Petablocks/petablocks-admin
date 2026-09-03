@@ -249,6 +249,27 @@ async function recordPlayerQuit(serverId, { uuid, name }) {
         SET session_end = ?, duration_ms = ?, is_active = 0
         WHERE id = ?
       `, [now, durationMs, sess.id]);
+    } else {
+      // Fallback: If session was prematurely closed by reconciliation,
+      // recover the most recent session if it started recently
+      const [recent] = await p.query(`
+        SELECT id, session_start, duration_ms FROM analytics_sessions
+        WHERE player_uuid = ? AND server_id = ?
+        ORDER BY id DESC LIMIT 1
+      `, [uuid, serverId]);
+
+      if (recent.length > 0 && (now - Number(recent[0].session_start)) < 86400000) {
+        const sess = recent[0];
+        const oldDur = Number(sess.duration_ms || 0);
+        const fullDur = Math.max(0, now - Number(sess.session_start));
+        durationMs = Math.max(0, fullDur - oldDur); // Only add the delta to total playtime
+
+        await p.query(`
+          UPDATE analytics_sessions
+          SET session_end = ?, duration_ms = ?, is_active = 0
+          WHERE id = ?
+        `, [now, fullDur, sess.id]);
+      }
     }
 
     activeSessionsCache.delete(sessionKey);
@@ -368,11 +389,13 @@ async function recordTelemetrySample(serverId, playersSample) {
       cached.lastHeartbeat = now;
 
       const pos = Array.isArray(player.pos) ? player.pos : [0, 0, 0];
+      const liveDuration = Math.max(0, now - Number(cached.startTime || now));
       await p.query(`
         UPDATE analytics_sessions
-        SET last_ping = ?, last_dimension = ?, last_x = ?, last_y = ?, last_z = ?
+        SET last_ping = ?, last_dimension = ?, last_x = ?, last_y = ?, last_z = ?,
+            session_end = ?, duration_ms = ?
         WHERE id = ?
-      `, [player.ping || 0, player.dimension || 'overworld', pos[0] || 0, pos[1] || 0, pos[2] || 0, cached.sessionId]);
+      `, [player.ping || 0, player.dimension || 'overworld', pos[0] || 0, pos[1] || 0, pos[2] || 0, now, liveDuration, cached.sessionId]);
     }
   } catch (err) {
     console.error('[ANALYTICS] Telemetry sample heartbeat error:', err.message);
@@ -387,7 +410,7 @@ async function reconcileOrphanedSessions() {
   try {
     const p = await getPool();
     const [stale] = await p.query(`
-      SELECT id, player_uuid, server_id, session_start FROM analytics_sessions
+      SELECT id, player_uuid, server_id, session_start, duration_ms FROM analytics_sessions
       WHERE is_active = 1
     `);
 
@@ -396,7 +419,14 @@ async function reconcileOrphanedSessions() {
       const cached = activeSessionsCache.get(sessionKey);
 
       if (!cached || cached.lastHeartbeat < cutoff) {
-        const endTime = cached?.lastHeartbeat || Number(sess.session_start) + 60000;
+        let endTime = cached?.lastHeartbeat;
+        if (!endTime || endTime <= Number(sess.session_start)) {
+          if (sess.duration_ms && Number(sess.duration_ms) > 0) {
+            endTime = Number(sess.session_start) + Number(sess.duration_ms);
+          } else {
+            endTime = Number(sess.session_start) + 60000;
+          }
+        }
         const duration = Math.max(0, endTime - Number(sess.session_start));
 
         await p.query(`
