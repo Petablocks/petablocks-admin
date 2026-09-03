@@ -11,6 +11,7 @@ const backupsRouter = require('./routes/backups');
 const serverManagerRouter = require('./routes/serverManager');
 const { router: minecraftRouter, initWebSocket } = require('./routes/minecraft');
 const { initLogWatcher } = require('./services/logWatcherService');
+const { initTrainMonitor } = require('./services/trainMonitorService');
 
 const app = express();
 const server = http.createServer(app);
@@ -24,6 +25,9 @@ initWebSocket(server);
 
 // Initialize Fleet Container Log Streamer for instant Discord chat & events
 initLogWatcher();
+
+// Initialize Autonomous Create Train Monitor for 24/7 railway dispatch
+initTrainMonitor();
 
 // API routes
 app.use('/api/containers', containersRouter);
