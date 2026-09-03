@@ -5,6 +5,7 @@ const mysql = require('mysql2/promise');
 const WebSocket = require('ws');
 const { Client: SshClient } = require('ssh2');
 const discordService = require('../services/discordWebhookService');
+const playerAnalyticsService = require('../services/playerAnalyticsService');
 
 const router = Router();
 
@@ -228,6 +229,9 @@ function initWebSocket(httpServer) {
             lastUpdated: Date.now(),
             ...msg.payload
           });
+          if (Array.isArray(msg.payload.players?.sample)) {
+            playerAnalyticsService.recordTelemetrySample(serverId, msg.payload.players.sample);
+          }
         } else if (msg.type === 'EVENT_PLAYER_JOIN' && msg.payload) {
           addServerLog(serverId, 'INFO', `Player joined: ${msg.payload.name} (${msg.payload.uuid})`, 'Game');
           discordService.sendChatBroadcast(serverId, {
@@ -235,6 +239,7 @@ function initWebSocket(httpServer) {
             message: `📥 **${msg.payload.name}** joined the game.`,
             eventType: 'join',
           });
+          playerAnalyticsService.recordPlayerJoin(serverId, msg.payload);
         } else if (msg.type === 'EVENT_PLAYER_QUIT' && msg.payload) {
           addServerLog(serverId, 'INFO', `Player left: ${msg.payload.name}`, 'Game');
           discordService.sendChatBroadcast(serverId, {
@@ -242,6 +247,7 @@ function initWebSocket(httpServer) {
             message: `📤 **${msg.payload.name}** left the game.`,
             eventType: 'leave',
           });
+          playerAnalyticsService.recordPlayerQuit(serverId, msg.payload);
         } else if (msg.type === 'EVENT_PLAYER_CHAT' && msg.payload) {
           addServerLog(serverId, 'INFO', `<${msg.payload.name}> ${msg.payload.message}`, 'Chat');
           discordService.sendChatBroadcast(serverId, {
@@ -256,6 +262,7 @@ function initWebSocket(httpServer) {
             message: `☠️ ${msg.payload.deathMessage || `${msg.payload.name} died`}`,
             eventType: 'death',
           });
+          playerAnalyticsService.recordPlayerDeath(serverId, msg.payload);
         } else if (msg.type === 'EVENT_PLAYER_ADVANCEMENT' && msg.payload) {
           addServerLog(serverId, 'INFO', `Advancement: ${msg.payload.name} completed [${msg.payload.title}]`, 'Game');
           discordService.sendChatBroadcast(serverId, {
@@ -263,6 +270,7 @@ function initWebSocket(httpServer) {
             message: `🏆 **${msg.payload.name}** has earned the advancement **[${msg.payload.title}]**!`,
             eventType: 'advancement',
           });
+          playerAnalyticsService.recordPlayerAdvancement(serverId, msg.payload);
         } else if (msg.type === 'EVENT_TRAIN' && msg.payload) {
           addServerLog(serverId, 'INFO', `Train Event: ${msg.payload.trainName || 'Train'} (${msg.payload.eventType})`, 'Railways');
           discordService.sendTrainEvent(serverId, {

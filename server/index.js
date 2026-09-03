@@ -9,10 +9,12 @@ const databasesRouter = require('./routes/databases');
 const filesRouter = require('./routes/files');
 const backupsRouter = require('./routes/backups');
 const serverManagerRouter = require('./routes/serverManager');
+const playerAnalyticsRouter = require('./routes/playerAnalytics');
 const { router: minecraftRouter, initWebSocket } = require('./routes/minecraft');
 const { initLogWatcher } = require('./services/logWatcherService');
 const { initTrainMonitor } = require('./services/trainMonitorService');
 const { initBackupScheduler } = require('./services/backupScheduleService');
+const playerAnalyticsService = require('./services/playerAnalyticsService');
 
 const app = express();
 const server = http.createServer(app);
@@ -33,6 +35,9 @@ initTrainMonitor();
 // Initialize Automated Backup Scheduler for MinIO S3 archiving & Discord alerts
 initBackupScheduler();
 
+// Initialize Native Player Analytics Engine (MariaDB session tracking & Plan history migration)
+playerAnalyticsService.init();
+
 // API routes
 app.use('/api/containers', containersRouter);
 app.use('/api/metrics', metricsRouter);
@@ -41,6 +46,7 @@ app.use('/api/files', filesRouter);
 app.use('/api/backups', backupsRouter);
 app.use('/api/server-manager', serverManagerRouter);
 app.use('/api/minecraft', minecraftRouter);
+app.use('/api/player-stats', playerAnalyticsRouter);
 
 // Health check
 app.get('/api/health', async (_req, res) => {

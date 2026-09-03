@@ -13,6 +13,7 @@ import DatabasesPage from './pages/Databases'
 import FileManagerPage from './pages/FileManager'
 import BackupsPage from './pages/Backups'
 import SettingsPage from './pages/Settings'
+import PlayerAnalyticsPage from './pages/PlayerAnalytics'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +36,7 @@ export default function App() {
           <Route path="nodes" element={<NodesPage />} />
           <Route path="minecraft" element={<MinecraftServersPage />} />
           <Route path="minecraft/:id" element={<MinecraftServerDetailPage />} />
+          <Route path="analytics" element={<PlayerAnalyticsPage />} />
           <Route path="containers" element={<ContainersPage />} />
           <Route path="monitoring" element={<MonitoringPage />} />
           <Route path="databases" element={<DatabasesPage />} />
