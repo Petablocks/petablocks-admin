@@ -4,12 +4,12 @@
  * Actively polls Create Track Map API (port 3876) across running Create servers
  * to track all autonomous, scheduled, and player trains even when 0 players are online!
  *
- * Detects:
- * - Train Assembly & Commissioning
- * - Train Disassembly / Decommissioning
- * - Train Station Arrivals & Schedule Departures
- * - Train Stalls & Signal Stops
- * - Real-time Coordinate & Wagon Tracking
+ * Features:
+ * - Real-time Station Arrival & Departure resolution with Station Names
+ * - Spatial distance matching between train locomotive and station signals
+ * - Train Assembly & Commissioning alerts
+ * - Train Disassembly / Decommissioning alerts
+ * - Coordinate & Wagon Tracking
  */
 
 const http = require('http');
@@ -30,18 +30,17 @@ const TRAIN_SERVERS = [
   },
 ];
 
-// In-memory state tracking for trains
+// In-memory state tracking for trains and cached stations
 const serverTrainState = new Map();
 
-function fetchTrains(host, port) {
+function httpGetJson(host, port, path) {
   return new Promise((resolve) => {
-    const req = http.get({ host, port, path: '/api/trains', timeout: 4000 }, (res) => {
+    const req = http.get({ host, port, path, timeout: 4000 }, (res) => {
       let data = '';
       res.on('data', (chunk) => (data += chunk));
       res.on('end', () => {
         try {
-          const json = JSON.parse(data);
-          resolve(json.trains || []);
+          resolve(JSON.parse(data));
         } catch {
           resolve(null);
         }
@@ -56,19 +55,61 @@ function fetchTrains(host, port) {
   });
 }
 
-async function checkServerTrains(srv) {
-  const trains = await fetchTrains(srv.host, srv.port);
-  if (!trains) return;
+function findNearestStation(stations, loc, maxDistance = 45) {
+  if (!stations || !loc || !stations.length) return null;
 
+  let bestStation = null;
+  let minDistanceSq = maxDistance * maxDistance;
+
+  for (const st of stations) {
+    if (!st.location) continue;
+    if (st.dimension && loc.dimension && st.dimension !== loc.dimension) continue;
+
+    const dx = st.location.x - loc.x;
+    const dy = st.location.y - loc.y;
+    const dz = st.location.z - loc.z;
+    const distSq = dx * dx + dy * dy + dz * dz;
+
+    if (distSq < minDistanceSq) {
+      minDistanceSq = distSq;
+      bestStation = st.name;
+    }
+  }
+
+  return bestStation;
+}
+
+async function checkServerTrains(srv) {
   let state = serverTrainState.get(srv.id);
   if (!state) {
-    // Initial warmup run: record active trains without spamming notifications
     state = {
-      trainMap: new Map(trains.map((t) => [t.id, t])),
-      initialized: true,
+      trainMap: new Map(),
+      stations: [],
+      lastStationFetch: 0,
+      initialized: false,
     };
     serverTrainState.set(srv.id, state);
-    console.log(`[TRAIN-MONITOR] Initialized tracking for ${srv.id}: ${trains.length} trains on network`);
+  }
+
+  // Refresh stations every 60 seconds
+  const now = Date.now();
+  if (now - state.lastStationFetch > 60000 || state.stations.length === 0) {
+    const networkData = await httpGetJson(srv.host, srv.port, '/api/network');
+    if (networkData && Array.isArray(networkData.stations)) {
+      state.stations = networkData.stations;
+      state.lastStationFetch = now;
+    }
+  }
+
+  const trainsData = await httpGetJson(srv.host, srv.port, '/api/trains');
+  if (!trainsData || !Array.isArray(trainsData.trains)) return;
+  const trains = trainsData.trains;
+
+  if (!state.initialized) {
+    // Initial warmup run: record active trains without spamming notifications
+    state.trainMap = new Map(trains.map((t) => [t.id, t]));
+    state.initialized = true;
+    console.log(`[TRAIN-MONITOR] Initialized tracking for ${srv.id}: ${trains.length} trains, ${state.stations.length} stations`);
     return;
   }
 
@@ -79,12 +120,14 @@ async function checkServerTrains(srv) {
     if (!state.trainMap.has(id)) {
       const loc = train.cars?.[0]?.leading?.location;
       const coords = loc ? `${Math.round(loc.x)}, ${Math.round(loc.y)}, ${Math.round(loc.z)}` : 'Overworld';
-      console.log(`[TRAIN-MONITOR] New train assembled on ${srv.id}: ${train.name}`);
+      const station = loc ? findNearestStation(state.stations, loc) : null;
+      console.log(`[TRAIN-MONITOR] New train assembled on ${srv.id}: ${train.name} (near ${station || 'Tracks'})`);
       discordService.sendTrainEvent(srv.id, {
         title: '🛠️ New Train Assembled & Commissioned',
         trainName: train.name || 'Unnamed Train',
         eventType: 'assembly',
         description: `A new train has been assembled on the network with ${train.cars?.length || 1} wagons.`,
+        station: station,
         location: coords,
         player: train.owner || 'Automated / Conductor',
       });
@@ -113,13 +156,17 @@ async function checkServerTrains(srv) {
     if (oldTrain.stopped !== train.stopped) {
       const loc = train.cars?.[0]?.leading?.location;
       const coords = loc ? `${Math.round(loc.x)}, ${Math.round(loc.y)}, ${Math.round(loc.z)}` : '';
-      
+      const station = loc ? findNearestStation(state.stations, loc) : null;
+
       if (train.stopped) {
         discordService.sendTrainEvent(srv.id, {
-          title: '🚉 Train Arrived at Station',
+          title: station ? `🚉 Train Arrived at ${station}` : '🚉 Train Arrived at Station',
           trainName: train.name,
           eventType: 'station',
-          description: `Train \`${train.name}\` has arrived at scheduled stop.`,
+          description: station
+            ? `Train \`${train.name}\` has arrived at **${station}**.`
+            : `Train \`${train.name}\` has arrived at scheduled stop.`,
+          station: station,
           location: coords,
         });
       }
@@ -131,7 +178,7 @@ async function checkServerTrains(srv) {
 }
 
 function initTrainMonitor() {
-  console.log('[TRAIN-MONITOR] Starting autonomous Create train dispatch monitoring loop...');
+  console.log('[TRAIN-MONITOR] Starting autonomous Create train dispatch monitoring loop with station resolution...');
   setInterval(async () => {
     for (const srv of TRAIN_SERVERS) {
       try {
@@ -145,4 +192,5 @@ function initTrainMonitor() {
 
 module.exports = {
   initTrainMonitor,
+  findNearestStation,
 };

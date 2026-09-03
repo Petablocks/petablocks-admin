@@ -255,7 +255,7 @@ async function sendChatBroadcast(serverId, { username, message, avatarUrl, event
 /**
  * Send a Create Train / Railway event to the Train Dispatch Channel
  */
-async function sendTrainEvent(serverId, { title, trainName, eventType = 'derail', description, location, player }) {
+async function sendTrainEvent(serverId, { title, trainName, eventType = 'derail', description, location, player, station }) {
   const cfg = getServerWebhookConfig(serverId);
   console.log(`[DISCORD-TRAIN] Train event received for '${serverId}': ${eventType} (enabled=${cfg.trainEnabled}, hasWebhook=${Boolean(cfg.trainWebhookUrl)})`);
   if (!cfg.trainEnabled || !cfg.trainWebhookUrl) return;
@@ -283,6 +283,9 @@ async function sendTrainEvent(serverId, { title, trainName, eventType = 'derail'
     },
   };
 
+  if (station) {
+    embed.fields.push({ name: 'Station', value: `🚉 **${station}**`, inline: true });
+  }
   if (location) {
     embed.fields.push({ name: 'Coordinates', value: `\`${location}\``, inline: true });
   }
