@@ -256,6 +256,13 @@ function initWebSocket(httpServer) {
             message: `☠️ ${msg.payload.deathMessage || `${msg.payload.name} died`}`,
             eventType: 'death',
           });
+        } else if (msg.type === 'EVENT_PLAYER_ADVANCEMENT' && msg.payload) {
+          addServerLog(serverId, 'INFO', `Advancement: ${msg.payload.name} completed [${msg.payload.title}]`, 'Game');
+          discordService.sendChatBroadcast(serverId, {
+            username: msg.payload.name,
+            message: `🏆 **${msg.payload.name}** has earned the advancement **[${msg.payload.title}]**!`,
+            eventType: 'advancement',
+          });
         } else if (msg.type === 'EVENT_TRAIN' && msg.payload) {
           addServerLog(serverId, 'INFO', `Train Event: ${msg.payload.trainName || 'Train'} (${msg.payload.eventType})`, 'Railways');
           discordService.sendTrainEvent(serverId, {

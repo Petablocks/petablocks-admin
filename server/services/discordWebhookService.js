@@ -170,12 +170,14 @@ async function sendConsoleAlert(serverId, { title, description, color = 0x3b82f6
  */
 async function sendChatBroadcast(serverId, { username, message, avatarUrl, eventType = 'chat' }) {
   const cfg = getServerWebhookConfig(serverId);
+  console.log(`[DISCORD-CHAT] Event received for '${serverId}': ${eventType} from ${username} (enabled=${cfg.chatEnabled}, hasWebhook=${Boolean(cfg.chatWebhookUrl)})`);
   if (!cfg.chatEnabled || !cfg.chatWebhookUrl) return;
 
   // Check event toggles
   if (eventType === 'chat' && !cfg.chatEvents?.chat) return;
   if ((eventType === 'join' || eventType === 'leave') && !cfg.chatEvents?.joinLeave) return;
   if (eventType === 'death' && !cfg.chatEvents?.deaths) return;
+  if (eventType === 'advancement' && !cfg.chatEvents?.advancements) return;
 
   let body = {};
   if (eventType === 'chat') {
@@ -185,10 +187,11 @@ async function sendChatBroadcast(serverId, { username, message, avatarUrl, event
       content: message,
     };
   } else {
-    // Event embed for joins, leaves, deaths
+    // Event embed for joins, leaves, deaths, advancements
     let color = 0x10b981; // green
     if (eventType === 'leave') color = 0x6b7280; // gray
     if (eventType === 'death') color = 0xef4444; // red
+    if (eventType === 'advancement') color = 0xf59e0b; // gold
 
     body = {
       username: 'Server Broadcast',
@@ -215,6 +218,7 @@ async function sendChatBroadcast(serverId, { username, message, avatarUrl, event
  */
 async function sendTrainEvent(serverId, { title, trainName, eventType = 'derail', description, location, player }) {
   const cfg = getServerWebhookConfig(serverId);
+  console.log(`[DISCORD-TRAIN] Train event received for '${serverId}': ${eventType} (enabled=${cfg.trainEnabled}, hasWebhook=${Boolean(cfg.trainWebhookUrl)})`);
   if (!cfg.trainEnabled || !cfg.trainWebhookUrl) return;
 
   const colorMap = {
