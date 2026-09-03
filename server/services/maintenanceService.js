@@ -541,6 +541,29 @@ async function updateMaintenance(id, fields) {
 }
 
 /**
+ * Get maintenance window by ID
+ */
+async function getMaintenanceById(id) {
+  const p = await getPool();
+  const [rows] = await p.query('SELECT * FROM maintenance_windows WHERE id = ?', [id]);
+  if (rows.length === 0) return null;
+  const r = rows[0];
+  return {
+    ...r,
+    server_ids: typeof r.server_ids === 'string' ? JSON.parse(r.server_ids) : (r.server_ids || []),
+    start_time: Number(r.start_time),
+    end_time: r.end_time ? Number(r.end_time) : null,
+    notify_discord: Boolean(r.notify_discord),
+    notify_ingame: Boolean(r.notify_ingame),
+    auto_execute: Boolean(r.auto_execute),
+    pipeline_config: typeof r.pipeline_config === 'string' ? JSON.parse(r.pipeline_config) : (r.pipeline_config || null),
+    last_warning_min: r.last_warning_min,
+    pipeline_state: r.pipeline_state || 'idle',
+    pipeline_logs: typeof r.pipeline_logs === 'string' ? JSON.parse(r.pipeline_logs) : (r.pipeline_logs || []),
+  };
+}
+
+/**
  * Delete maintenance window
  */
 async function deleteMaintenance(id) {
@@ -554,6 +577,7 @@ module.exports = {
   saveConfig,
   listMaintenance,
   getActiveMaintenance,
+  getMaintenanceById,
   createMaintenance,
   updateMaintenance,
   deleteMaintenance,
