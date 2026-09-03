@@ -75,6 +75,8 @@ router.post('/', async (req, res) => {
       estimatedDurationMin,
       notifyDiscord = true,
       notifyIngame = true,
+      autoExecute = false,
+      pipelineConfig = null,
       createdBy = 'Admin',
     } = req.body;
 
