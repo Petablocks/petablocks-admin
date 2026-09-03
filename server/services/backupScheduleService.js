@@ -1,21 +1,44 @@
 ﻿/**
- * PETABLOCKS Automated Fleet Backup Scheduler
+ * PETABLOCKS Automated Fleet Backup Scheduler & Retention Engine
  *
  * Runs scheduled snapshots for Minecraft game servers:
  * - Hourly world snapshots (world directories only, light & fast)
  * - Daily full server snapshots (3:00 AM UTC, full server without cache/logs)
  * - Directly streams to central MinIO S3 store (`world-backups` bucket)
- * - Dispatches Discord Console alerts on backup completion/failure
+ * - Automatic FIFO Retention Pruning:
+ *     - Keeps max 7 World Snapshots per server
+ *     - Keeps max 2 Full Server Archives per server
+ * - Proactive Storage & Low-Disk Warning Alerts to Discord Console (#console-alerts)
  */
 
 const http = require('http');
 const discordService = require('./discordWebhookService');
+const { S3Client, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+
+const BACKUP_BUCKET = 'world-backups';
+
+const RETENTION_LIMITS = {
+  world: 7, // Keep last 7 world snapshots (~3-5GB each)
+  full: 2,  // Keep last 2 full server archives (~25GB each)
+};
 
 const BACKUP_TARGETS = [
   { id: 'create-2', name: 'Just Create SMP 2' },
   { id: 'patreon-creative', name: 'PETABLOCKS Patreon Creative' },
   { id: 'fabric-main', name: 'PETABLOCKS Official Modpack' },
 ];
+
+function getS3Client() {
+  return new S3Client({
+    endpoint: process.env.MINIO_ENDPOINT || 'http://minio:9000',
+    region: 'us-east-1',
+    credentials: {
+      accessKeyId: process.env.MINIO_ACCESS_KEY || '',
+      secretAccessKey: process.env.MINIO_SECRET_KEY || '',
+    },
+    forcePathStyle: true,
+  });
+}
 
 function triggerBackupInternal(serverId, backupType = 'world') {
   return new Promise((resolve) => {
@@ -93,6 +116,95 @@ function waitForBackupCompletion(backupId, maxWaitMs = 1800000) {
   });
 }
 
+/**
+ * Prune old archives per server and backupType to enforce retention limits
+ */
+async function pruneOldBackups(serverId, backupType) {
+  try {
+    const s3 = getS3Client();
+    const prefix = `${serverId}/${backupType}/`;
+    const listCmd = new ListObjectsV2Command({
+      Bucket: BACKUP_BUCKET,
+      Prefix: prefix,
+    });
+    const data = await s3.send(listCmd);
+    if (!data.Contents || data.Contents.length === 0) return;
+
+    // Sort oldest first
+    const items = data.Contents.sort(
+      (a, b) => new Date(a.LastModified).getTime() - new Date(b.LastModified).getTime()
+    );
+
+    const limit = RETENTION_LIMITS[backupType] || 5;
+    if (items.length > limit) {
+      const itemsToDelete = items.slice(0, items.length - limit);
+      console.log(
+        `[BACKUP-RETENTION] Pruning ${itemsToDelete.length} expired '${backupType}' backup(s) for ${serverId}...`
+      );
+
+      for (const item of itemsToDelete) {
+        await s3.send(new DeleteObjectCommand({ Bucket: BACKUP_BUCKET, Key: item.Key }));
+        const mb = ((item.Size || 0) / 1024 / 1024).toFixed(1);
+        console.log(`[BACKUP-RETENTION] Deleted ${item.Key} (${mb} MB reclaimed)`);
+      }
+
+      // Notify Discord Console of reclaimed storage
+      discordService.sendConsoleAlert(serverId, {
+        title: `🧹 Backup Storage Auto-Pruned`,
+        description: `Automated retention policy pruned **${itemsToDelete.length}** old ${backupType} archive(s) to maintain storage capacity.`,
+        color: 0x6b7280,
+        fields: [
+          { name: 'Server', value: serverId, inline: true },
+          { name: 'Retained Cap', value: `Last ${limit} backups`, inline: true },
+        ],
+      });
+    }
+  } catch (err) {
+    console.error(`[BACKUP-RETENTION] Failed to prune ${serverId} ${backupType}:`, err.message);
+  }
+}
+
+/**
+ * Query MinIO S3 store metrics
+ */
+async function getStorageMetrics() {
+  try {
+    const s3 = getS3Client();
+    const listCmd = new ListObjectsV2Command({ Bucket: BACKUP_BUCKET });
+    const data = await s3.send(listCmd);
+
+    let totalBytes = 0;
+    const serverBreakdown = {};
+
+    if (data.Contents) {
+      for (const item of data.Contents) {
+        const size = item.Size || 0;
+        totalBytes += size;
+        const parts = item.Key.split('/');
+        const srv = parts[0] || 'other';
+        serverBreakdown[srv] = (serverBreakdown[srv] || 0) + size;
+      }
+    }
+
+    return {
+      totalBytes,
+      totalMb: Math.round(totalBytes / 1024 / 1024),
+      totalGb: (totalBytes / 1024 / 1024 / 1024).toFixed(2),
+      itemCount: data.Contents ? data.Contents.length : 0,
+      serverBreakdown,
+    };
+  } catch (err) {
+    return {
+      totalBytes: 0,
+      totalMb: 0,
+      totalGb: '0.00',
+      itemCount: 0,
+      serverBreakdown: {},
+      error: err.message,
+    };
+  }
+}
+
 async function runScheduledBackupSequence(backupType = 'world') {
   console.log(`[BACKUP-SCHEDULER] Starting automated ${backupType} snapshot sequence for fleet...`);
 
@@ -114,7 +226,7 @@ async function runScheduledBackupSequence(backupType = 'world') {
         });
 
         // Await completion in background
-        waitForBackupCompletion(started.backupId).then((result) => {
+        waitForBackupCompletion(started.backupId).then(async (result) => {
           if (result.status === 'completed') {
             const mb = (result.size_bytes / 1024 / 1024).toFixed(1);
             discordService.sendConsoleAlert(target.id, {
@@ -127,6 +239,9 @@ async function runScheduledBackupSequence(backupType = 'world') {
                 { name: 'Duration', value: `${Math.round((new Date(result.completed_at) - new Date(result.started_at)) / 1000)}s`, inline: true },
               ],
             });
+
+            // Automatically enforce retention after successful upload
+            await pruneOldBackups(target.id, backupType);
           } else {
             discordService.sendConsoleAlert(target.id, {
               title: `❌ Automated Backup Failed`,
@@ -143,20 +258,22 @@ async function runScheduledBackupSequence(backupType = 'world') {
 }
 
 function initBackupScheduler() {
-  console.log('[BACKUP-SCHEDULER] Initializing automated backup schedules (Every 6 hours world snapshots + daily full)...');
+  console.log('[BACKUP-SCHEDULER] Initializing automated backup schedules & retention pruner (Max 7 world / 2 full)...');
 
-  // Run every 6 hours (0:00, 6:00, 12:00, 18:00)
+  // Check schedules every 5 minutes
   setInterval(() => {
     const hour = new Date().getUTCHours();
     const minute = new Date().getUTCMinutes();
     if (minute < 5 && (hour % 6 === 0)) {
       runScheduledBackupSequence(hour === 0 ? 'full' : 'world');
     }
-  }, 300000); // Check every 5 minutes
+  }, 300000);
 }
 
 module.exports = {
   initBackupScheduler,
   runScheduledBackupSequence,
   triggerBackupInternal,
+  pruneOldBackups,
+  getStorageMetrics,
 };

@@ -34,6 +34,16 @@ interface BackupRecord {
   created_by: string
 }
 
+interface StorageResponse {
+  totalBytes: number
+  totalGb: string
+  warningThresholdGb: number
+  retentionPolicy: {
+    worldSnapshotsMax: number
+    fullArchivesMax: number
+  }
+}
+
 const SERVERS = [
   {
     id: 'patreon-creative',
@@ -152,7 +162,7 @@ export default function BackupsPage() {
   const [selectedType, setSelectedType] = useState<'world' | 'full'>('world')
   const [triggerError, setTriggerError] = useState<string | null>(null)
 
-  const { data, isLoading, refetch } = useQuery<{ backups: BackupRecord[] }>({
+  const { data, isLoading, refetch } = useQuery<{ backups: BackupRecord[]; storage?: StorageResponse }>({
     queryKey: ['backups'],
     queryFn: async () => {
       const res = await fetch('/api/backups')
@@ -168,6 +178,7 @@ export default function BackupsPage() {
   })
 
   const backups = data?.backups ?? []
+  const storageInfo = data?.storage
 
   const triggerMutation = useMutation({
     mutationFn: async ({ serverId, backupType }: { serverId: string; backupType: 'world' | 'full' }) => {
@@ -224,6 +235,11 @@ export default function BackupsPage() {
   const selectedSrv = SERVERS.find(s => s.id === selectedServer)
   const selectedBkType = BACKUP_TYPES.find(t => t.id === selectedType)!
 
+  // Storage utilization math against 100GB target limit
+  const warningCapGb = storageInfo?.warningThresholdGb || 100
+  const usedGb = parseFloat(storageInfo?.totalGb || (totalSizeBytes / 1024 / 1024 / 1024).toFixed(1))
+  const usagePercent = Math.min(100, Math.round((usedGb / warningCapGb) * 100))
+
   return (
     <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
@@ -257,6 +273,48 @@ export default function BackupsPage() {
         </div>
       </div>
 
+      {/* Storage Capacity & Retention Bar */}
+      <div className="rounded-2xl border border-border bg-card p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 rounded-xl bg-primary/10 text-primary">
+              <HardDrive className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                MinIO S3 Storage Capacity
+                <span className={cn(
+                  'text-[10px] font-mono px-2 py-0.5 rounded-full border',
+                  usagePercent > 85 ? 'bg-red-500/10 text-red-400 border-red-500/30' :
+                  usagePercent > 65 ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' :
+                  'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                )}>
+                  {usagePercent}% Used
+                </span>
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Automatic Retention Policy active: Retaining last <strong>7 World Snapshots</strong> & <strong>2 Full Archives</strong> per server
+              </p>
+            </div>
+          </div>
+          <div className="text-right font-mono">
+            <span className="text-sm font-bold text-foreground">{usedGb} GB</span>
+            <span className="text-xs text-muted-foreground"> / {warningCapGb} GB Soft Cap</span>
+          </div>
+        </div>
+
+        {/* Progress Bar */}
+        <div className="h-2.5 w-full bg-muted/60 rounded-full overflow-hidden">
+          <div
+            className={cn(
+              'h-full transition-all duration-500 rounded-full',
+              usagePercent > 85 ? 'bg-red-500' : usagePercent > 65 ? 'bg-amber-500' : 'bg-primary'
+            )}
+            style={{ width: `${Math.max(2, usagePercent)}%` }}
+          />
+        </div>
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className="rounded-2xl border border-border bg-card p-4 space-y-1">
@@ -271,7 +329,7 @@ export default function BackupsPage() {
             <Package className="h-3.5 w-3.5" /> Full Backups
           </span>
           <p className="text-2xl font-bold font-mono text-amber-400">{fullBackupCount}</p>
-          <p className="text-[11px] text-muted-foreground">migration-ready</p>
+          <p className="text-[11px] text-muted-foreground">Max 2 retained per server</p>
         </div>
         <div className="rounded-2xl border border-border bg-card p-4 space-y-1">
           <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">

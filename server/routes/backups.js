@@ -176,7 +176,22 @@ router.get('/', async (_req, res) => {
     return new Date(b.started_at).getTime() - new Date(a.started_at).getTime();
   });
 
-  res.json({ backups: allBackups });
+  const totalSizeBytes = allBackups
+    .filter(b => b.status === 'completed')
+    .reduce((acc, b) => acc + (b.size_bytes || 0), 0);
+
+  res.json({
+    backups: allBackups,
+    storage: {
+      totalBytes: totalSizeBytes,
+      totalGb: (totalSizeBytes / 1024 / 1024 / 1024).toFixed(2),
+      warningThresholdGb: 100, // Warn if store crosses 100GB
+      retentionPolicy: {
+        worldSnapshotsMax: 7,
+        fullArchivesMax: 2,
+      },
+    },
+  });
 });
 
 // ── POST /api/backups/trigger ──────────────────────────────────────
