@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PETABLOCKS Autonomous Train & Railway Dispatcher Service
  *
  * Actively polls Create Track Map API (port 3876) across running Create servers
@@ -25,7 +25,7 @@ const TRAIN_SERVERS = [
   {
     id: 'create-2',
     name: 'Just Create SMP 2',
-    host: '10.20.110.115',
+    host: '10.20.110.119',
     port: 3876,
   },
 ];

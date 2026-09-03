@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PETABLOCKS Server Log Watcher & Discord Event Pipeline
  *
  * Directly streams container logs over SSH using `docker logs -f --tail 0`
@@ -36,7 +36,7 @@ const SERVER_WATCH_LIST = [
     id: 'create-2',
     name: 'Just Create SMP 2',
     containerName: 'petablocks-create-2',
-    nodeHost: process.env.MC_SSH_HOST || '10.20.110.115',
+    nodeHost: process.env.MC_MCS2_HOST || '10.20.110.119',
     user: 'root',
   },
   {

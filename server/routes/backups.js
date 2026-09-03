@@ -89,7 +89,7 @@ const SERVER_CONFIG = {
   },
   'create-2': {
     name: 'Just Create SMP 2',
-    sshHost: process.env.MC_SSH_HOST || '10.20.110.115',
+    sshHost: process.env.MC_CREATE2_SSH_HOST || '10.20.110.119',
     sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
     sshUser: process.env.MC_SSH_USER || 'root',
     serverDataPath: '/home/user/data/servers/petablocks_create_2_451a2727-49f0-4629-86fe-b22e93ef67e5',

@@ -111,7 +111,7 @@ const SERVERS_REGISTRY = [
   },
   {
     id: 'create-2',
-    nodeId: 'mcs-legacy',
+    nodeId: 'mcs-02',
     name: 'Just Create SMP 2',
     containerName: 'petablocks-create-2',
     dataPath: '/home/user/data/servers/petablocks_create_2_451a2727-49f0-4629-86fe-b22e93ef67e5',
