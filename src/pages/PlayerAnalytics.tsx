@@ -123,13 +123,21 @@ export default function PlayerAnalyticsPage() {
     enabled: Boolean(selectedPlayerUuid),
   })
 
-  const leaderboard = leaderboardData?.leaderboard || []
+  const leaderboard = Array.isArray(leaderboardData?.leaderboard) ? leaderboardData.leaderboard : []
+
+  const totalPlaytimeHours = typeof overview?.totalPlaytimeHours === 'number' ? overview.totalPlaytimeHours : 0
+  const totalPlayers = typeof overview?.totalPlayers === 'number' ? overview.totalPlayers : 0
+  const totalSessions = typeof overview?.totalSessions === 'number' ? overview.totalSessions : 0
+  const totalAdvancements = typeof overview?.totalAdvancements === 'number' ? overview.totalAdvancements : 0
+  const totalDeaths = typeof overview?.totalDeaths === 'number' ? overview.totalDeaths : 0
+  const currentlyOnline = typeof overview?.currentlyOnline === 'number' ? overview.currentlyOnline : 0
+  const apiError = (overview as any)?.error || (leaderboardData as any)?.error
 
   // Filter leaderboard by instant search query if present
   const filteredPlayers = leaderboard.filter((p) => {
     if (!searchQuery.trim()) return true
     const q = searchQuery.toLowerCase()
-    return p.username.toLowerCase().includes(q) || p.uuid.toLowerCase().includes(q)
+    return p.username?.toLowerCase().includes(q) || p.uuid?.toLowerCase().includes(q)
   })
 
   return (
@@ -157,6 +165,14 @@ export default function PlayerAnalyticsPage() {
         </button>
       </div>
 
+      {/* Error Alert if any API failed */}
+      {apiError && (
+        <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center justify-between">
+          <span>⚠️ {apiError}</span>
+          <button onClick={() => { refetchOverview(); refetchLeaderboard(); }} className="underline ml-4">Retry</button>
+        </div>
+      )}
+
       {/* ──────────────── KPI CARDS ──────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
@@ -165,7 +181,7 @@ export default function PlayerAnalyticsPage() {
             <Clock className="h-4 w-4 text-emerald-400" />
           </div>
           <p className="text-xl sm:text-2xl font-bold mt-2 font-mono text-emerald-400">
-            {overview ? `${overview.totalPlaytimeHours.toLocaleString()}h` : '—'}
+            {overview && !apiError ? `${totalPlaytimeHours.toLocaleString()}h` : '—'}
           </p>
           <p className="text-[11px] text-muted-foreground mt-1">
             Across all servers & modpacks
@@ -178,10 +194,10 @@ export default function PlayerAnalyticsPage() {
             <Users className="h-4 w-4 text-sky-400" />
           </div>
           <p className="text-xl sm:text-2xl font-bold mt-2 font-mono text-sky-400">
-            {overview ? overview.totalPlayers.toLocaleString() : '—'}
+            {overview && !apiError ? totalPlayers.toLocaleString() : '—'}
           </p>
           <p className="text-[11px] text-muted-foreground mt-1">
-            {overview?.currentlyOnline || 0} currently online
+            {currentlyOnline} currently online
           </p>
         </div>
 
@@ -191,7 +207,7 @@ export default function PlayerAnalyticsPage() {
             <Activity className="h-4 w-4 text-amber-400" />
           </div>
           <p className="text-xl sm:text-2xl font-bold mt-2 font-mono text-amber-400">
-            {overview ? overview.totalSessions.toLocaleString() : '—'}
+            {overview && !apiError ? totalSessions.toLocaleString() : '—'}
           </p>
           <p className="text-[11px] text-muted-foreground mt-1">
             Individual game sessions
@@ -204,10 +220,10 @@ export default function PlayerAnalyticsPage() {
             <Trophy className="h-4 w-4 text-purple-400" />
           </div>
           <p className="text-xl sm:text-2xl font-bold mt-2 font-mono text-purple-400">
-            {overview ? overview.totalAdvancements.toLocaleString() : '—'}
+            {overview && !apiError ? totalAdvancements.toLocaleString() : '—'}
           </p>
           <p className="text-[11px] text-muted-foreground mt-1">
-            {overview?.totalDeaths.toLocaleString() || 0} total deaths
+            {totalDeaths.toLocaleString()} total deaths
           </p>
         </div>
       </div>
