@@ -80,11 +80,11 @@ ensureBucket();
 const SERVER_CONFIG = {
   'patreon-creative': {
     name: 'PETABLOCKS Patreon Creative',
-    sshHost: process.env.MC_SSH_HOST || '10.20.110.115',
+    sshHost: process.env.MC_PATREON_SSH_HOST || '10.20.110.120',
     sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
     sshUser: process.env.MC_SSH_USER || 'root',
     serverDataPath: '/home/user/data/servers/patreon_create_server_a91d1a56-6130-4daa-88c9-3f7a1082dcb4',
-    worldDirs: ['world', 'world_Creative'],
+    worldDirs: ['world_Creative'],
     worldName: 'world_Creative',
   },
   'create-2': {
@@ -93,17 +93,17 @@ const SERVER_CONFIG = {
     sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
     sshUser: process.env.MC_SSH_USER || 'root',
     serverDataPath: '/home/user/data/servers/petablocks_create_2_451a2727-49f0-4629-86fe-b22e93ef67e5',
-    worldDirs: ['world', 'world_PBC2'],
+    worldDirs: ['world_PBC2'],
     worldName: 'world_PBC2',
   },
   'fabric-main': {
     name: 'PETABLOCKS Official Modpack',
-    sshHost: process.env.MC_FABRIC_SSH_HOST || '10.20.110.127',
+    sshHost: process.env.MC_FABRIC_SSH_HOST || '10.20.110.118',
     sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
     sshUser: process.env.MC_SSH_USER || 'root',
-    serverDataPath: process.env.MC_FABRIC_WORLD_PATH || '/opt/petablocks/servers/fabric-main',
-    worldDirs: ['world'],
-    worldName: 'world',
+    serverDataPath: '/home/user/data/servers/petablocks-modpack-main',
+    worldDirs: ['world-PETABLOCKS-M1'],
+    worldName: 'world-PETABLOCKS-M1',
   },
 };
 

@@ -12,6 +12,7 @@ const serverManagerRouter = require('./routes/serverManager');
 const { router: minecraftRouter, initWebSocket } = require('./routes/minecraft');
 const { initLogWatcher } = require('./services/logWatcherService');
 const { initTrainMonitor } = require('./services/trainMonitorService');
+const { initBackupScheduler } = require('./services/backupScheduleService');
 
 const app = express();
 const server = http.createServer(app);
@@ -28,6 +29,9 @@ initLogWatcher();
 
 // Initialize Autonomous Create Train Monitor for 24/7 railway dispatch
 initTrainMonitor();
+
+// Initialize Automated Backup Scheduler for MinIO S3 archiving & Discord alerts
+initBackupScheduler();
 
 // API routes
 app.use('/api/containers', containersRouter);
