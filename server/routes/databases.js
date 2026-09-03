@@ -14,7 +14,7 @@ const DB_CONFIGS = [
     name: 'MariaDB — MC Plugins',
     host: process.env.DB_HOST || '10.20.110.117',
     port: 3307,
-    url: process.env.MC_DATABASE_URL,
+    url: process.env.MC_DATABASE_URL || 'mysql://petablocks:mOgsrNJ6lEQQXx77YnPcVd0jxAmQDRud@10.20.110.117:3307/petablocks',
   },
 ];
 

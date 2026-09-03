@@ -55,15 +55,6 @@ const NODES = {
     baseDataDir: '/home/user/data/servers',
     description: 'Dedicated Ubuntu 24.04 Docker Node — Patreon Creative',
   },
-  'mcs-legacy': {
-    id: 'mcs-legacy',
-    name: 'PETABLOCKS-MCS (Legacy Host)',
-    host: process.env.MC_SSH_HOST || '10.20.110.115',
-    port: parseInt(process.env.MC_SSH_PORT || '22', 10),
-    user: process.env.MC_SSH_USER || 'root',
-    baseDataDir: '/home/user/data/servers',
-    description: 'Current 12-Core 62GB Host (Active servers before migration)',
-  },
   'fea-01': {
     id: 'fea-01',
     name: 'PETABLOCKS-FEA (Web & Admin Node)',
