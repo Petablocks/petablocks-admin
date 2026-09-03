@@ -15,6 +15,7 @@ import {
   ArchiveRestore,
   Layers,
   Users,
+  Wrench,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,7 @@ const navItems = [
   { to: '/backups', icon: ArchiveRestore, label: 'World Backups' },
   { to: '/minecraft', icon: Gamepad2, label: 'Live Telemetry' },
   { to: '/analytics', icon: Users, label: 'Player Analytics' },
+  { to: '/maintenance', icon: Wrench, label: 'Maintenance Hub' },
   { to: '/containers', icon: Box, label: 'Containers' },
   { to: '/monitoring', icon: Activity, label: 'System Vitals' },
   { to: '/databases', icon: Database, label: 'Databases' },
