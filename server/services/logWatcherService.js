@@ -12,17 +12,12 @@
  * Operates independently of in-game mods (zero mod dependency).
  */
 
+const fs = require('fs');
 const { Client: SshClient } = require('ssh2');
 const discordService = require('./discordWebhookService');
 
-// Embedded cluster private key (matches serverManager.js)
-const CLUSTER_SSH_KEY = `-----BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVgAAAJgVjzhhFY84
-YQAAAAtzc2gtZWQyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVg
-AAAECp+nVXQqH10GUgYHqZx6pBarI7yiqEv2H+pCrx0Zu8xYrkH3Wg+FzvhDcB0zCYuksb
-qFdV8R425Dklm/LPed1WAAAAFXBldGFibG9ja3MtbWNzLWFjY2Vzcw==
------END OPENSSH PRIVATE KEY-----`;
+// Cluster SSH private key loaded securely from environment
+const CLUSTER_SSH_KEY = process.env.MC_SSH_KEY || process.env.MC_SSH_PRIVATE_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
 
 const SERVER_WATCH_LIST = [
   {

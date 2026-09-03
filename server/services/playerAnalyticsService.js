@@ -1,8 +1,6 @@
 const mysql = require('mysql2/promise');
 
-const DB_URL = (process.env.MC_DATABASE_URL && !process.env.MC_DATABASE_URL.includes('mc_readonly'))
-  ? process.env.MC_DATABASE_URL
-  : 'mysql://petablocks:mOgsrNJ6lEQQXx77YnPcVd0jxAmQDRud@10.20.110.117:3307/petablocks';
+const DB_URL = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
 
 let pool = null;
 const activeSessionsCache = new Map(); // key: `${serverId}:${uuid}` -> { sessionId, startTime, lastHeartbeat, username }

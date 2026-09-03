@@ -9,6 +9,7 @@
  *   - Zero database crash risk (DB is purely optional metadata logging, never blocks).
  */
 
+const fs = require('fs');
 const express = require('express');
 const router = express.Router();
 const {
@@ -26,14 +27,8 @@ const { PassThrough } = require('stream');
 
 const BACKUP_BUCKET = 'world-backups';
 
-// Embedded default ed25519 key for PETABLOCKS-MCS access, overrideable via MC_SSH_PRIVATE_KEY
-const DEFAULT_SSH_KEY = `-----BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVgAAAJgVjzhhFY84
-YQAAAAtzc2gtZWQyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVg
-AAAECp+nVXQqH10GUgYHqZx6pBarI7yiqEv2H+pCrx0Zu8xYrkH3Wg+FzvhDcB0zCYuksb
-qFdV8R425Dklm/LPed1WAAAAFXBldGFibG9ja3MtbWNzLWFjY2Vzcw==
------END OPENSSH PRIVATE KEY-----`;
+// SSH private key for node cluster loaded securely from environment
+const DEFAULT_SSH_KEY = process.env.MC_SSH_PRIVATE_KEY || process.env.MC_SSH_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
 
 // Directories excluded from full-server backups (re-downloadable or non-essential)
 const FULL_BACKUP_EXCLUDES = [

@@ -549,7 +549,7 @@ async function sendRconCommand(host, port, password, command, timeout = 5000) {
 }
 
 async function getAdminDb() {
-  const dbUrl = process.env.DATABASE_URL || 'mysql://admin:mOgsrNJ6lEQQXx77YnPcVd0jxAmQDRud@10.20.110.117:3306/petablocks_admin';
+  const dbUrl = process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks_admin';
   const conn = await mysql.createConnection(dbUrl);
   await conn.query(`
     CREATE TABLE IF NOT EXISTS moderation_logs (
@@ -789,7 +789,7 @@ router.post('/moderation/action', async (req, res) => {
 
 // GET /api/minecraft/analytics
 router.get('/analytics', async (_req, res) => {
-  const mcDbUrl = process.env.MC_DATABASE_URL || 'mysql://petablocks:mOgsrNJ6lEQQXx77YnPcVd0jxAmQDRud@10.20.110.117:3307/petablocks';
+  const mcDbUrl = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
 
   try {
     const conn = await mysql.createConnection(mcDbUrl);
