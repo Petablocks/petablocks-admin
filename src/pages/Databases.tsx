@@ -59,13 +59,16 @@ export default function DatabasesPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {db.databases.map((d) => (
-                      <tr key={d.name} className="border-b border-border/40 last:border-0 hover:bg-muted/10">
-                        <td className="p-2.5 sm:px-4 sm:py-3 font-mono text-xs font-bold text-foreground">{d.name}</td>
-                        <td className="p-2.5 sm:px-4 sm:py-3 text-muted-foreground font-mono text-xs">{d.tables}</td>
-                        <td className="p-2.5 sm:px-4 sm:py-3 text-right text-muted-foreground font-mono text-xs">{d.sizeMb.toFixed(1)} MB</td>
-                      </tr>
-                    ))}
+                    {db.databases.map((d) => {
+                      const mb = typeof d.sizeMb === 'number' ? d.sizeMb : parseFloat(String(d.sizeMb)) || 0
+                      return (
+                        <tr key={d.name} className="border-b border-border/40 last:border-0 hover:bg-muted/10">
+                          <td className="p-2.5 sm:px-4 sm:py-3 font-mono text-xs font-bold text-foreground">{d.name}</td>
+                          <td className="p-2.5 sm:px-4 sm:py-3 text-muted-foreground font-mono text-xs">{d.tables}</td>
+                          <td className="p-2.5 sm:px-4 sm:py-3 text-right text-muted-foreground font-mono text-xs">{mb.toFixed(1)} MB</td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

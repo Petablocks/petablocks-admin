@@ -30,13 +30,18 @@ router.get('/', async (_req, res) => {
         const [dbRows] = await conn.query(
           `SELECT table_schema as name,
                   COUNT(*) as tables,
-                  ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) as sizeMb
+                  CAST(ROUND(SUM(data_length + index_length) / 1024 / 1024, 2) AS DOUBLE) as sizeMb
            FROM information_schema.TABLES
            WHERE table_schema NOT IN ('information_schema','performance_schema','mysql','sys')
            GROUP BY table_schema`
         );
         await conn.end();
-        return { name: cfg.name, host: cfg.host, port: cfg.port, connected: true, databases: dbRows };
+        const formatted = (dbRows || []).map(r => ({
+          name: r.name,
+          tables: Number(r.tables || 0),
+          sizeMb: Number(r.sizeMb || 0),
+        }));
+        return { name: cfg.name, host: cfg.host, port: cfg.port, connected: true, databases: formatted };
       } catch (err) {
         return { name: cfg.name, host: cfg.host, port: cfg.port, connected: false, databases: [], error: String(err) };
       }
