@@ -17,14 +17,8 @@ const discordService = require('../services/discordWebhookService');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB max upload
 
-// Embedded default ed25519 key for PETABLOCKS node cluster
-const DEFAULT_SSH_KEY = `-----BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVgAAAJgVjzhhFY84
-YQAAAAtzc2gtZWQyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVg
-AAAECp+nVXQqH10GUgYHqZx6pBarI7yiqEv2H+pCrx0Zu8xYrkH3Wg+FzvhDcB0zCYuksb
-qFdV8R425Dklm/LPed1WAAAAFXBldGFibG9ja3MtbWNzLWFjY2Vzcw==
------END OPENSSH PRIVATE KEY-----`;
+// SSH private key for node cluster loaded securely from environment
+const DEFAULT_SSH_KEY = process.env.MC_SSH_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
 
 // ── Registered Node Cluster ────────────────────────────────────────
 const NODES = {
@@ -33,7 +27,7 @@ const NODES = {
     name: 'PETABLOCKS-MCS1 (Game Node 1)',
     host: process.env.MC_MCS1_HOST || '10.20.110.118',
     port: parseInt(process.env.MC_MCS1_PORT || '22', 10),
-    user: 'root',
+    user: process.env.MC_MCS1_USER || 'root',
     baseDataDir: '/home/user/data/servers',
     description: 'Dedicated Ubuntu 24.04 Docker Node — Main Modpack Server',
   },
@@ -42,7 +36,7 @@ const NODES = {
     name: 'PETABLOCKS-MCS2 (Game Node 2)',
     host: process.env.MC_MCS2_HOST || '10.20.110.119',
     port: parseInt(process.env.MC_MCS2_PORT || '22', 10),
-    user: 'root',
+    user: process.env.MC_MCS2_USER || 'root',
     baseDataDir: '/home/user/data/servers',
     description: 'Dedicated Ubuntu 24.04 Docker Node — Create 2 SMP',
   },
@@ -51,16 +45,16 @@ const NODES = {
     name: 'PETABLOCKS-MCS3 (Game Node 3)',
     host: process.env.MC_MCS3_HOST || '10.20.110.120',
     port: parseInt(process.env.MC_MCS3_PORT || '22', 10),
-    user: 'root',
+    user: process.env.MC_MCS3_USER || 'root',
     baseDataDir: '/home/user/data/servers',
     description: 'Dedicated Ubuntu 24.04 Docker Node — Patreon Creative',
   },
   'fea-01': {
     id: 'fea-01',
     name: 'PETABLOCKS-FEA (Web & Admin Node)',
-    host: '10.20.110.116',
-    port: 22,
-    user: 'root',
+    host: process.env.MC_FEA_HOST || '10.20.110.116',
+    port: parseInt(process.env.MC_FEA_PORT || '22', 10),
+    user: process.env.MC_FEA_USER || 'root',
     baseDataDir: '/opt/petablocks/servers',
     description: 'Hosts Admin Panel & Public Web Services',
   },
@@ -77,7 +71,7 @@ const SERVERS_REGISTRY = [
     gamePort: 11691,
     rconPort: 25575,
     rconHostPort: 16901,
-    rconPassword: 'P3tabl0cksrc0n!!',
+    rconPassword: process.env.MC_FABRIC_RCON_PASSWORD || process.env.RCON_PASSWORD || '',
     type: 'Fabric',
     version: '1.20.1',
     memory: '20G',
@@ -93,7 +87,7 @@ const SERVERS_REGISTRY = [
     gamePort: 11651,
     rconPort: 25575,
     rconHostPort: 11661,
-    rconPassword: 'discopanel_a91d1a56',
+    rconPassword: process.env.MC_PATREON_RCON_PASSWORD || process.env.RCON_PASSWORD || '',
     type: 'NeoForge',
     version: '1.21.1',
     memory: '12G',
@@ -109,7 +103,7 @@ const SERVERS_REGISTRY = [
     gamePort: 11681,
     rconPort: 25575,
     rconHostPort: 11691,
-    rconPassword: 'discopanel_451a2727',
+    rconPassword: process.env.MC_CREATE2_RCON_PASSWORD || process.env.RCON_PASSWORD || '',
     type: 'NeoForge',
     version: '1.21.1',
     memory: '16G',

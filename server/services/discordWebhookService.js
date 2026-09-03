@@ -20,36 +20,36 @@ if (!fs.existsSync(DATA_DIR)) {
   } catch (e) {}
 }
 
-// Default production webhook configurations
+// Default webhook configurations (secrets loaded from environment or persistent config)
 const DEFAULT_PRODUCTION_CONFIGS = {
   'patreon-creative': {
-    chatWebhookUrl: 'https://discord.com/api/webhooks/1544838645956223030/0AGAVWZ4IjEeZibIHf8F1SUxRgMG4vFCD5K9OYVEB5CVBQ28GLEd6FOGmFoFfBn7a7BB',
-    chatEnabled: true,
+    chatWebhookUrl: process.env.DISCORD_PATREON_CHAT_WEBHOOK || '',
+    chatEnabled: Boolean(process.env.DISCORD_PATREON_CHAT_WEBHOOK),
     chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
-    consoleWebhookUrl: 'https://discord.com/api/webhooks/1544838013568290837/JFoLXmxE-UmCazaaABC0faPeyTw9d7QtAKHJiWKg41g1DZasByc7EDvAY6bIj526lvMl',
-    consoleEnabled: true,
+    consoleWebhookUrl: process.env.DISCORD_PATREON_CONSOLE_WEBHOOK || '',
+    consoleEnabled: Boolean(process.env.DISCORD_PATREON_CONSOLE_WEBHOOK),
     consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
-    trainWebhookUrl: 'https://discord.com/api/webhooks/1544839092338958407/lIwKGD-RdN2ELm7NZFc4K3SSsafxD6wHh6cv6gLh22n1QmS3yxK1LtXl_nvRFPBWsnPT',
-    trainEnabled: true,
+    trainWebhookUrl: process.env.DISCORD_PATREON_TRAIN_WEBHOOK || '',
+    trainEnabled: Boolean(process.env.DISCORD_PATREON_TRAIN_WEBHOOK),
     trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
   },
   'create-2': {
-    chatWebhookUrl: '',
+    chatWebhookUrl: process.env.DISCORD_CREATE2_CHAT_WEBHOOK || '',
     chatEnabled: false,
     chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
-    consoleWebhookUrl: 'https://discord.com/api/webhooks/1544837178029244539/IZIb70pWUHS_-cHKLucoofToYTkhpzhiRnEULCtrv2gSe7zLPXbJsznlaEX1FJOUd0By',
-    consoleEnabled: true,
+    consoleWebhookUrl: process.env.DISCORD_CREATE2_CONSOLE_WEBHOOK || '',
+    consoleEnabled: Boolean(process.env.DISCORD_CREATE2_CONSOLE_WEBHOOK),
     consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
-    trainWebhookUrl: 'https://discord.com/api/webhooks/1544836484404744264/FSnTgDAm-YBys-Bv4-9qDrlA7j8GuaaZGPuuV6OCy3t6YGThHZaAE4GP6C_TqyKRWpyB',
-    trainEnabled: true,
+    trainWebhookUrl: process.env.DISCORD_CREATE2_TRAIN_WEBHOOK || '',
+    trainEnabled: Boolean(process.env.DISCORD_CREATE2_TRAIN_WEBHOOK),
     trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
   },
   'fabric-main': {
-    chatWebhookUrl: '',
+    chatWebhookUrl: process.env.DISCORD_FABRIC_CHAT_WEBHOOK || '',
     chatEnabled: false,
     chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
-    consoleWebhookUrl: 'https://discord.com/api/webhooks/1544840146451562586/-hui75hNw45j5tVlg5K5kUvR175S9PdC-QHi1I5il4kgxYhBMOe3Ly9gcRNNdpuIZgWN',
-    consoleEnabled: true,
+    consoleWebhookUrl: process.env.DISCORD_FABRIC_CONSOLE_WEBHOOK || '',
+    consoleEnabled: Boolean(process.env.DISCORD_FABRIC_CONSOLE_WEBHOOK),
     consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
     trainWebhookUrl: '',
     trainEnabled: false,

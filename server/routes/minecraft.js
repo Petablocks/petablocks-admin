@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const fs = require('fs');
 const net = require('net');
 const dns = require('dns').promises;
 const mysql = require('mysql2/promise');
@@ -9,15 +10,10 @@ const playerAnalyticsService = require('../services/playerAnalyticsService');
 
 const router = Router();
 
-const DEFAULT_SSH_KEY = `-----BEGIN OPENSSH PRIVATE KEY-----
-b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW
-QyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVgAAAJgVjzhhFY84
-YQAAAAtzc2gtZWQyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVg
-AAAECp+nVXQqH10GUgYHqZx6pBarI7yiqEv2H+pCrx0Zu8xYrkH3Wg+FzvhDcB0zCYuksb
-qFdV8R425Dklm/LPed1WAAAAFXBldGFibG9ja3MtbWNzLWFjY2Vzcw==
------END OPENSSH PRIVATE KEY-----`;
+// SSH private key loaded from environment variable or file
+const DEFAULT_SSH_KEY = process.env.MC_SSH_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
 
-const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN || '845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728';
+const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN || 'dev-secret-token-change-in-production';
 
 const SERVERS = [
   {
@@ -29,7 +25,7 @@ const SERVERS = [
     displayHost: 'play.petablocks.com',
     rconHost: process.env.MC_FABRIC_RCON_HOST || '10.20.110.118',
     rconPort: parseInt(process.env.MC_FABRIC_RCON_PORT || '16901', 10),
-    rconPassword: process.env.MC_FABRIC_RCON_PASSWORD || 'P3tabl0cksrc0n!!',
+    rconPassword: process.env.MC_FABRIC_RCON_PASSWORD || '',
     containerName: 'petablocks-modpack-main',
     type: 'fabric',
     version: '1.20.1',
@@ -42,9 +38,9 @@ const SERVERS = [
     host: process.env.MC_CREATE2_HOST || 'create2.petablocks.com',
     port: parseInt(process.env.MC_CREATE2_PORT || '11681', 10),
     displayHost: 'create2.petablocks.com',
-    rconHost: process.env.MC_CREATE2_RCON_HOST || '10.20.110.115',
+    rconHost: process.env.MC_CREATE2_RCON_HOST || '10.20.110.119',
     rconPort: parseInt(process.env.MC_CREATE2_RCON_PORT || '11691', 10),
-    rconPassword: process.env.MC_CREATE2_RCON_PASSWORD || 'discopanel_451a2727',
+    rconPassword: process.env.MC_CREATE2_RCON_PASSWORD || '',
     containerName: 'petablocks-create-2',
     logPath: '/home/user/data/servers/petablocks_create_2_451a2727-49f0-4629-86fe-b22e93ef67e5/logs/latest.log',
     type: 'neoforge',
@@ -60,7 +56,7 @@ const SERVERS = [
     displayHost: 'createcreative.petablocks.com',
     rconHost: process.env.MC_PATREON_RCON_HOST || '10.20.110.120',
     rconPort: parseInt(process.env.MC_PATREON_RCON_PORT || '11661', 10),
-    rconPassword: process.env.MC_PATREON_RCON_PASSWORD || 'discopanel_a91d1a56',
+    rconPassword: process.env.MC_PATREON_RCON_PASSWORD || '',
     containerName: 'petablocks-patreon-creative',
     logPath: '/home/user/data/servers/patreon_create_server_a91d1a56-6130-4daa-88c9-3f7a1082dcb4/logs/latest.log',
     type: 'neoforge',

@@ -4,6 +4,32 @@ All notable changes to the PETABLOCKS Admin & Operations Portal will be document
 
 ---
 
+## [1.7.0] - 2026-09-03
+### Added
+- **🤖 Autonomous Maintenance Execution Engine (`maintenanceRunner.js`)**:
+  - Continuous background evaluation of scheduled maintenance windows with zero human intervention required.
+  - Advance in-game countdown warnings at 15m, 5m, and 1m via `/tellraw` broadcasts.
+  - Automatic transition to `in_progress`, locking the companion mod gateway and kicking non-whitelisted players.
+  - Safe world data flush via `/save-all flush` before initiating container reboots.
+  - Automated Docker container restarts across target VM nodes via SSH to apply staged mod jars.
+  - Continuous TCP port and WebSocket telemetry health polling before auto-completing windows.
+  - Automatic unlock of in-game gateway, Discord notification update, and website banner clearance.
+  - Added `POST /api/maintenance/:id/trigger-pipeline` for on-demand pipeline execution.
+- **🎨 Categorized Navigation Sidebar Redesign (`Layout.tsx`)**:
+  - Reorganized flat 12-item list into semantic domains: `OVERVIEW`, `GAME OPERATIONS`, `INFRASTRUCTURE`, and `SYSTEM`.
+  - Added subtle uppercase section headers and active page left accent indicators.
+  - Live dynamic badges: real-time fleet player count pill (`online`) on Live Telemetry, and maintenance state badges (`ACTIVE` / `SCHED`) on Maintenance Hub.
+- **📜 Standard Operating Procedures (`STANDARD_PROCEDURES.md`)**:
+  - Authoritative operational guide for AI coding agents on SemVer versioning, changelog maintenance, pre-commit build checks, and public repo safety.
+
+### Security
+- **🛡️ Public Repository Security Sanitization**:
+  - Removed all hardcoded SSH private keys, MariaDB credentials, RCON passwords, and Discord webhook tokens from source code.
+  - Fully transitioned to environment variables (`process.env.*`) with safe generic local fallbacks.
+  - Added `.env.example` template documenting all configuration keys.
+
+---
+
 ## [1.6.0] - 2026-09-02
 ### Added
 - **🎮 Native Minecraft Server Management Platform (`/servers`)**:

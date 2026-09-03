@@ -3,16 +3,14 @@ const path = require('path');
 const https = require('https');
 const mysql = require('mysql2/promise');
 
-const DB_URL = (process.env.MC_DATABASE_URL && !process.env.MC_DATABASE_URL.includes('mc_readonly'))
-  ? process.env.MC_DATABASE_URL
-  : 'mysql://petablocks:mOgsrNJ6lEQQXx77YnPcVd0jxAmQDRud@10.20.110.117:3307/petablocks';
+const DB_URL = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'maintenance-config.json');
 
 const DEFAULT_CONFIG = {
-  announcementWebhookUrl: 'https://discord.com/api/webhooks/1545154422110429295/cvedQsaTO8kKnZ5Cn4PIoW2WhwEmAxYEZqxXkfJwwsSyVMRRm0r4CiMYVdntfS3ws5pU',
-  pingRole: '@everyone',
+  announcementWebhookUrl: process.env.DISCORD_ANNOUNCEMENT_WEBHOOK || '',
+  pingRole: process.env.DISCORD_PING_ROLE || '@everyone',
   enabled: true,
 };
 
