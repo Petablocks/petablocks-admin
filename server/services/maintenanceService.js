@@ -226,6 +226,28 @@ async function sendIngameBroadcast(serverIds, message) {
   }
 }
 
+/**
+ * Sync maintenance state to companion mod WebSocket clients
+ */
+function syncModMaintenanceMode(serverIds, enabled, title = 'Server Maintenance', etaMinutes = 30) {
+  try {
+    const { sendModAction } = require('../routes/minecraft');
+    const targetServers = (!Array.isArray(serverIds) || serverIds.includes('all'))
+      ? ['fabric-main', 'create-2', 'patreon-creative']
+      : serverIds;
+
+    for (const sid of targetServers) {
+      sendModAction(sid, 'SET_MAINTENANCE_MODE', {
+        enabled,
+        title,
+        etaMinutes
+      });
+    }
+  } catch (e) {
+    console.warn('[MAINTENANCE] Failed to sync companion mod mode:', e.message);
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // Public API Methods
 // ─────────────────────────────────────────────────────────────
@@ -327,8 +349,11 @@ async function createMaintenance({
     sendDiscordAnnouncement(newWindow, 'created').catch(console.error);
   }
 
-  if (notifyIngame && status === 'in_progress') {
-    sendIngameBroadcast(sIds, `Maintenance is now in progress: ${title}`).catch(console.error);
+  if (status === 'in_progress') {
+    if (notifyIngame) {
+      sendIngameBroadcast(sIds, `Maintenance is now in progress: ${title}`).catch(console.error);
+    }
+    syncModMaintenanceMode(sIds, true, title, dur);
   }
 
   return newWindow;
@@ -406,9 +431,15 @@ async function updateMaintenance(id, fields) {
     if (windowObj.notify_ingame) {
       if (fields.status === 'in_progress') {
         sendIngameBroadcast(windowObj.server_ids, `Server maintenance has begun: ${windowObj.title}`);
-      } else if (fields.status === 'completed') {
+      } else if (fields.status === 'completed' || fields.status === 'cancelled') {
         sendIngameBroadcast(windowObj.server_ids, `Maintenance complete! Servers are fully operational.`);
       }
+    }
+
+    if (fields.status === 'in_progress') {
+      syncModMaintenanceMode(windowObj.server_ids, true, windowObj.title, windowObj.estimated_duration_min);
+    } else if (fields.status === 'completed' || fields.status === 'cancelled') {
+      syncModMaintenanceMode(windowObj.server_ids, false);
     }
   }
 

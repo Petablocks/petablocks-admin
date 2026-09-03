@@ -284,6 +284,18 @@ function initWebSocket(httpServer) {
             location: msg.payload.location,
             player: msg.payload.player,
           });
+        } else if (msg.type === 'EVENT_LAG_SPIKE' && msg.payload) {
+          addServerLog(serverId, 'WARN', `⚠️ Tick lag spike detected: ${msg.payload.durationMs}ms (threshold: ${msg.payload.thresholdMs}ms)`, 'Performance');
+          discordService.sendConsoleAlert(serverId, {
+            title: `⚠️ Performance Warning: Lag Spike on ${serverId}`,
+            description: `A server tick took **${msg.payload.durationMs}ms** (threshold: ${msg.payload.thresholdMs}ms).`,
+            color: 0xf59e0b,
+            fields: [
+              { name: 'Tick Duration', value: `\`${msg.payload.durationMs}ms\``, inline: true },
+              { name: 'Online Players', value: `\`${msg.payload.onlinePlayers || 0}\``, inline: true },
+            ],
+            footerText: 'PETABLOCKS Telemetry Diagnostic Engine',
+          });
         } else if (msg.type === 'COMMAND_RESPONSE' && msg.payload) {
           const reqId = msg.payload.requestId;
           if (pendingCommandCallbacks.has(reqId)) {
@@ -889,7 +901,30 @@ router.post('/broadcast', async (req, res) => {
   });
 });
 
+function sendModAction(serverId, action, payload = {}) {
+  const normId = normalizeServerId(serverId);
+  const modSocket = modConnectedSockets.get(normId);
+  if (modSocket && modSocket.readyState === 1) { // 1 = OPEN
+    const requestId = 'act_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+    modSocket.send(JSON.stringify({
+      type: 'COMMAND_REQUEST',
+      serverId: normId,
+      timestamp: Date.now(),
+      payload: {
+        requestId,
+        action,
+        ...payload,
+        issuer: 'AdminPortal'
+      }
+    }));
+    return true;
+  }
+  return false;
+}
+
 module.exports = {
   router,
-  initWebSocket
+  initWebSocket,
+  executeCommandUnified,
+  sendModAction
 };
