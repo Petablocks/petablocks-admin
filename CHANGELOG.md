@@ -2,7 +2,10 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
----
+## [1.7.1] - 2026-09-04
+### Fixed
+- **Database Routing Mismatch**: Updated `maintenanceService.js` and `playerAnalyticsService.js` to automatically target the `petablocks` database when `MC_DATABASE_URL` specifies port `3307`, preventing split-database state where maintenance windows created in `petablocks` were invisible to the admin runner.
+- **Missing Module Import**: Added missing `const fs = require('fs');` import in `server/routes/serverManager.js` required for SSH key file checks.
 
 ## [1.7.0] - 2026-09-03
 ### Added

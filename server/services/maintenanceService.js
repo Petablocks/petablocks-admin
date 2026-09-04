@@ -2,8 +2,11 @@ const fs = require('fs');
 const path = require('path');
 const https = require('https');
 const mysql = require('mysql2/promise');
-
-const DB_URL = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
+// In production, maintenance windows reside in the petablocks DB on MariaDB port 3307
+const rawDbUrl = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
+const DB_URL = rawDbUrl.includes(':3307')
+  ? rawDbUrl.replace(/\/minecraft(\?|$)/, '/petablocks$1')
+  : rawDbUrl;
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'maintenance-config.json');

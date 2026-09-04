@@ -1,6 +1,9 @@
 const mysql = require('mysql2/promise');
 
-const DB_URL = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
+const rawDbUrl = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
+const DB_URL = rawDbUrl.includes(':3307')
+  ? rawDbUrl.replace(/\/minecraft(\?|$)/, '/petablocks$1')
+  : rawDbUrl;
 
 let pool = null;
 const activeSessionsCache = new Map(); // key: `${serverId}:${uuid}` -> { sessionId, startTime, lastHeartbeat, username }

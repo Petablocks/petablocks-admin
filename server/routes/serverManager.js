@@ -12,6 +12,7 @@ const router = express.Router();
 const { Client: SshClient } = require('ssh2');
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
 const net = require('net');
 const discordService = require('../services/discordWebhookService');
 
