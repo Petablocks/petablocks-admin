@@ -521,17 +521,18 @@ export function MinecraftServersPage() {
                   <input
                     type="text"
                     readOnly
-                    value="845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728"
+                    value="07f01fcbb74c9a64af468294770302ad2ce8f68fc1ddcc21b363505adac1a162"
                     className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-emerald-400 focus:outline-none select-all"
                   />
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText("845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728")
+                      navigator.clipboard.writeText("07f01fcbb74c9a64af468294770302ad2ce8f68fc1ddcc21b363505adac1a162")
                       setCopiedToken(true)
                       setTimeout(() => setCopiedToken(false), 2000)
                     }}
                     className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs rounded-lg transition-colors flex items-center gap-1.5"
                   >
+
                     {copiedToken ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
                     {copiedToken ? 'Copied Key' : 'Copy Key'}
                   </button>
