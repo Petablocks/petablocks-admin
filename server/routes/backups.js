@@ -28,7 +28,12 @@ const { PassThrough } = require('stream');
 const BACKUP_BUCKET = 'world-backups';
 
 // SSH private key for node cluster loaded securely from environment
-const DEFAULT_SSH_KEY = process.env.MC_SSH_PRIVATE_KEY || process.env.MC_SSH_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
+function getBackupSshKey() {
+  const raw = process.env.MC_SSH_PRIVATE_KEY || process.env.MC_SSH_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
+  if (!raw) return '';
+  return raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw;
+}
+const DEFAULT_SSH_KEY = getBackupSshKey();
 
 // Directories excluded from full-server backups (re-downloadable or non-essential)
 const FULL_BACKUP_EXCLUDES = [

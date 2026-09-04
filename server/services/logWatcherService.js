@@ -17,7 +17,12 @@ const { Client: SshClient } = require('ssh2');
 const discordService = require('./discordWebhookService');
 
 // Cluster SSH private key loaded securely from environment
-const CLUSTER_SSH_KEY = process.env.MC_SSH_KEY || process.env.MC_SSH_PRIVATE_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
+function getClusterSshKey() {
+  const raw = process.env.MC_SSH_KEY || process.env.MC_SSH_PRIVATE_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
+  if (!raw) return '';
+  return raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw;
+}
+const CLUSTER_SSH_KEY = getClusterSshKey();
 
 const SERVER_WATCH_LIST = [
   {

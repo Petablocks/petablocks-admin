@@ -13,13 +13,22 @@ const { Client: SshClient } = require('ssh2');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const net = require('net');
+const Docker = require('dockerode');
 const discordService = require('../services/discordWebhookService');
+
+const localDocker = new Docker({ socketPath: process.env.DOCKER_HOST?.replace('unix://', '') || '/var/run/docker.sock' });
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 500 * 1024 * 1024 } }); // 500MB max upload
 
 // SSH private key for node cluster loaded securely from environment
-const DEFAULT_SSH_KEY = process.env.MC_SSH_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
+function getEffectiveSshKey() {
+  const raw = process.env.MC_SSH_PRIVATE_KEY || process.env.MC_SSH_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
+  if (!raw) return '';
+  return raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw;
+}
+const DEFAULT_SSH_KEY = getEffectiveSshKey();
 
 // ── Registered Node Cluster ────────────────────────────────────────
 const NODES = {
@@ -154,11 +163,18 @@ function runSshCommand(nodeConfig, command, timeoutMs = 20000) {
       reject(new Error(`SSH Command timed out after ${timeoutMs}ms: ${command}`));
     }, timeoutMs);
 
+    const key = getEffectiveSshKey();
+    if (!key) {
+      clearTimeout(timer);
+      conn.end();
+      return reject(new Error('No SSH private key configured (MC_SSH_KEY / MC_SSH_PRIVATE_KEY is empty)'));
+    }
+
     conn.connect({
       host: nodeConfig.host,
       port: nodeConfig.port,
       username: nodeConfig.user,
-      privateKey: process.env.MC_SSH_PRIVATE_KEY || DEFAULT_SSH_KEY,
+      privateKey: key,
       readyTimeout: 10000,
     });
   });
@@ -290,6 +306,56 @@ router.get('/nodes', async (_req, res) => {
           docker: { running: dockerRunning, total: dockerTotal },
         };
       } catch (err) {
+        // Fallback for PETABLOCKS-FEA (fea-01): pb-admin runs directly inside Docker on FEA
+        // with /var/run/docker.sock mounted. Query host/container vitals directly.
+        if (node.id === 'fea-01') {
+          try {
+            const dockerInfo = await localDocker.info().catch(() => null);
+            const totalMemMb = Math.round(os.totalmem() / (1024 * 1024));
+            const freeMemMb = Math.round(os.freemem() / (1024 * 1024));
+            const usedMemMb = Math.max(0, totalMemMb - freeMemMb);
+            const cpuCores = os.cpus().length || 4;
+
+            const runningContainers = dockerInfo ? dockerInfo.ContainersRunning : 0;
+            const totalContainers = dockerInfo ? dockerInfo.Containers : 0;
+
+            let diskTotal = '—';
+            let diskUsed = '—';
+            let diskAvail = '—';
+            let diskPercent = 0;
+
+            if (fs.existsSync('/opt/petablocks')) {
+              try {
+                const stat = fs.statfsSync('/opt/petablocks');
+                const bSize = stat.bsize || 4096;
+                const totalBytes = stat.blocks * bSize;
+                const freeBytes = stat.bfree * bSize;
+                const usedBytes = totalBytes - freeBytes;
+                diskTotal = `${(totalBytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
+                diskUsed = `${(usedBytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
+                diskAvail = `${(freeBytes / (1024 * 1024 * 1024)).toFixed(1)}G`;
+                diskPercent = totalBytes ? Math.round((usedBytes / totalBytes) * 100) : 0;
+              } catch (_) {}
+            }
+
+            return {
+              ...node,
+              online: true,
+              pingMs: 1,
+              cpuCores,
+              memory: {
+                totalGb: (totalMemMb / 1024).toFixed(1),
+                usedGb: (usedMemMb / 1024).toFixed(1),
+                percent: totalMemMb ? Math.round((usedMemMb / totalMemMb) * 100) : 0,
+              },
+              disk: { total: diskTotal, used: diskUsed, avail: diskAvail, percent: diskPercent },
+              docker: { running: runningContainers, total: totalContainers },
+            };
+          } catch (localErr) {
+            console.warn('[NODES] FEA local metrics fallback error:', localErr.message);
+          }
+        }
+
         return {
           ...node,
           online: false,

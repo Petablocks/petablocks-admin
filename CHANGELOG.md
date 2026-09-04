@@ -2,6 +2,12 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [1.7.2] - 2026-09-04
+### Fixed
+- **Cluster Node Health Checks & SSH Key Handling**: Added multiline newline parsing (`\n` unescaping) for `MC_SSH_KEY` / `MC_SSH_PRIVATE_KEY` across `serverManager.js`, `logWatcherService.js`, and `backups.js`.
+- **PETABLOCKS-FEA Node Local Fallback**: Implemented direct local Docker Engine and host OS metrics fallback for node `fea-01` when running directly on the FEA host, ensuring the Web & Admin node reports online with accurate CPU, RAM, Disk, and Docker container counts.
+- **Maintenance Runner Evaluation**: Ensured strict boolean coercion for `win.auto_execute` in `maintenanceRunner.js`.
+
 ## [1.7.1] - 2026-09-04
 ### Fixed
 - **Database Routing Mismatch**: Updated `maintenanceService.js` and `playerAnalyticsService.js` to automatically target the `petablocks` database when `MC_DATABASE_URL` specifies port `3307`, preventing split-database state where maintenance windows created in `petablocks` were invisible to the admin runner.

@@ -45,7 +45,8 @@ async function tick() {
     const now = Date.now();
 
     for (const win of windows) {
-      if (!win.auto_execute) continue;
+      const isAuto = Boolean(win.auto_execute);
+      if (!isAuto) continue;
 
       if (win.status === 'scheduled') {
         const remainingMs = win.start_time - now;
@@ -81,7 +82,7 @@ async function tick() {
       }
     }
   } catch (err) {
-    console.warn('[MAINTENANCE-RUNNER] Tick evaluation error:', err.message);
+    console.error('[MAINTENANCE-RUNNER] Tick evaluation error:', err);
   }
 }
 
