@@ -25,6 +25,15 @@ jobs:
 
       - name: Rebuild & Restart Admin Container
         run: |
+          # Ensure cluster SSH key is configured in /opt/petablocks/.env if not already set
+          ssh -o StrictHostKeyChecking=no root@10.20.110.116 '
+            if [ -f /opt/petablocks/.env ]; then
+              if ! grep -q "^MC_SSH_KEY=" /opt/petablocks/.env || grep -q "^MC_SSH_KEY=\"\"" /opt/petablocks/.env || grep -q "^MC_SSH_KEY=$" /opt/petablocks/.env; then
+                sed -i "/^MC_SSH_KEY=/d" /opt/petablocks/.env
+                printf "\nMC_SSH_KEY=\"-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\nQyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVgAAAJgVjzhhFY84\nYQAAAAtzc2gtZWQyNTUxOQAAACCK5B91oPhc74Q3AdMwmLpLG6hXVfEeNuQ5JZvyz3ndVg\nAAAECp+nVXQqH10GUgYHqZx6pBarI7yiqEv2H+pCrx0Zu8xYrkH3Wg+FzvhDcB0zCYuksb\nqFdV8R425Dklm/LPed1WAAAAFXBldGFibG9ja3MtbWNzLWFjY2Vzcw==\n-----END OPENSSH PRIVATE KEY-----\"\n" >> /opt/petablocks/.env
+              fi
+            fi
+          '
           # Rebuild only the admin container and leave others untouched
           ssh -o StrictHostKeyChecking=no root@10.20.110.116 \
             "cd /opt/petablocks && docker compose up -d --build --no-deps admin"
