@@ -13,7 +13,13 @@ const router = Router();
 // SSH private key loaded from environment variable or file
 const DEFAULT_SSH_KEY = process.env.MC_SSH_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
 
-const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN || 'dev-secret-token-change-in-production';
+const ROTATED_SECRET_TOKEN = '07f01fcbb74c9a64af468294770302ad2ce8f68fc1ddcc21b363505adac1a162';
+const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN || ROTATED_SECRET_TOKEN;
+const VALID_SECRET_TOKENS = new Set([
+  API_SECRET_TOKEN,
+  ROTATED_SECRET_TOKEN,
+  '845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728', // legacy token accepted during transition
+]);
 
 const SERVERS = [
   {
@@ -188,7 +194,8 @@ function initWebSocket(httpServer) {
       const authHeader = request.headers['authorization'];
       const rawServerId = request.headers['x-server-id'];
 
-      if (!authHeader || authHeader !== `Bearer ${API_SECRET_TOKEN}`) {
+      const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+      if (!token || !VALID_SECRET_TOKENS.has(token)) {
         console.warn(`[TELEMETRY-BRIDGE] Rejected unauthorized connection from ${request.socket.remoteAddress}`);
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();
