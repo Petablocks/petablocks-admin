@@ -101,6 +101,9 @@ export default function RegisteredUsersPage() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [newRole, setNewRole] = useState<string>('')
   const [roleUpdateSuccess, setRoleUpdateSuccess] = useState(false)
+  const [manualMcInput, setManualMcInput] = useState('')
+  const [linkError, setLinkError] = useState<string | null>(null)
+  const [linkSuccess, setLinkSuccess] = useState<string | null>(null)
 
   // Overview metrics
   const { data: overview, isLoading: loadingOverview, refetch: refetchOverview } = useQuery<OverviewData>({
@@ -157,6 +160,61 @@ export default function RegisteredUsersPage() {
       queryClient.invalidateQueries({ queryKey: ['user-detail', selectedUserId] })
       setRoleUpdateSuccess(true)
       setTimeout(() => setRoleUpdateSuccess(false), 3000)
+    },
+  })
+
+  // Manual Minecraft Link Mutation
+  const linkMinecraftMutation = useMutation({
+    mutationFn: async ({ userId, player }: { userId: number; player: string }) => {
+      setLinkError(null)
+      setLinkSuccess(null)
+      const res = await fetch('/api/users/' + userId + '/link-minecraft', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ player }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to link Minecraft account')
+      }
+      return data
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['users-list'] })
+      queryClient.invalidateQueries({ queryKey: ['users-overview'] })
+      queryClient.invalidateQueries({ queryKey: ['user-detail', selectedUserId] })
+      setLinkSuccess(data.message || 'Minecraft account linked successfully!')
+      setManualMcInput('')
+      setTimeout(() => setLinkSuccess(null), 4000)
+    },
+    onError: (err: any) => {
+      setLinkError(err.message || 'Error linking account')
+    },
+  })
+
+  // Manual Minecraft Unlink Mutation
+  const unlinkMinecraftMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      setLinkError(null)
+      setLinkSuccess(null)
+      const res = await fetch('/api/users/' + userId + '/unlink-minecraft', {
+        method: 'POST',
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to unlink Minecraft account')
+      }
+      return data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users-list'] })
+      queryClient.invalidateQueries({ queryKey: ['users-overview'] })
+      queryClient.invalidateQueries({ queryKey: ['user-detail', selectedUserId] })
+      setLinkSuccess('Minecraft account unlinked.')
+      setTimeout(() => setLinkSuccess(null), 4000)
+    },
+    onError: (err: any) => {
+      setLinkError(err.message || 'Error unlinking account')
     },
   })
 
@@ -594,10 +652,26 @@ export default function RegisteredUsersPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Minecraft Link Box */}
                   <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-1.5">
-                      <Gamepad2 className="w-4 h-4 text-emerald-400" />
-                      Minecraft Identity
+                    <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Gamepad2 className="w-4 h-4 text-emerald-400" />
+                        Minecraft Identity
+                      </div>
+                      {userDetail.minecraft_uuid && (
+                        <button
+                          onClick={() => {
+                            if (window.confirm(`Unlink Minecraft account "${userDetail.minecraft_username}" from ${userDetail.username}?`)) {
+                              unlinkMinecraftMutation.mutate(userDetail.id)
+                            }
+                          }}
+                          disabled={unlinkMinecraftMutation.isPending}
+                          className="text-[11px] text-zinc-500 hover:text-rose-400 transition-colors"
+                        >
+                          {unlinkMinecraftMutation.isPending ? 'Unlinking...' : 'Unlink'}
+                        </button>
+                      )}
                     </div>
+
                     {userDetail.minecraft_uuid ? (
                       <div className="flex items-start gap-3">
                         <img
@@ -605,7 +679,7 @@ export default function RegisteredUsersPage() {
                           alt="MC Avatar"
                           className="w-10 h-10 rounded bg-zinc-800 border border-zinc-700"
                         />
-                        <div className="space-y-1">
+                        <div className="space-y-1 flex-1">
                           <div className="font-semibold text-white text-sm">
                             {userDetail.minecraft_username}
                           </div>
@@ -618,12 +692,46 @@ export default function RegisteredUsersPage() {
                         </div>
                       </div>
                     ) : (
-                      <div className="text-center py-4">
-                        <AlertCircle className="w-8 h-8 text-amber-400/80 mx-auto mb-2" />
-                        <div className="text-sm font-medium text-zinc-300">No Minecraft Account Linked</div>
-                        <p className="text-xs text-zinc-500 mt-1">
-                          The player has not yet completed `/link` in-game on the server.
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
+                          <AlertCircle className="w-4 h-4 shrink-0" />
+                          <span>No Minecraft account linked yet</span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400">
+                          Player can run <code className="text-emerald-400 bg-zinc-900 px-1 py-0.5 rounded font-mono">/link</code> in-game, or you can link them manually:
                         </p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            placeholder="IGN (e.g. Bananawhoami)"
+                            value={manualMcInput}
+                            onChange={(e) => setManualMcInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && manualMcInput.trim()) {
+                                linkMinecraftMutation.mutate({ userId: userDetail.id, player: manualMcInput.trim() })
+                              }
+                            }}
+                            className="flex-1 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                          />
+                          <button
+                            onClick={() => linkMinecraftMutation.mutate({ userId: userDetail.id, player: manualMcInput.trim() })}
+                            disabled={linkMinecraftMutation.isPending || !manualMcInput.trim()}
+                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
+                          >
+                            {linkMinecraftMutation.isPending ? 'Linking...' : 'Link IGN'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {linkSuccess && (
+                      <div className="mt-2 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 shrink-0" /> {linkSuccess}
+                      </div>
+                    )}
+                    {linkError && (
+                      <div className="mt-2 text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {linkError}
                       </div>
                     )}
                   </div>

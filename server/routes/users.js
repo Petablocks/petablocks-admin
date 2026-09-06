@@ -1,4 +1,4 @@
-﻿const { Router } = require('express');
+const { Router } = require('express');
 const usersService = require('../services/usersService');
 
 const router = Router();
@@ -68,6 +68,33 @@ router.patch('/:id/role', async (req, res) => {
     res.json({ ok: true, message: `Role successfully updated to "${role}"`, user: updatedUser });
   } catch (err) {
     console.error('[API-USERS] Role update error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/users/:id/link-minecraft
+router.post('/:id/link-minecraft', async (req, res) => {
+  try {
+    const { player } = req.body;
+    if (!player || typeof player !== 'string') {
+      return res.status(400).json({ error: 'Field "player" (Minecraft username or UUID) is required' });
+    }
+
+    const updatedUser = await usersService.linkMinecraftAccount(req.params.id, player.trim(), req.headers['x-admin-user'] || 'Admin');
+    res.json({ ok: true, message: `Successfully linked Minecraft account "${updatedUser.minecraft?.username}"`, user: updatedUser });
+  } catch (err) {
+    console.error('[API-USERS] Link error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /api/users/:id/unlink-minecraft
+router.post('/:id/unlink-minecraft', async (req, res) => {
+  try {
+    const updatedUser = await usersService.unlinkMinecraftAccount(req.params.id, req.headers['x-admin-user'] || 'Admin');
+    res.json({ ok: true, message: 'Minecraft account successfully unlinked', user: updatedUser });
+  } catch (err) {
+    console.error('[API-USERS] Unlink error:', err.message);
     res.status(400).json({ error: err.message });
   }
 });

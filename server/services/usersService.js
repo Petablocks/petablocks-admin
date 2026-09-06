@@ -329,9 +329,88 @@ async function updateUserRole(userId, newRole, issuer = 'Admin') {
   return getUserDetails(userId);
 }
 
+/**
+ * Manually link a Minecraft account to an auth user (Admin override)
+ */
+async function linkMinecraftAccount(userId, usernameOrUuid, issuer = 'Admin') {
+  const p = await getPool();
+  const input = (usernameOrUuid || '').trim();
+  if (!input) throw new Error('Please provide a Minecraft username or UUID');
+
+  // 1. Search in analytics_players first
+  let [players] = await p.query(
+    'SELECT uuid, username FROM analytics_players WHERE LOWER(username) = LOWER(?) OR LOWER(uuid) = LOWER(?) LIMIT 1',
+    [input, input]
+  );
+
+  let targetUuid = null;
+  let targetUsername = null;
+
+  if (players.length > 0) {
+    targetUuid = players[0].uuid;
+    targetUsername = players[0].username;
+  } else {
+    // 2. Fallback to Mojang API if not in local analytics
+    try {
+      const isUuid = /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/i.test(input);
+      if (isUuid) {
+        const cleanUuid = input.replace(/-/g, '');
+        const mojangRes = await fetch(`https://sessionserver.mojang.com/session/minecraft/profile/${cleanUuid}`);
+        if (mojangRes.ok) {
+          const profile = await mojangRes.json();
+          targetUuid = input.length === 32 ? `${input.slice(0,8)}-${input.slice(8,12)}-${input.slice(12,16)}-${input.slice(16,20)}-${input.slice(20)}` : input;
+          targetUsername = profile.name;
+        }
+      } else {
+        const mojangRes = await fetch(`https://api.mojang.com/users/profiles/minecraft/${encodeURIComponent(input)}`);
+        if (mojangRes.ok) {
+          const profile = await mojangRes.json();
+          const raw = profile.id;
+          targetUuid = `${raw.slice(0,8)}-${raw.slice(8,12)}-${raw.slice(12,16)}-${raw.slice(16,20)}-${raw.slice(20)}`;
+          targetUsername = profile.name;
+        }
+      }
+    } catch (e) {
+      console.warn('[USERS] Mojang lookup error:', e.message);
+    }
+  }
+
+  if (!targetUuid || !targetUsername) {
+    throw new Error(`Could not find Minecraft player "${input}" in server analytics or Mojang services.`);
+  }
+
+  // Check if this Minecraft UUID is already linked to another user
+  const [existing] = await p.query('SELECT id, username FROM auth_users WHERE minecraft_uuid = ? AND id != ? LIMIT 1', [targetUuid, userId]);
+  if (existing.length > 0) {
+    throw new Error(`Minecraft account "${targetUsername}" is already linked to user "${existing[0].username}" (ID: ${existing[0].id}).`);
+  }
+
+  // Update auth_users
+  await p.query(
+    'UPDATE auth_users SET minecraft_uuid = ?, minecraft_username = ? WHERE id = ?',
+    [targetUuid, targetUsername, userId]
+  );
+
+  return getUserDetails(userId);
+}
+
+/**
+ * Manually unlink a Minecraft account from an auth user (Admin override)
+ */
+async function unlinkMinecraftAccount(userId, issuer = 'Admin') {
+  const p = await getPool();
+  await p.query(
+    'UPDATE auth_users SET minecraft_uuid = NULL, minecraft_username = NULL WHERE id = ?',
+    [userId]
+  );
+  return getUserDetails(userId);
+}
+
 module.exports = {
   getUsersOverview,
   getUsersList,
   getUserDetails,
   updateUserRole,
+  linkMinecraftAccount,
+  unlinkMinecraftAccount,
 };

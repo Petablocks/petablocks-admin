@@ -2,6 +2,14 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [1.8.1] - 2026-09-06
+### Added
+- **🔗 Admin Manual Minecraft Linking & Unlinking Tool (`/users`)**:
+  - Added in-modal manual Minecraft account link input allowing administrators to bind any player's in-game IGN or UUID directly to their Discord/Microsoft central auth account.
+  - Automatically verifies against local server analytics database (`analytics_players`) or official Mojang API for accurate UUID resolution.
+  - Added one-click "Unlink" action button with confirmation dialog.
+  - Backend endpoints: `POST /api/users/:id/link-minecraft` and `POST /api/users/:id/unlink-minecraft`.
+
 ## [1.8.0] - 2026-09-06
 ### Added
 - **🛡️ Central Auth & Registered Users Management Module (`/users`)**:
