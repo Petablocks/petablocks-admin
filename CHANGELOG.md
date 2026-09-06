@@ -2,6 +2,23 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [1.8.0] - 2026-09-06
+### Added
+- **🛡️ Central Auth & Registered Users Management Module (`/users`)**:
+  - Dedicated operations dashboard to monitor registered player accounts from `petablocks.com` Central Auth.
+  - Live metric cards: Total Registered Accounts, Minecraft Linked vs Unlinked with percentage, OAuth provider breakdown (Discord vs Microsoft), and active valid session tokens.
+  - Multi-criteria search and filtering by username, Minecraft IGN, email, Discord Snowflake/tag, OAuth provider, linkage status, and staff role.
+  - Interactive User Table showing avatar heads, provider badges, Minecraft link state, role tags, and activity timestamps with 15-second polling.
+  - Deep Inspection Modal / Slide-over:
+    - User account overview, registration and activity timestamps.
+    - Security Role Assignment (`owner`, `admin`, `moderator`, `builder`, `player`) with immediate MariaDB sync.
+    - Minecraft identity breakdown with Crafatar head avatars and cryptographically linked UUIDs.
+    - OAuth identity details including Discord Snowflake ID and guild membership, or Microsoft 365 ID and email.
+    - Live In-Game Analytics telemetry cross-referenced with `analytics_players` (playtime, sessions, deaths, online state).
+    - Active Session Token inspector displaying client IP addresses, User Agents, and expiration dates.
+  - Live Registered Users count badge added to the navigation sidebar in `Layout.tsx`.
+  - Backend endpoints: `GET /api/users/overview`, `GET /api/users`, `GET /api/users/:id`, and `PATCH /api/users/:id/role`.
+
 ## [1.7.2] - 2026-09-04
 ### Fixed
 - **Cluster Node Health Checks & SSH Key Handling**: Added multiline newline parsing (`\n` unescaping) for `MC_SSH_KEY` / `MC_SSH_PRIVATE_KEY` across `serverManager.js`, `logWatcherService.js`, and `backups.js`.

@@ -11,6 +11,7 @@ const backupsRouter = require('./routes/backups');
 const serverManagerRouter = require('./routes/serverManager');
 const playerAnalyticsRouter = require('./routes/playerAnalytics');
 const maintenanceRouter = require('./routes/maintenance');
+const usersRouter = require('./routes/users');
 const { router: minecraftRouter, initWebSocket } = require('./routes/minecraft');
 const { initLogWatcher } = require('./services/logWatcherService');
 const { initTrainMonitor } = require('./services/trainMonitorService');
@@ -49,6 +50,7 @@ app.use('/api/server-manager', serverManagerRouter);
 app.use('/api/minecraft', minecraftRouter);
 app.use('/api/player-stats', playerAnalyticsRouter);
 app.use('/api/maintenance', maintenanceRouter);
+app.use('/api/users', usersRouter);
 
 // Health check
 app.get('/api/health', async (_req, res) => {

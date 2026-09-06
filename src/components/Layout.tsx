@@ -15,6 +15,7 @@ import {
   ArchiveRestore,
   Layers,
   Users,
+  ShieldCheck,
   Wrench,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
@@ -76,9 +77,21 @@ export default function Layout() {
     refetchInterval: 12000,
   })
 
+  // Live query for registered users count
+  const { data: usersOverview } = useQuery<{ totalUsers?: number }>({
+    queryKey: ['users-count-badge'],
+    queryFn: async () => {
+      const res = await fetch('/api/users/overview')
+      if (!res.ok) return { totalUsers: 0 }
+      return res.json()
+    },
+    refetchInterval: 30000,
+  })
+
   const hasActiveMaintenance = Array.isArray(activeMaintenance) && activeMaintenance.some((w) => w.status === 'in_progress')
   const hasScheduledMaintenance = Array.isArray(activeMaintenance) && activeMaintenance.some((w) => w.status === 'scheduled')
   const totalPlayersOnline = telemetryData?.totalOnline ?? 0
+  const totalRegisteredUsers = usersOverview?.totalUsers ?? 0
 
   const navSections: NavSection[] = [
     {
@@ -102,6 +115,17 @@ export default function Layout() {
             ) : null,
         },
         { to: '/analytics', icon: Users, label: 'Player Analytics' },
+        {
+          to: '/users',
+          icon: ShieldCheck,
+          label: 'Registered Users',
+          badge: () =>
+            totalRegisteredUsers > 0 ? (
+              <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                {totalRegisteredUsers}
+              </span>
+            ) : null,
+        },
         {
           to: '/maintenance',
           icon: Wrench,
