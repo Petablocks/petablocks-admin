@@ -30,6 +30,7 @@ router.get('/', async (_req, res) => {
           image: c.Image,
           status: c.Status,
           state: c.State,
+          ports: c.Ports,
           cpuPercent,
           memMb,
         };
