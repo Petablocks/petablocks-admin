@@ -2,6 +2,17 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [1.8.2] - 2026-09-08
+### Fixed & Hardened
+- **💾 Storage Exhaustion Protection & Backup Retention Optimization**:
+  - Identified and resolved root cause of PETABLOCKS-FEA disk saturation (152 GB consumed by MinIO world backups).
+  - Adjusted `RETENTION_LIMITS` in `backupScheduleService.js`: `world` limit set to 2 (down from 7) and `full` set to 1 (down from 2) to maintain a safe storage profile well within the 196 GB host capacity.
+  - Implemented pre-flight disk headroom checks via `fs.statfsSync`:
+    - Automatically executes proactive pruning if free disk falls below 35 GB before starting any backup sequence.
+    - Aborts backup sequence and alerts Discord Console if free disk falls below 20 GB to prevent host lockup.
+  - Added excludes (`--exclude=*bluemap*`, `--exclude=*dynmap*`, `--exclude=*.log*`, `--exclude=crash-reports`) to world snapshot tar streams in `backups.js` to prevent web map tiles and logs from bloating world archives.
+  - Deployed daily storage cleanup cron (`/etc/cron.d/petablocks-storage-cleanup`) on PETABLOCKS-FEA to automatically purge MinIO `.trash`, old Docker build caches, and dangling images.
+
 ## [1.8.1] - 2026-09-06
 ### Added
 - **🔗 Admin Manual Minecraft Linking & Unlinking Tool (`/users`)**:

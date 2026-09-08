@@ -44,6 +44,14 @@ const FULL_BACKUP_EXCLUDES = [
   '--exclude=bluemap',
 ];
 
+// Directories and caches excluded from world snapshots (web tiles, logs, or transient caches)
+const WORLD_BACKUP_EXCLUDES = [
+  '--exclude=*bluemap*',
+  '--exclude=*dynmap*',
+  '--exclude=*.log*',
+  '--exclude=crash-reports',
+];
+
 // ── S3 / MinIO Client ──────────────────────────────────────────────
 function getS3Client() {
   return new S3Client({
@@ -115,8 +123,9 @@ function buildTarCommand(srvConfig, backupType) {
     const excludes = FULL_BACKUP_EXCLUDES.join(' ');
     return `tar -czf - ${excludes} -C "$(dirname "${srvConfig.serverDataPath}")" "$(basename "${srvConfig.serverDataPath}")" 2>/dev/null`;
   } else {
+    const excludes = WORLD_BACKUP_EXCLUDES.join(' ');
     const dirs = srvConfig.worldDirs.join(' ');
-    return `tar -czf - -C "${srvConfig.serverDataPath}" ${dirs} 2>/dev/null`;
+    return `tar -czf - ${excludes} -C "${srvConfig.serverDataPath}" ${dirs} 2>/dev/null`;
   }
 }
 

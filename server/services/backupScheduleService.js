@@ -1,4 +1,4 @@
-﻿/**
+/**
  * PETABLOCKS Automated Fleet Backup Scheduler & Retention Engine
  *
  * Runs scheduled snapshots for Minecraft game servers:
@@ -11,6 +11,7 @@
  * - Proactive Storage & Low-Disk Warning Alerts to Discord Console (#console-alerts)
  */
 
+const fs = require('fs');
 const http = require('http');
 const discordService = require('./discordWebhookService');
 const { S3Client, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sdk/client-s3');
@@ -18,9 +19,19 @@ const { S3Client, ListObjectsV2Command, DeleteObjectCommand } = require('@aws-sd
 const BACKUP_BUCKET = 'world-backups';
 
 const RETENTION_LIMITS = {
-  world: 7, // Keep last 7 world snapshots (~3-5GB each)
-  full: 2,  // Keep last 2 full server archives (~25GB each)
+  world: 2, // Keep last 2 world snapshots per server (~5-25GB each)
+  full: 1,  // Keep latest full server archive per server for disaster recovery
 };
+
+function getAvailableDiskGb() {
+  try {
+    const stat = fs.statfsSync('/');
+    const freeBytes = Number(stat.bavail) * Number(stat.bsize);
+    return freeBytes / (1024 * 1024 * 1024);
+  } catch (err) {
+    return 100;
+  }
+}
 
 const BACKUP_TARGETS = [
   { id: 'create-2', name: 'Just Create SMP 2' },
@@ -206,10 +217,40 @@ async function getStorageMetrics() {
 }
 
 async function runScheduledBackupSequence(backupType = 'world') {
-  console.log(`[BACKUP-SCHEDULER] Starting automated ${backupType} snapshot sequence for fleet...`);
+  const freeGb = getAvailableDiskGb();
+  console.log(`[BACKUP-SCHEDULER] Starting automated ${backupType} snapshot sequence for fleet (Host Free: ${freeGb.toFixed(1)} GB)...`);
+
+  // 1. If host disk is constrained (<35 GB free), run proactive pruning first
+  if (freeGb < 35) {
+    console.warn(`[BACKUP-SCHEDULER] Free disk below 35GB threshold (${freeGb.toFixed(1)} GB). Executing proactive retention cleanup...`);
+    for (const target of BACKUP_TARGETS) {
+      await pruneOldBackups(target.id, 'world');
+      await pruneOldBackups(target.id, 'full');
+    }
+  }
+
+  // 2. Safety abort if host storage is critically low (<20 GB) to prevent crash
+  const postPruneFree = getAvailableDiskGb();
+  if (postPruneFree < 20) {
+    console.error(`[BACKUP-SCHEDULER] CRITICAL: Host disk space too low (${postPruneFree.toFixed(1)} GB). Aborting backup sequence.`);
+    discordService.sendConsoleAlert('all', {
+      title: `⚠️ Automated Backup Sequence Skipped`,
+      description: `Host free disk is critically low (**${postPruneFree.toFixed(1)} GB** free). Backup sequence aborted to prevent service outages.`,
+      color: 0xf59e0b,
+      fields: [
+        { name: 'Backup Type', value: backupType.toUpperCase(), inline: true },
+        { name: 'Available Space', value: `\`${postPruneFree.toFixed(1)} GB\``, inline: true },
+        { name: 'Action Required', value: 'Review retention or expand node volume', inline: false },
+      ],
+    });
+    return;
+  }
 
   for (const target of BACKUP_TARGETS) {
     try {
+      // Enforce retention BEFORE triggering new backup to guarantee space
+      await pruneOldBackups(target.id, backupType);
+
       console.log(`[BACKUP-SCHEDULER] Triggering ${backupType} backup for ${target.id} (${target.name})...`);
       const started = await triggerBackupInternal(target.id, backupType);
 
