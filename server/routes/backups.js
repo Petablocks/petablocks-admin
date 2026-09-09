@@ -121,11 +121,11 @@ const inMemoryBackups = new Map();
 function buildTarCommand(srvConfig, backupType) {
   if (backupType === 'full') {
     const excludes = FULL_BACKUP_EXCLUDES.join(' ');
-    return `tar -czf - ${excludes} -C "$(dirname "${srvConfig.serverDataPath}")" "$(basename "${srvConfig.serverDataPath}")" 2>/dev/null`;
+    return `timeout 3600 tar -czf - ${excludes} -C "$(dirname "${srvConfig.serverDataPath}")" "$(basename "${srvConfig.serverDataPath}")" 2>/dev/null`;
   } else {
     const excludes = WORLD_BACKUP_EXCLUDES.join(' ');
     const dirs = srvConfig.worldDirs.join(' ');
-    return `tar -czf - ${excludes} -C "${srvConfig.serverDataPath}" ${dirs} 2>/dev/null`;
+    return `timeout 1800 tar -czf - ${excludes} -C "${srvConfig.serverDataPath}" ${dirs} 2>/dev/null`;
   }
 }
 
