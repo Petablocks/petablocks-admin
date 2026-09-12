@@ -15,8 +15,47 @@ import {
   Check,
   Bot,
   Zap,
+  RotateCcw,
+  AlertTriangle,
+  Activity,
+  Loader2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+
+interface RestartSchedule {
+  server_id: string
+  enabled: number
+  cron_time: string
+  warning_minutes: number[]
+  last_run_at: string | null
+}
+
+interface RestartMetric {
+  id: number
+  server_id: string
+  server_name: string
+  triggered_by: string
+  shutdown_duration_ms: number
+  startup_duration_ms: number
+  total_downtime_ms: number
+  players_online_at_restart: number
+  pre_restart_tps: number
+  post_restart_tps: number
+  mods_loaded: number
+  log_warnings_count: number
+  log_errors_count: number
+  startup_summary: string
+  status: string
+  created_at: string
+}
+
+interface RestartStatusResponse {
+  success: boolean
+  isRunning: boolean
+  activeSessions: any[]
+  schedules: RestartSchedule[]
+  recentMetrics: RestartMetric[]
+}
 
 interface MaintenanceWindow {
   id: number
@@ -59,7 +98,8 @@ const SERVER_OPTIONS = [
 
 export default function MaintenanceManagerPage() {
   const queryClient = useQueryClient()
-  const [activeTab, setActiveTab] = useState<'upcoming' | 'history'>('upcoming')
+  const [activeTab, setActiveTab] = useState<'upcoming' | 'history' | 'restarts'>('upcoming')
+  const [triggeringServerId, setTriggeringServerId] = useState<string | null>(null)
   const [isImmediateModalOpen, setIsImmediateModalOpen] = useState(false)
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false)
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false)
@@ -84,6 +124,35 @@ export default function MaintenanceManagerPage() {
   const [webhookUrl, setWebhookUrl] = useState('')
   const [pingRole, setPingRole] = useState('@everyone')
   const [webhookEnabled, setWebhookEnabled] = useState(true)
+
+  // Fetch restart schedules & telemetry metrics
+  const { data: restartStatusData, isLoading: isRestartStatusLoading } = useQuery<RestartStatusResponse>({
+    queryKey: ['restart-status'],
+    queryFn: async () => {
+      const res = await fetch('/api/server-manager/restarts/status')
+      if (!res.ok) throw new Error('Failed to load restart status')
+      return res.json()
+    },
+    refetchInterval: 10000,
+  })
+
+  // Trigger restart mutation
+  const triggerRestartMutation = useMutation({
+    mutationFn: async (serverId: string) => {
+      setTriggeringServerId(serverId)
+      const res = await fetch('/api/server-manager/restarts/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serverId }),
+      })
+      if (!res.ok) throw new Error('Failed to trigger restart')
+      return res.json()
+    },
+    onSettled: () => {
+      setTriggeringServerId(null)
+      queryClient.invalidateQueries({ queryKey: ['restart-status'] })
+    },
+  })
 
   // Fetch windows
   const { data: windowsData } = useQuery<{ success: boolean; windows: MaintenanceWindow[] }>({
@@ -448,6 +517,24 @@ export default function MaintenanceManagerPage() {
           <Clock className="h-3.5 w-3.5 text-muted-foreground" />
           Past Windows ({pastWindows.length})
         </button>
+
+        <button
+          onClick={() => setActiveTab('restarts')}
+          className={cn(
+            'px-4 py-2 rounded-lg text-xs font-semibold transition-colors flex items-center gap-2',
+            activeTab === 'restarts'
+              ? 'bg-card text-foreground shadow-sm border border-border'
+              : 'text-muted-foreground hover:text-foreground'
+          )}
+        >
+          <RotateCcw className={cn("h-3.5 w-3.5", activeTab === 'restarts' ? "text-cyan-400" : "text-muted-foreground")} />
+          Daily Restarts & Metrics
+          {restartStatusData?.recentMetrics && (
+            <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-muted/60 text-muted-foreground font-mono">
+              {restartStatusData.recentMetrics.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* ──────────────── TAB CONTENT: UPCOMING & ACTIVE ──────────────── */}
@@ -618,6 +705,307 @@ export default function MaintenanceManagerPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* ──────────────── TAB CONTENT: DAILY RESTARTS & METRICS ──────────────── */}
+      {activeTab === 'restarts' && (
+        <div className="space-y-6">
+          {/* Top Banner / Engine Status */}
+          <div className="p-4 sm:p-5 rounded-xl border border-cyan-500/30 bg-gradient-to-r from-cyan-950/20 via-card to-card relative overflow-hidden shadow-md">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-500"></span>
+                  </span>
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-cyan-400">
+                    Automated Restart Orchestrator
+                  </span>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                    Cron Active (Daily 05:00 UTC Fleet Stagger)
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground max-w-2xl">
+                  Safely broadcasts player warnings (15m, 5m, 1m) only when players are online, executes world autosave, performs graceful reboot, and logs boot diagnostics &amp; TPS recovery.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3 text-xs">
+                <div className="p-2.5 rounded-lg bg-muted/40 border border-border flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-cyan-400" />
+                  <div>
+                    <div className="text-[10px] text-muted-foreground uppercase font-semibold">Tracked Restarts</div>
+                    <div className="text-sm font-bold text-foreground font-mono">
+                      {restartStatusData?.recentMetrics?.length || 0} Runs
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Section 1: Daily Restart Fleet Schedules Card */}
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-cyan-400" />
+                Configured Daily Schedules &amp; Manual Override
+              </h3>
+              <span className="text-xs text-muted-foreground">Staggered to prevent fleet network congestion</span>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {[
+                {
+                  id: 'patreon-creative',
+                  name: 'Patreon Creative',
+                  sub: 'Paper / Purpur 1.21.1',
+                  time: '05:00 UTC',
+                  cron: '0 5 * * *',
+                  stagger: 'MCS-3 (Direct)',
+                },
+                {
+                  id: 'create-2',
+                  name: 'Just Create SMP 2',
+                  sub: 'NeoForge 1.21.1',
+                  time: '05:05 UTC',
+                  cron: '5 5 * * *',
+                  stagger: 'MCS-2 (+5m offset)',
+                },
+                {
+                  id: 'fabric-main',
+                  name: 'Official Modpack',
+                  sub: 'Fabric 1.20.1',
+                  time: '05:10 UTC',
+                  cron: '10 5 * * *',
+                  stagger: 'MCS-1 (+10m offset)',
+                },
+              ].map((srv) => {
+                const schedule = restartStatusData?.schedules?.find((s) => s.server_id === srv.id)
+                const isTriggering = triggeringServerId === srv.id && triggerRestartMutation.isPending
+
+                return (
+                  <div
+                    key={srv.id}
+                    className="p-4 rounded-xl border border-border bg-card/60 flex flex-col justify-between space-y-4 hover:border-cyan-500/40 transition-colors"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <div className="font-bold text-foreground text-sm flex items-center gap-1.5">
+                            <Server className="h-3.5 w-3.5 text-primary" />
+                            {srv.name}
+                          </div>
+                          <div className="text-[11px] text-muted-foreground font-mono">{srv.sub}</div>
+                        </div>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 border border-emerald-500/30 text-emerald-400">
+                          ACTIVE
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 pt-2 text-xs border-t border-border/40">
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-cyan-400" />
+                            Daily Run:
+                          </span>
+                          <span className="font-mono font-bold text-foreground">{srv.time}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Warnings:</span>
+                          <span className="font-mono text-[11px] text-muted-foreground">15m, 5m, 1m (if online)</span>
+                        </div>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Last Run:</span>
+                          <span className="font-mono text-[11px] text-muted-foreground">
+                            {schedule?.last_run_at ? new Date(schedule.last_run_at).toLocaleDateString() : 'Pending Next Cycle'}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between text-muted-foreground">
+                          <span>Sequence:</span>
+                          <span className="font-mono text-[11px] text-primary">{srv.stagger}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <button
+                      disabled={isTriggering || triggerRestartMutation.isPending}
+                      onClick={() => triggerRestartMutation.mutate(srv.id)}
+                      className={cn(
+                        'w-full py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm border',
+                        isTriggering
+                          ? 'bg-amber-500/20 text-amber-400 border-amber-500/30 cursor-not-allowed'
+                          : 'bg-card hover:bg-muted/60 text-foreground border-border hover:border-cyan-500/40'
+                      )}
+                    >
+                      {isTriggering ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-400" />
+                          Restarting...
+                        </>
+                      ) : (
+                        <>
+                          <RotateCcw className="h-3.5 w-3.5 text-cyan-400" />
+                          Trigger Restart Now
+                        </>
+                      )}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Section 2: Restart Telemetry & Metrics Table */}
+          <div className="border border-border rounded-xl bg-card overflow-hidden">
+            <div className="p-4 border-b border-border/60 flex items-center justify-between flex-wrap gap-2">
+              <div>
+                <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-cyan-400" />
+                  Restart Telemetry &amp; Performance Audit Log
+                </h3>
+                <p className="text-[11px] text-muted-foreground">
+                  Tracks exact container downtime, mod bootstrap timings, startup errors, and TPS recovery post-restart.
+                </p>
+              </div>
+
+              <span className="text-xs text-muted-foreground font-mono">
+                {restartStatusData?.recentMetrics?.length || 0} records recorded
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-border bg-muted/20 text-muted-foreground text-[11px]">
+                    <th className="text-left p-3">Server</th>
+                    <th className="text-left p-3">Trigger</th>
+                    <th className="text-left p-3">Status</th>
+                    <th className="text-left p-3">Total Downtime</th>
+                    <th className="text-left p-3">Startup Duration</th>
+                    <th className="text-left p-3">Post TPS</th>
+                    <th className="text-left p-3">Mods / Details</th>
+                    <th className="text-left p-3">Diagnostics</th>
+                    <th className="text-right p-3">Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isRestartStatusLoading ? (
+                    <tr>
+                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                        <div className="flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                          Loading restart telemetry...
+                        </div>
+                      </td>
+                    </tr>
+                  ) : !restartStatusData?.recentMetrics || restartStatusData.recentMetrics.length === 0 ? (
+                    <tr>
+                      <td colSpan={9} className="p-8 text-center text-muted-foreground">
+                        No restart metrics recorded yet. Trigger a restart above or wait for the 05:00 UTC schedule.
+                      </td>
+                    </tr>
+                  ) : (
+                    restartStatusData.recentMetrics.map((row) => (
+                      <tr key={row.id} className="border-b border-border/40 hover:bg-muted/20 transition-colors">
+                        <td className="p-3">
+                          <div className="font-semibold text-foreground">{row.server_name || row.server_id}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono">{row.server_id}</div>
+                        </td>
+
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-muted text-muted-foreground border border-border">
+                            {row.triggered_by}
+                          </span>
+                        </td>
+
+                        <td className="p-3">
+                          <span
+                            className={cn(
+                              'px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider',
+                              row.status === 'success'
+                                ? 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-rose-500/15 text-rose-400 border border-rose-500/30'
+                            )}
+                          >
+                            {row.status}
+                          </span>
+                        </td>
+
+                        <td className="p-3 font-mono font-bold text-foreground">
+                          {row.total_downtime_ms ? `${(row.total_downtime_ms / 1000).toFixed(1)}s` : '—'}
+                        </td>
+
+                        <td className="p-3 font-mono text-muted-foreground">
+                          {row.startup_duration_ms ? `${(row.startup_duration_ms / 1000).toFixed(1)}s` : '—'}
+                        </td>
+
+                        <td className="p-3">
+                          {row.post_restart_tps != null ? (
+                            <span
+                              className={cn(
+                                'font-mono font-semibold',
+                                row.post_restart_tps >= 19.5
+                                  ? 'text-emerald-400'
+                                  : row.post_restart_tps >= 15
+                                  ? 'text-amber-400'
+                                  : 'text-rose-400'
+                              )}
+                            >
+                              {row.post_restart_tps} TPS
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground font-mono">—</span>
+                          )}
+                        </td>
+
+                        <td className="p-3 font-mono text-muted-foreground">
+                          {row.mods_loaded != null && row.mods_loaded > 0 ? (
+                            <span className="text-cyan-400 font-semibold">{row.mods_loaded} mods</span>
+                          ) : (
+                            <span>Vanilla/Plugins</span>
+                          )}
+                          {row.players_online_at_restart > 0 && (
+                            <div className="text-[10px] text-amber-400">
+                              {row.players_online_at_restart} player(s) warned
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="p-3">
+                          <div className="max-w-xs truncate text-[11px] text-muted-foreground" title={row.startup_summary}>
+                            {row.startup_summary || 'Normal startup'}
+                          </div>
+                          {(row.log_warnings_count > 0 || row.log_errors_count > 0) && (
+                            <div className="flex items-center gap-2 pt-0.5 text-[10px]">
+                              {row.log_warnings_count > 0 && (
+                                <span className="text-amber-400 flex items-center gap-0.5">
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  {row.log_warnings_count} warns
+                                </span>
+                              )}
+                              {row.log_errors_count > 0 && (
+                                <span className="text-rose-400 flex items-center gap-0.5">
+                                  <AlertTriangle className="h-2.5 w-2.5" />
+                                  {row.log_errors_count} errs
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="p-3 text-right font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                          {new Date(row.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

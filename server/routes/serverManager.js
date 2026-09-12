@@ -1034,6 +1034,29 @@ function checkPortOpen(host, port, timeoutMs = 3000) {
   });
 }
 
+// Scheduled Restarts API
+router.get('/restarts/status', async (req, res) => {
+  try {
+    const scheduledRestartService = require('../services/scheduledRestartService');
+    const status = await scheduledRestartService.getStatus();
+    res.json({ success: true, ...status });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/restarts/trigger', async (req, res) => {
+  try {
+    const { serverId } = req.body;
+    if (!serverId) return res.status(400).json({ error: 'serverId required' });
+    const scheduledRestartService = require('../services/scheduledRestartService');
+    const result = scheduledRestartService.triggerManualRestart(serverId);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;
 module.exports.NODES = NODES;
 module.exports.SERVERS_REGISTRY = SERVERS_REGISTRY;

@@ -2,6 +2,14 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [1.9.0] - 2026-09-11
+### Added
+- **📱 Mobile Operations Overhaul & Quick Navigation Bar**:
+  - Implemented sticky native mobile bottom navigation bar (`< lg`) supporting iOS safe area insets for high-frequency admin actions (Dashboard, Live Telemetry with live player count, Server Fleet, Maintenance Hub with active alert pulse, and quick 'More' drawer).
+  - Redesigned mobile slide-over drawer into a smooth modal sheet with touch-friendly tap targets, section dividers, and active view highlights.
+  - Added dynamic mobile top header breadcrumbs showing the current page title and live server context.
+  - Resolved content clipping, overflow issues, and tap collisions on mobile viewports.
+
 ## [1.8.2] - 2026-09-08
 ### Fixed & Hardened
 - **💾 Storage Exhaustion Protection & Backup Retention Optimization**:

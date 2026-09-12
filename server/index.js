@@ -86,5 +86,12 @@ server.listen(PORT, () => {
   } catch (err) {
     console.error('[MAINTENANCE-RUNNER] Failed to initialize runner:', err.message);
   }
+
+  try {
+    const scheduledRestartService = require('./services/scheduledRestartService');
+    scheduledRestartService.start();
+  } catch (err) {
+    console.error('[RESTART-ENGINE] Failed to initialize scheduled restart service:', err.message);
+  }
 });
 
