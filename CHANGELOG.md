@@ -2,6 +2,16 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.2.0] - 2026-09-13
+### Fixed & Overhauled
+- **🔄 Autonomous Scheduled Restart Engine Overhaul**:
+  - Fixed countdown skip bug where active sessions were erroneously skipped in tick evaluation, preventing countdown progression and restart execution.
+  - Fixed output type parsing (`executeCommandUnified` object response) preventing `out.match()` and `pingRes.includes()` `TypeError` exceptions.
+  - Added daily UTC date rollover logic: if target time for today is in the past (> 15m), safely advances to tomorrow at 05:00 UTC.
+  - Integrated in-game screen titles (`/title @a title ...`) and audio note block chimes for 15m, 5m, and 1m warnings.
+  - Forwarded countdown notices, restart progress, and completion cards directly to dedicated bot pipeline (`http://pb-bot:3001/api/events`) and Discord webhooks across all server nodes.
+  - Added enriched status telemetry (`next_run_at`, `minutes_until`) to `/api/server-manager/restarts/status`.
+
 ## [2.1.0] - 2026-09-13
 ### Added
 - **🤖 Direct Discord Bot Event Dispatch Pipeline & 2-Way Bridge Integration**:

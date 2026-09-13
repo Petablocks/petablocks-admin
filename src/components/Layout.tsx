@@ -346,7 +346,7 @@ export default function Layout() {
               <div className="p-4 border-t border-border bg-card/60 shrink-0 space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-mono text-muted-foreground text-[11px]">
-                    v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.1.0'}
+                    v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.2.0'}
                   </span>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                     ONLINE • FEA
@@ -394,7 +394,7 @@ export default function Layout() {
         <div className="px-5 py-3.5 border-t border-border bg-card/60 space-y-2">
           <div className="flex items-center justify-between text-xs">
             <span className="font-mono text-muted-foreground text-[11px]">
-              v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.1.0'}
+              v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.2.0'}
             </span>
             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
               PROD

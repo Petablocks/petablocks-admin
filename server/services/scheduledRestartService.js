@@ -8,9 +8,9 @@
  *    - 05:10 UTC: petablocks-modpack-main (MCS1)
  * 2. Queries live players before scheduling notices:
  *    - If 0 players online: Executes immediately and silently at target time (0 noise).
- *    - If >= 1 players online: Emits sequential /tellraw countdown notices at 15m, 5m, 1m with note block audio chimes.
- * 3. Discord Webhook integration:
- *    - Dispatches rich embed start & completion notices for Create 2 SMP via dedicated webhook.
+ *    - If >= 1 players online: Emits sequential /tellraw countdown notices at 15m, 5m, 1m with note block audio chimes and in-game titles.
+ * 3. Discord integration:
+ *    - Dispatches rich embed start, countdown, and completion notices to pb-bot (BOT_EVENT_URL) and configured webhooks.
  * 4. Safety execution:
  *    - Runs /save-all flush before restarting container.
  * 5. Telemetry & Analytics tracking:
@@ -24,6 +24,7 @@
 const mysql = require('mysql2/promise');
 const { NODES, SERVERS_REGISTRY, runSshCommand, checkPortOpen } = require('../routes/serverManager');
 const { executeCommandUnified } = require('../routes/minecraft');
+const discordService = require('./discordWebhookService');
 
 const rawDbUrl = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
 const DB_URL = rawDbUrl.includes(':3307')
@@ -43,30 +44,22 @@ async function getPool() {
   return pool;
 }
 
-// In-memory active restart state tracker
-const activeRestarts = new Map(); // serverId -> { state, startedAt, warningState, playersAt15m }
+// In-memory active restart state tracker: serverId -> session object
+const activeRestarts = new Map();
 let runnerTimer = null;
 
-const DISCORD_CREATE2_WEBHOOK = 'https://discord.com/api/webhooks/1547302770942550056/OE2X8ENpeZ32xJpIvQXTlmDfBnH4NRs9OkA2TCtyq-KlW8gAIzSDrYL_XQ_AdFpW-Nwu';
+const DISCORD_CREATE2_WEBHOOK = process.env.DISCORD_CREATE2_CONSOLE_WEBHOOK ||
+  'https://discord.com/api/webhooks/1547302770942550056/OE2X8ENpeZ32xJpIvQXTlmDfBnH4NRs9OkA2TCtyq-KlW8gAIzSDrYL_XQ_AdFpW-Nwu';
 
 /**
- * Dispatch Discord notification helper
+ * Helper to safely extract string output from executeCommandUnified response
  */
-async function postDiscordNotification(webhookUrl, embed) {
-  if (!webhookUrl) return;
-  try {
-    await fetch(webhookUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        username: 'PETABLOCKS Maintenance',
-        avatar_url: 'https://i.ibb.co/JzMKx8r/Petablocks-Icon.png',
-        embeds: [embed],
-      }),
-    });
-  } catch (err) {
-    console.warn('[RESTART-ENGINE] Discord notification failed:', err.message);
-  }
+function getOutput(res) {
+  if (!res) return '';
+  if (typeof res === 'string') return res;
+  if (typeof res.output === 'string') return res.output;
+  if (Array.isArray(res.output)) return res.output.join('\n');
+  return '';
 }
 
 /**
@@ -99,12 +92,14 @@ async function tick() {
     const [schedules] = await p.query(`SELECT * FROM restart_schedules WHERE enabled = 1`);
     const now = new Date();
 
-    const currentUtcHour = now.getUTCHours();
-    const currentUtcMinute = now.getUTCMinutes();
-
     for (const sched of schedules) {
       const serverId = sched.server_id;
-      if (activeRestarts.has(serverId)) continue; // Already undergoing restart sequence
+      const session = activeRestarts.get(serverId);
+
+      // If this server is actively rebooting (docker restart / polling), don't touch it
+      if (session && session.phase === 'restarting') {
+        continue;
+      }
 
       // Target time parsing (format "M H * * *")
       // e.g. "0 5 * * *" (05:00), "5 5 * * *" (05:05), "10 5 * * *" (05:10)
@@ -113,7 +108,7 @@ async function tick() {
       const targetHour = parseInt(parts[1], 10) || 5;
 
       // Compute target Date for today
-      const targetDate = new Date(Date.UTC(
+      let targetDate = new Date(Date.UTC(
         now.getUTCFullYear(),
         now.getUTCMonth(),
         now.getUTCDate(),
@@ -122,8 +117,15 @@ async function tick() {
         0
       ));
 
+      let diffMs = targetDate.getTime() - now.getTime();
+
+      // If target time today has already passed by more than 15 mins, roll over to tomorrow
+      if (diffMs < -15 * 60 * 1000) {
+        targetDate = new Date(targetDate.getTime() + 24 * 60 * 60 * 1000);
+        diffMs = targetDate.getTime() - now.getTime();
+      }
+
       // Calculate minutes until target
-      const diffMs = targetDate.getTime() - now.getTime();
       const diffMinutes = Math.round(diffMs / 60000);
 
       // Avoid re-running if already ran within last 2 hours
@@ -134,9 +136,12 @@ async function tick() {
         }
       }
 
-      // Check if we should initialize a warning sequence or immediate execution
+      // Check if we are within the 15-minute scheduled restart window
       if (diffMinutes <= 15 && diffMinutes >= 0) {
         await handleScheduledServerWindow(sched, diffMinutes, targetDate);
+      } else if (session && session.phase === 'countdown' && diffMinutes > 15) {
+        // Window passed or was reset
+        activeRestarts.delete(serverId);
       }
     }
   } catch (err) {
@@ -164,52 +169,53 @@ async function handleScheduledServerWindow(sched, minutesUntil, targetDate) {
       onlinePlayers: players,
       lastWarningMinutes: null,
       preRestartMetrics: null,
+      phase: 'countdown',
     };
     activeRestarts.set(serverId, session);
     console.log(`[RESTART-ENGINE] Initialized restart window for ${srv.name} (${serverId}) - ${players} players online (T-${minutesUntil}m)`);
+  } else {
+    // Continuously check player count during countdown
+    session.onlinePlayers = await getOnlinePlayerCount(srv);
   }
 
-  // If 0 players online, execute immediately at target (or advance if target reached)
+  // If 0 players online, execute immediately when target is reached (0 noise)
   if (session.onlinePlayers === 0) {
     if (minutesUntil <= 0) {
       console.log(`[RESTART-ENGINE] Target time reached for empty server ${srv.name}. Executing immediate silent restart...`);
+      session.phase = 'restarting';
       executeRestartSequence(session, 'scheduled');
     }
     return;
   }
 
-  // Players are online: Broadcast sequential warnings
+  // Players are online: Broadcast sequential warnings (15m, 5m, 1m)
   if (minutesUntil <= 15 && minutesUntil > 5 && session.lastWarningMinutes !== 15) {
     session.lastWarningMinutes = 15;
     await broadcastWarning(srv, 15);
+    await broadcastDiscordWarning(srv, 15);
   } else if (minutesUntil <= 5 && minutesUntil > 1 && session.lastWarningMinutes !== 5) {
     session.lastWarningMinutes = 5;
     await broadcastWarning(srv, 5);
-    // Send Discord notice for Create 2 if applicable
-    if (serverId === 'create-2') {
-      await postDiscordNotification(DISCORD_CREATE2_WEBHOOK, {
-        title: '🔄 Scheduled Restart in 5 Minutes',
-        description: `**${srv.name}** will restart in **5 minutes** for daily optimization.`,
-        color: 0xFEE75C,
-        timestamp: new Date().toISOString(),
-      });
-    }
+    await broadcastDiscordWarning(srv, 5);
   } else if (minutesUntil <= 1 && minutesUntil >= 0 && session.lastWarningMinutes !== 1) {
     session.lastWarningMinutes = 1;
     await broadcastWarning(srv, 1);
+    await broadcastDiscordWarning(srv, 1);
   }
 
   if (minutesUntil <= 0) {
     console.log(`[RESTART-ENGINE] Countdown finished for ${srv.name}. Executing restart pipeline...`);
+    session.phase = 'restarting';
     executeRestartSequence(session, 'scheduled');
   }
 }
 
 /**
- * Broadcast formatted tellraw + chime in-game
+ * Broadcast formatted tellraw + chime + title in-game
  */
 async function broadcastWarning(srv, minutes) {
   try {
+    const minText = minutes === 1 ? '60 SECONDS' : `${minutes} MINUTES`;
     const text = minutes === 1
       ? '⚠️ Server restarting in 60 SECONDS! Saving all chunks and player data...'
       : `⚠️ Scheduled restart in ${minutes} minutes for performance optimization. Please find a safe spot!`;
@@ -217,11 +223,18 @@ async function broadcastWarning(srv, minutes) {
     const sound = minutes === 1 ? 'minecraft:block.note_block.bell' : 'minecraft:block.note_block.chime';
     const pitch = minutes === 1 ? '1.5' : '1.0';
 
+    // 1. In-game tellraw
     await executeCommandUnified(
       srv.id,
       `tellraw @a [{"text":"[PETABLOCKS] ","color":"gold","bold":true},{"text":"${text}","color":"yellow"}]`
     );
+    // 2. Note block audio chime
     await executeCommandUnified(srv.id, `playsound ${sound} master @a ~ ~ ~ 1 ${pitch}`);
+    // 3. Screen title & subtitle alert
+    await executeCommandUnified(srv.id, 'title @a times 10 70 20');
+    await executeCommandUnified(srv.id, `title @a title {"text":"⚠️ RESTART IN ${minText}","color":"gold","bold":true}`);
+    await executeCommandUnified(srv.id, `title @a subtitle {"text":"Daily maintenance. Find a safe spot!","color":"yellow"}`);
+
     console.log(`[RESTART-ENGINE] In-game ${minutes}m warning sent to ${srv.name}`);
   } catch (err) {
     console.warn(`[RESTART-ENGINE] Failed to broadcast warning to ${srv.id}:`, err.message);
@@ -229,11 +242,40 @@ async function broadcastWarning(srv, minutes) {
 }
 
 /**
- * Query current player count from server
+ * Send Discord warning notice via pb-bot & configured webhooks
+ */
+async function broadcastDiscordWarning(srv, minutes) {
+  try {
+    const isUrgent = minutes <= 1;
+    const title = isUrgent
+      ? `🚨 Server Restart in 60 Seconds: ${srv.name}`
+      : `🔄 Scheduled Restart in ${minutes} Minutes: ${srv.name}`;
+    const description = isUrgent
+      ? `**${srv.name}** is restarting in **60 seconds** for daily performance optimization. World data will flush to disk.`
+      : `**${srv.name}** will restart in **${minutes} minutes** for daily maintenance and chunk cache optimization.`;
+
+    await discordService.sendConsoleAlert(srv.id, {
+      title,
+      description,
+      color: isUrgent ? 0xED4245 : 0xFEE75C,
+      fields: [
+        { name: 'Server', value: srv.name, inline: true },
+        { name: 'Estimated Downtime', value: '~90 seconds', inline: true },
+      ],
+      footerText: 'PETABLOCKS Autonomous Maintenance Engine',
+    });
+  } catch (err) {
+    console.warn(`[RESTART-ENGINE] Failed to send Discord warning for ${srv.id}:`, err.message);
+  }
+}
+
+/**
+ * Query current player count from server (safely extracts string output)
  */
 async function getOnlinePlayerCount(srv) {
   try {
-    const out = await executeCommandUnified(srv.id, 'list');
+    const res = await executeCommandUnified(srv.id, 'list');
+    const out = getOutput(res);
     const match = out.match(/(\d+)\s+(?:of a max|players online)/i);
     if (match) return parseInt(match[1], 10);
   } catch (_) {}
@@ -246,8 +288,13 @@ async function getOnlinePlayerCount(srv) {
 async function executeRestartSequence(session, triggeredBy = 'scheduled') {
   const { serverId, serverName } = session;
   const srv = SERVERS_REGISTRY.find(s => s.id === serverId);
+  if (!srv) {
+    activeRestarts.delete(serverId);
+    return;
+  }
   const node = NODES[srv.nodeId];
   const initiatedAt = new Date();
+  session.phase = 'restarting';
 
   console.log(`[RESTART-PIPELINE] >>> Starting restart sequence for ${serverName} (${serverId})`);
 
@@ -257,24 +304,23 @@ async function executeRestartSequence(session, triggeredBy = 'scheduled') {
 
   try {
     // Sample pre-restart health
-    const tpsOut = await executeCommandUnified(serverId, 'tps');
+    const tpsRes = await executeCommandUnified(serverId, 'tps');
+    const tpsOut = getOutput(tpsRes);
     const tpsMatch = tpsOut.match(/(\d+\.\d+)/);
     if (tpsMatch) preRestartTps = parseFloat(tpsMatch[1]);
   } catch (_) {}
 
-  // Post Discord Announcement if Create 2
-  if (serverId === 'create-2') {
-    await postDiscordNotification(DISCORD_CREATE2_WEBHOOK, {
-      title: '🔄 Server Restarting Now',
-      description: `**${serverName}** is now restarting for daily performance optimization. World data is flushing to disk.`,
-      color: 0xFEE75C,
-      fields: [
-        { name: 'Estimated Downtime', value: '~90 seconds', inline: true },
-        { name: 'Pre-Restart TPS', value: `\`${preRestartTps.toFixed(1)}\``, inline: true }
-      ],
-      timestamp: new Date().toISOString(),
-    });
-  }
+  // Announce restart starting via pb-bot & Discord webhooks
+  await discordService.sendConsoleAlert(serverId, {
+    title: `🔄 Server Restarting Now: ${serverName}`,
+    description: `**${serverName}** is now restarting for daily performance optimization. World data is flushing to disk.`,
+    color: 0xFEE75C,
+    fields: [
+      { name: 'Estimated Downtime', value: '~90 seconds', inline: true },
+      { name: 'Pre-Restart TPS', value: `\`${preRestartTps.toFixed(1)}\``, inline: true }
+    ],
+    footerText: 'PETABLOCKS Autonomous Maintenance Engine',
+  });
 
   // ── 1. Flush Saves ────────────────────────────────────────────────────────
   const saveStart = Date.now();
@@ -324,16 +370,15 @@ async function executeRestartSequence(session, triggeredBy = 'scheduled') {
       // 2. Check game port TCP reachability
       const portOpen = await checkPortOpen(node.host || node.ip, srv.gamePort, 2000);
       if (portOpen) {
-        // If server has RCON configured, verify RCON answers
         if (srv.rconPassword) {
           const pingRes = await executeCommandUnified(serverId, 'help');
-          if (pingRes && !pingRes.includes('Failed to connect')) {
+          const pingOut = getOutput(pingRes);
+          if (pingOut && !pingOut.includes('Failed to connect') && !pingOut.includes('timed out')) {
             isReady = true;
             startupCompletedAt = new Date();
             break;
           }
         } else {
-          // Port is open and answering on servers without RCON configured
           isReady = true;
           startupCompletedAt = new Date();
           break;
@@ -405,11 +450,11 @@ async function executeRestartSequence(session, triggeredBy = 'scheduled') {
     await p.query(`UPDATE restart_schedules SET last_run_at = NOW() WHERE server_id = ?`, [serverId]);
   } catch (_) {}
 
-  // ── 6. Discord Completion Announcement for Create 2 ──────────────────────
-  if (serverId === 'create-2' && isReady) {
-    const sec = (totalDowntimeMs / 1000).toFixed(1);
-    await postDiscordNotification(DISCORD_CREATE2_WEBHOOK, {
-      title: '✅ Server Restart Complete',
+  // ── 6. Discord Completion Announcement ──────────────────────────────────
+  if (isReady) {
+    const sec = totalDowntimeMs ? (totalDowntimeMs / 1000).toFixed(1) : 'unknown';
+    await discordService.sendConsoleAlert(serverId, {
+      title: `✅ Server Restart Complete: ${serverName}`,
       description: `**${serverName}** has completed its daily maintenance restart and is back online!`,
       color: 0x57F287,
       fields: [
@@ -417,7 +462,7 @@ async function executeRestartSequence(session, triggeredBy = 'scheduled') {
         { name: 'Mods Active', value: `\`${modsLoaded}\``, inline: true },
         { name: 'Post-Restart TPS', value: '`20.0`', inline: true }
       ],
-      timestamp: new Date().toISOString(),
+      footerText: 'PETABLOCKS Autonomous Maintenance Engine',
     });
   }
 
@@ -471,6 +516,7 @@ function triggerManualRestart(serverId) {
     targetDate: new Date(),
     onlinePlayers: 0,
     lastWarningMinutes: null,
+    phase: 'restarting',
   };
   activeRestarts.set(serverId, session);
 
@@ -482,16 +528,43 @@ function triggerManualRestart(serverId) {
 }
 
 /**
- * Get service status and live schedules
+ * Get service status and live schedules with computed next run times
  */
 async function getStatus() {
   const p = await getPool();
   const [schedules] = await p.query('SELECT * FROM restart_schedules');
   const [recentMetrics] = await p.query('SELECT * FROM server_restart_metrics ORDER BY initiated_at DESC LIMIT 10');
+
+  const now = new Date();
+  const enrichedSchedules = schedules.map(sched => {
+    const parts = (sched.cron_time || '0 5 * * *').split(' ');
+    const targetMin = parseInt(parts[0], 10) || 0;
+    const targetHour = parseInt(parts[1], 10) || 5;
+
+    let nextRun = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      targetHour,
+      targetMin,
+      0
+    ));
+
+    if (nextRun.getTime() - now.getTime() < -15 * 60 * 1000) {
+      nextRun = new Date(nextRun.getTime() + 24 * 60 * 60 * 1000);
+    }
+
+    return {
+      ...sched,
+      next_run_at: nextRun.toISOString(),
+      minutes_until: Math.round((nextRun.getTime() - now.getTime()) / 60000),
+    };
+  });
+
   return {
     isRunning: runnerTimer !== null,
     activeSessions: Array.from(activeRestarts.values()),
-    schedules,
+    schedules: enrichedSchedules,
     recentMetrics,
   };
 }
