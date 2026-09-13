@@ -24,38 +24,55 @@ if (!fs.existsSync(DATA_DIR)) {
 const DEFAULT_PRODUCTION_CONFIGS = {
   'patreon-creative': {
     chatWebhookUrl: process.env.DISCORD_PATREON_CHAT_WEBHOOK || '',
-    chatEnabled: Boolean(process.env.DISCORD_PATREON_CHAT_WEBHOOK),
+    chatEnabled: true,
     chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
     consoleWebhookUrl: process.env.DISCORD_PATREON_CONSOLE_WEBHOOK || '',
-    consoleEnabled: Boolean(process.env.DISCORD_PATREON_CONSOLE_WEBHOOK),
+    consoleEnabled: true,
     consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
     trainWebhookUrl: process.env.DISCORD_PATREON_TRAIN_WEBHOOK || '',
-    trainEnabled: Boolean(process.env.DISCORD_PATREON_TRAIN_WEBHOOK),
+    trainEnabled: true,
     trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
   },
   'create-2': {
     chatWebhookUrl: process.env.DISCORD_CREATE2_CHAT_WEBHOOK || '',
-    chatEnabled: false,
+    chatEnabled: true,
     chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
     consoleWebhookUrl: process.env.DISCORD_CREATE2_CONSOLE_WEBHOOK || '',
-    consoleEnabled: Boolean(process.env.DISCORD_CREATE2_CONSOLE_WEBHOOK),
+    consoleEnabled: true,
     consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
     trainWebhookUrl: process.env.DISCORD_CREATE2_TRAIN_WEBHOOK || '',
-    trainEnabled: Boolean(process.env.DISCORD_CREATE2_TRAIN_WEBHOOK),
+    trainEnabled: true,
     trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
   },
   'fabric-main': {
     chatWebhookUrl: process.env.DISCORD_FABRIC_CHAT_WEBHOOK || '',
-    chatEnabled: false,
+    chatEnabled: true,
     chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
     consoleWebhookUrl: process.env.DISCORD_FABRIC_CONSOLE_WEBHOOK || '',
-    consoleEnabled: Boolean(process.env.DISCORD_FABRIC_CONSOLE_WEBHOOK),
+    consoleEnabled: true,
     consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
     trainWebhookUrl: '',
-    trainEnabled: false,
+    trainEnabled: true,
     trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
   },
 };
+
+const BOT_EVENT_URL = process.env.BOT_EVENT_URL || 'http://pb-bot:3001/api/events';
+
+async function forwardToBot(eventPayload) {
+  try {
+    const res = await fetch(BOT_EVENT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(eventPayload),
+      signal: AbortSignal.timeout(3000),
+    });
+    if (res.ok) return true;
+  } catch (err) {
+    // Bot might be offline or starting up
+  }
+  return false;
+}
 
 // Load all webhook configs
 function loadConfigs() {
@@ -178,6 +195,17 @@ function postToDiscord(webhookUrl, payload) {
  * Send an event or alert to the Server Console & Alerts Channel
  */
 async function sendConsoleAlert(serverId, { title, description, color = 0x3b82f6, fields = [], footerText }) {
+  // Direct dispatch to dedicated pb-bot
+  await forwardToBot({
+    serverId,
+    eventType: 'console',
+    title,
+    description,
+    color,
+    fields,
+    footerText,
+  });
+
   const cfg = getServerWebhookConfig(serverId);
   if (!cfg.consoleEnabled || !cfg.consoleWebhookUrl) return;
 
@@ -208,6 +236,15 @@ async function sendConsoleAlert(serverId, { title, description, color = 0x3b82f6
  * Send a chat message or game event to the Server Chat Channel
  */
 async function sendChatBroadcast(serverId, { username, message, avatarUrl, eventType = 'chat' }) {
+  // Direct dispatch to dedicated pb-bot
+  await forwardToBot({
+    serverId,
+    eventType,
+    username,
+    message,
+    avatarUrl,
+  });
+
   const cfg = getServerWebhookConfig(serverId);
   console.log(`[DISCORD-CHAT] Event received for '${serverId}': ${eventType} from ${username} (enabled=${cfg.chatEnabled}, hasWebhook=${Boolean(cfg.chatWebhookUrl)})`);
   if (!cfg.chatEnabled || !cfg.chatWebhookUrl) return;
@@ -256,6 +293,19 @@ async function sendChatBroadcast(serverId, { username, message, avatarUrl, event
  * Send a Create Train / Railway event to the Train Dispatch Channel
  */
 async function sendTrainEvent(serverId, { title, trainName, eventType = 'derail', description, location, player, station }) {
+  // Direct dispatch to dedicated pb-bot
+  await forwardToBot({
+    serverId,
+    eventType: 'train',
+    title: title || `🚆 Train Event: ${trainName || 'Unknown Train'}`,
+    description,
+    trainName,
+    trainEventType: eventType,
+    location,
+    player,
+    station,
+  });
+
   const cfg = getServerWebhookConfig(serverId);
   console.log(`[DISCORD-TRAIN] Train event received for '${serverId}': ${eventType} (enabled=${cfg.trainEnabled}, hasWebhook=${Boolean(cfg.trainWebhookUrl)})`);
   if (!cfg.trainEnabled || !cfg.trainWebhookUrl) return;

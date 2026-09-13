@@ -2,6 +2,14 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.1.0] - 2026-09-13
+### Added
+- **🤖 Direct Discord Bot Event Dispatch Pipeline & 2-Way Bridge Integration**:
+  - Integrated `discordWebhookService` directly with dedicated Discord bot `pb-bot` on port 3001, completely replacing broken/unconfigured webhook channels.
+  - Enabled live container log streaming for `create-2`, `fabric-main`, and `patreon-creative` to automatically broadcast player chat, joins, leaves, and deaths.
+  - Enabled live Create train incident and assembly logging directly to dedicated `#railway` discord channels.
+  - Support for Discord-to-Minecraft chat relay via `POST /api/minecraft/rcon`.
+
 ## [2.0.0] - 2026-09-13
 ### Added
 - **👑 Discord & In-Game LuckPerms Role Mappings (`/role-mappings`)**:
