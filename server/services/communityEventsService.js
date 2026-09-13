@@ -7,7 +7,6 @@
 
 const mysql = require('mysql2/promise');
 const { executeCommandUnified } = require('../routes/minecraft');
-const discordService = require('./discordWebhookService');
 
 const rawDbUrl = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
 const DB_URL = rawDbUrl.includes(':3307')
@@ -38,9 +37,9 @@ async function getEvents(filterStatus = null) {
   const params = [];
   if (filterStatus && filterStatus !== 'ALL') {
     query += ' WHERE status = ?';
-    params.push(filterStatus);
+    params.push(filterStatus.toLowerCase());
   }
-  query += ' ORDER BY starts_at ASC';
+  query += ' ORDER BY scheduled_start ASC';
   const [rows] = await p.query(query, params);
   return rows;
 }
@@ -50,27 +49,25 @@ async function getEvents(filterStatus = null) {
  */
 async function createEvent(eventData) {
   const p = await getPool();
-  const eventCode = eventData.event_code || `EVT-${Date.now().toString(36).toUpperCase()}`;
 
   const [res] = await p.query(
     `INSERT INTO community_events
-      (event_code, title, description, server_id, event_type, status, starts_at, ends_at, created_by, prizes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (title, description, server_id, event_type, location_coords, scheduled_start, scheduled_end, status, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      eventCode,
       eventData.title,
       eventData.description || '',
-      eventData.server_id || 'fabric-main',
-      eventData.event_type || 'COMMUNITY_GATHERING',
-      eventData.status || 'SCHEDULED',
-      new Date(eventData.starts_at),
-      eventData.ends_at ? new Date(eventData.ends_at) : null,
+      eventData.server_id || 'all',
+      (eventData.event_type || 'community_meetup').toLowerCase(),
+      eventData.location_coords || null,
+      new Date(eventData.starts_at || eventData.scheduled_start),
+      eventData.ends_at || eventData.scheduled_end ? new Date(eventData.ends_at || eventData.scheduled_end) : null,
+      (eventData.status || 'scheduled').toLowerCase(),
       eventData.created_by || 'Admin',
-      eventData.prizes || null,
     ]
   );
 
-  return { id: res.insertId, eventCode, ...eventData };
+  return { id: res.insertId, ...eventData };
 }
 
 /**
@@ -81,11 +78,30 @@ async function updateEvent(id, updates) {
   const fields = [];
   const values = [];
 
-  const allowed = ['title', 'description', 'server_id', 'event_type', 'status', 'starts_at', 'ends_at', 'prizes'];
-  allowed.forEach((k) => {
-    if (updates[k] !== undefined) {
-      fields.push(`${k} = ?`);
-      values.push(k.endsWith('_at') && updates[k] ? new Date(updates[k]) : updates[k]);
+  const map = {
+    title: 'title',
+    description: 'description',
+    server_id: 'server_id',
+    event_type: 'event_type',
+    status: 'status',
+    location_coords: 'location_coords',
+    starts_at: 'scheduled_start',
+    scheduled_start: 'scheduled_start',
+    ends_at: 'scheduled_end',
+    scheduled_end: 'scheduled_end',
+  };
+
+  Object.entries(updates).forEach(([k, v]) => {
+    const col = map[k];
+    if (col && v !== undefined) {
+      fields.push(`${col} = ?`);
+      if (col.includes('scheduled_')) {
+        values.push(v ? new Date(v) : null);
+      } else if (col === 'status') {
+        values.push(String(v).toLowerCase());
+      } else {
+        values.push(v);
+      }
     }
   });
 
@@ -105,7 +121,7 @@ async function announceEvent(id) {
   if (!rows || rows.length === 0) throw new Error('Event not found');
   const ev = rows[0];
 
-  const targetServers = ev.server_id === 'ALL'
+  const targetServers = ev.server_id === 'all' || ev.server_id === 'ALL'
     ? ['fabric-main', 'create-2', 'patreon-creative']
     : [ev.server_id];
 
@@ -130,8 +146,8 @@ async function announceEvent(id) {
     }
   }
 
-  // 2. Mark announcement as sent
-  await p.query('UPDATE community_events SET in_game_announcement_sent = TRUE, status = "ACTIVE" WHERE id = ?', [id]);
+  // 2. Mark announcement as sent and status to in_progress
+  await p.query('UPDATE community_events SET announcement_sent = 1, status = "in_progress" WHERE id = ?', [id]);
 
   // 3. Dispatch to pb-bot event listener or Discord webhook
   try {
@@ -143,16 +159,16 @@ async function announceEvent(id) {
         channelId: EVENTS_DISCORD_CHANNEL,
         embed: {
           title: `🎉 COMMUNITY EVENT STARTED: ${ev.title}`,
-          description: `${ev.description}\n\n**Realm**: \`${ev.server_id}\`\n**Prizes**: ${ev.prizes || 'Glory & Discord Roles'}\n\nJoin now at \`play.petablocks.com\`!`,
+          description: `${ev.description}\n\n**Realm**: \`${ev.server_id}\`\n**Coords**: \`${ev.location_coords || 'See in-game'}\`\n\nJoin now at \`play.petablocks.com\`!`,
           color: 0xffaa00,
-          footer: { text: `Event Code: ${ev.event_code} • PETABLOCKS Events` },
+          footer: { text: `PETABLOCKS Events • Event #${ev.id}` },
           timestamp: new Date().toISOString(),
         },
       }),
     }).catch(() => {});
   } catch (_) {}
 
-  return { success: true, message: `Event ${ev.event_code} announced to players!` };
+  return { success: true, message: `Event #${ev.id} announced to players!` };
 }
 
 module.exports = {

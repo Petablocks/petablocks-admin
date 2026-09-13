@@ -1083,6 +1083,8 @@ router.get('/logs/fleet-search', async (req, res) => {
     console.error('[FleetLogs] Search error:', err);
     res.status(500).json({ success: false, error: err.message });
   }
+});
+
 // ── COMMUNITY EVENTS & IN-GAME BROADCASTS API ───────────────────────
 router.get('/events', async (req, res) => {
   try {
