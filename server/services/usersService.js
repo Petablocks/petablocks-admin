@@ -312,6 +312,27 @@ async function updateUserRole(userId, newRole, issuer = 'Admin') {
 
   await p.query('UPDATE auth_users SET role = ? WHERE id = ?', [newRole, userId]);
 
+  // Sync LuckPerms rank in-game if Minecraft account is linked
+  try {
+    const [mcRows] = await p.query('SELECT minecraft_username FROM auth_users WHERE id = ? LIMIT 1', [userId]);
+    if (mcRows.length > 0 && mcRows[0].minecraft_username) {
+      const mcName = mcRows[0].minecraft_username;
+      const ROLE_TO_LP = {
+        'Owner & Founder': 'owner',
+        'Admin': 'admin',
+        'Staff': 'mod',
+        'Moderator': 'mod',
+        'VIP': 'vip',
+        'Player': 'default',
+      };
+      const lpGroup = ROLE_TO_LP[newRole] || 'default';
+      const { executeCommandUnified } = require('../routes/minecraft');
+      for (const srvId of ['fabric-main', 'create-2', 'create-patreon']) {
+        executeCommandUnified(srvId, `lp user ${mcName} parent set ${lpGroup}`).catch(() => {});
+      }
+    }
+  } catch (_) {}
+
   // Log to admin audit logs if table exists
   try {
     await p.query(`
@@ -406,6 +427,69 @@ async function unlinkMinecraftAccount(userId, issuer = 'Admin') {
   return getUserDetails(userId);
 }
 
+/**
+ * Role Mappings Management
+ */
+async function getRoleMappings() {
+  const p = await getPool();
+  try {
+    const [rows] = await p.query('SELECT * FROM discord_role_mappings ORDER BY priority DESC, id ASC');
+    return rows;
+  } catch (err) {
+    return [];
+  }
+}
+
+async function saveRoleMapping({ discord_role_id, discord_role_name, luckperms_group, website_role, priority = 10 }) {
+  const p = await getPool();
+  await p.query(`
+    INSERT INTO discord_role_mappings (discord_role_id, discord_role_name, luckperms_group, website_role, priority)
+    VALUES (?, ?, ?, ?, ?)
+    ON DUPLICATE KEY UPDATE
+      discord_role_name = VALUES(discord_role_name),
+      luckperms_group = VALUES(luckperms_group),
+      website_role = VALUES(website_role),
+      priority = VALUES(priority),
+      updated_at = NOW()
+  `, [discord_role_id, discord_role_name || null, luckperms_group, website_role, Number(priority) || 10]);
+  return getRoleMappings();
+}
+
+async function deleteRoleMapping(id) {
+  const p = await getPool();
+  await p.query('DELETE FROM discord_role_mappings WHERE id = ?', [id]);
+  return true;
+}
+
+async function syncAllRoleMappings() {
+  const p = await getPool();
+  const [users] = await p.query('SELECT id, discord_id, role, minecraft_username FROM auth_users WHERE discord_id IS NOT NULL');
+  let count = 0;
+
+  for (const u of users) {
+    if (u.minecraft_username && u.role) {
+      const ROLE_TO_LP = {
+        'Owner & Founder': 'owner',
+        'Admin': 'admin',
+        'Staff': 'mod',
+        'Moderator': 'mod',
+        'VIP': 'vip',
+        'Player': 'default',
+      };
+      const lpGroup = ROLE_TO_LP[u.role] || 'default';
+      try {
+        const { executeCommandUnified } = require('../routes/minecraft');
+        for (const srvId of ['fabric-main', 'create-2', 'create-patreon']) {
+          executeCommandUnified(srvId, `lp user ${u.minecraft_username} parent set ${lpGroup}`).catch(() => {});
+        }
+        count++;
+      } catch (_) {}
+    }
+  }
+
+  return { synced: count };
+}
+
 module.exports = {
   getUsersOverview,
   getUsersList,
@@ -413,4 +497,8 @@ module.exports = {
   updateUserRole,
   linkMinecraftAccount,
   unlinkMinecraftAccount,
+  getRoleMappings,
+  saveRoleMapping,
+  deleteRoleMapping,
+  syncAllRoleMappings,
 };

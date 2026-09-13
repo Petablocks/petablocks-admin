@@ -2,6 +2,15 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.0.0] - 2026-09-13
+### Added
+- **👑 Discord & In-Game LuckPerms Role Mappings (`/role-mappings`)**:
+  - Dedicated operations view allowing operators to map Discord guild roles directly to website permissions and in-game LuckPerms parent groups.
+  - Priority-ordered rule hierarchy ensuring top-tier roles (e.g. Founder/Owner) override standard ranks.
+  - Bulk synchronisation engine (`POST /api/users/role-mappings/sync`) pulling Discord member states and executing in-game LuckPerms parent assignments across all server nodes.
+  - Automatic in-game rank dispatch upon manual role adjustments in Registered Users view (`/users`).
+  - Integration with dedicated PETABLOCKS Discord bot service (`pb-bot`) supporting `/rolesync` administrative command.
+
 ## [1.9.0] - 2026-09-11
 ### Added
 - **📱 Mobile Operations Overhaul & Quick Navigation Bar**:
