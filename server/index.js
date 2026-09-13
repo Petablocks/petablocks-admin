@@ -12,6 +12,7 @@ const serverManagerRouter = require('./routes/serverManager');
 const playerAnalyticsRouter = require('./routes/playerAnalytics');
 const maintenanceRouter = require('./routes/maintenance');
 const usersRouter = require('./routes/users');
+const supportRouter = require('./routes/supportRouter');
 const { router: minecraftRouter, initWebSocket } = require('./routes/minecraft');
 const { initLogWatcher } = require('./services/logWatcherService');
 const { initTrainMonitor } = require('./services/trainMonitorService');
@@ -51,6 +52,7 @@ app.use('/api/minecraft', minecraftRouter);
 app.use('/api/player-stats', playerAnalyticsRouter);
 app.use('/api/maintenance', maintenanceRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/support', supportRouter);
 
 // Health check
 app.get('/api/health', async (_req, res) => {
@@ -92,6 +94,13 @@ server.listen(PORT, () => {
     scheduledRestartService.start();
   } catch (err) {
     console.error('[RESTART-ENGINE] Failed to initialize scheduled restart service:', err.message);
+  }
+
+  try {
+    const autoBroadcastService = require('./services/autoBroadcastService');
+    autoBroadcastService.startDaemon();
+  } catch (err) {
+    console.error('[AUTO-BROADCAST] Failed to initialize auto broadcast service:', err.message);
   }
 });
 

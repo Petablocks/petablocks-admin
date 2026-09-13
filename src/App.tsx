@@ -17,6 +17,8 @@ import PlayerAnalyticsPage from './pages/PlayerAnalytics'
 import MaintenanceManagerPage from './pages/MaintenanceManager'
 import RegisteredUsersPage from './pages/RegisteredUsers'
 import RoleMappingsPage from './pages/RoleMappings'
+import FleetLogsPage from './pages/FleetLogs'
+import CommunityEventsPage from './pages/CommunityEvents'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,6 +41,8 @@ export default function App() {
           <Route path="nodes" element={<NodesPage />} />
           <Route path="minecraft" element={<MinecraftServersPage />} />
           <Route path="minecraft/:id" element={<MinecraftServerDetailPage />} />
+          <Route path="fleet-logs" element={<FleetLogsPage />} />
+          <Route path="events" element={<CommunityEventsPage />} />
           <Route path="analytics" element={<PlayerAnalyticsPage />} />
           <Route path="users" element={<RegisteredUsersPage />} />
           <Route path="role-mappings" element={<RoleMappingsPage />} />

@@ -1057,6 +1057,116 @@ router.post('/restarts/trigger', async (req, res) => {
   }
 });
 
+// ── GET /api/server-manager/logs/fleet-search ──────────────────────
+// Centralized multi-node Minecraft log querying and incident parsing
+router.get('/logs/fleet-search', async (req, res) => {
+  try {
+    const fleetLogsService = require('../services/fleetLogsService');
+    const { query, isRegex, servers, severity, limit, tailLines } = req.query;
+    
+    let serverList = ['fabric-main', 'create-2', 'patreon-creative'];
+    if (servers) {
+      serverList = typeof servers === 'string' ? servers.split(',').map((s) => s.trim()) : servers;
+    }
+
+    const data = await fleetLogsService.searchFleetLogs({
+      query: query || '',
+      isRegex: isRegex === 'true' || isRegex === true,
+      servers: serverList,
+      severity: severity || 'ALL',
+      limit: parseInt(limit, 10) || 150,
+      tailLines: parseInt(tailLines, 10) || 1500,
+    });
+
+    res.json(data);
+  } catch (err) {
+    console.error('[FleetLogs] Search error:', err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+// ── COMMUNITY EVENTS & IN-GAME BROADCASTS API ───────────────────────
+router.get('/events', async (req, res) => {
+  try {
+    const communityEventsService = require('../services/communityEventsService');
+    const events = await communityEventsService.getEvents(req.query.status);
+    res.json({ success: true, events });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/events', async (req, res) => {
+  try {
+    const communityEventsService = require('../services/communityEventsService');
+    const result = await communityEventsService.createEvent(req.body);
+    res.json({ success: true, event: result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.patch('/events/:id', async (req, res) => {
+  try {
+    const communityEventsService = require('../services/communityEventsService');
+    const result = await communityEventsService.updateEvent(req.params.id, req.body);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/events/:id/announce', async (req, res) => {
+  try {
+    const communityEventsService = require('../services/communityEventsService');
+    const result = await communityEventsService.announceEvent(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.get('/broadcasts', async (_req, res) => {
+  try {
+    const autoBroadcastService = require('../services/autoBroadcastService');
+    const broadcasts = await autoBroadcastService.getBroadcasts();
+    res.json({ success: true, broadcasts });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/broadcasts', async (req, res) => {
+  try {
+    const { message, server_id, interval_minutes } = req.body;
+    if (!message) return res.status(400).json({ error: 'Message is required' });
+    const autoBroadcastService = require('../services/autoBroadcastService');
+    const result = await autoBroadcastService.addBroadcast(message, server_id || 'ALL', interval_minutes || 30);
+    res.json({ success: true, broadcast: result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.patch('/broadcasts/:id/toggle', async (req, res) => {
+  try {
+    const { is_active } = req.body;
+    const autoBroadcastService = require('../services/autoBroadcastService');
+    const result = await autoBroadcastService.toggleBroadcast(req.params.id, Boolean(is_active));
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
+router.delete('/broadcasts/:id', async (req, res) => {
+  try {
+    const autoBroadcastService = require('../services/autoBroadcastService');
+    const result = await autoBroadcastService.deleteBroadcast(req.params.id);
+    res.json({ success: true, ...result });
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 module.exports = router;
 module.exports.NODES = NODES;
 module.exports.SERVERS_REGISTRY = SERVERS_REGISTRY;

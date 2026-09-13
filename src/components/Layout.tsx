@@ -20,6 +20,8 @@ import {
   MoreHorizontal,
   ChevronRight,
   Crown,
+  Terminal,
+  Calendar,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -100,6 +102,8 @@ export default function Layout() {
   const getPageTitle = (pathname: string) => {
     if (pathname === '/dashboard') return 'Dashboard'
     if (pathname.startsWith('/servers')) return 'Server Fleet'
+    if (pathname === '/fleet-logs') return 'Fleet Log Search'
+    if (pathname === '/events') return 'Community Events'
     if (pathname.startsWith('/minecraft')) return 'Live Telemetry'
     if (pathname === '/analytics') return 'Player Analytics'
     if (pathname === '/users') return 'Registered Users'
@@ -127,6 +131,8 @@ export default function Layout() {
       title: 'Game Operations',
       items: [
         { to: '/servers', icon: Server, label: 'Server Fleet' },
+        { to: '/fleet-logs', icon: Terminal, label: 'Fleet Log Search' },
+        { to: '/events', icon: Calendar, label: 'Events & Tips' },
         {
           to: '/minecraft',
           icon: Gamepad2,
