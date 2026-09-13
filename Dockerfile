@@ -1,6 +1,6 @@
 # Multi-stage Dockerfile for PETABLOCKS Admin Panel
 # Stage 1: Build the Vite React frontend
-FROM node:20-alpine AS frontend-build
+FROM node:22-alpine AS frontend-build
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
@@ -8,7 +8,7 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Production image — Express backend serves the built frontend
-FROM node:20-alpine AS production
+FROM node:22-alpine AS production
 WORKDIR /app
 COPY server/package*.json ./server/
 RUN cd server && npm install --omit=dev
