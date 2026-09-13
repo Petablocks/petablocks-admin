@@ -97,6 +97,7 @@ router.post('/:id/unlink-minecraft', async (req, res) => {
     console.error('[API-USERS] Unlink error:', err.message);
     res.status(400).json({ error: err.message });
   }
+});
 // GET /api/users/role-mappings
 router.get('/role-mappings', async (_req, res) => {
   try {
