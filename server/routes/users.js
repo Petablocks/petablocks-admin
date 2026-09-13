@@ -42,6 +42,56 @@ router.get('/', async (req, res) => {
   }
 });
 
+// GET /api/users/role-mappings
+router.get('/role-mappings', async (_req, res) => {
+  try {
+    const mappings = await usersService.getRoleMappings();
+    res.json({ ok: true, mappings });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to retrieve role mappings: ' + err.message });
+  }
+});
+
+// POST /api/users/role-mappings
+router.post('/role-mappings', async (req, res) => {
+  try {
+    const { discord_role_id, discord_role_name, luckperms_group, website_role, priority } = req.body;
+    if (!discord_role_id || !luckperms_group || !website_role) {
+      return res.status(400).json({ error: 'discord_role_id, luckperms_group, and website_role are required' });
+    }
+    const mappings = await usersService.saveRoleMapping({
+      discord_role_id,
+      discord_role_name,
+      luckperms_group,
+      website_role,
+      priority,
+    });
+    res.json({ ok: true, mappings });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save role mapping: ' + err.message });
+  }
+});
+
+// DELETE /api/users/role-mappings/:id
+router.delete('/role-mappings/:id', async (req, res) => {
+  try {
+    await usersService.deleteRoleMapping(req.params.id);
+    res.json({ ok: true, message: 'Role mapping deleted' });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to delete role mapping: ' + err.message });
+  }
+});
+
+// POST /api/users/role-mappings/sync
+router.post('/role-mappings/sync', async (_req, res) => {
+  try {
+    const result = await usersService.syncAllRoleMappings();
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to sync role mappings: ' + err.message });
+  }
+});
+
 // GET /api/users/:id
 router.get('/:id', async (req, res) => {
   try {
@@ -96,55 +146,6 @@ router.post('/:id/unlink-minecraft', async (req, res) => {
   } catch (err) {
     console.error('[API-USERS] Unlink error:', err.message);
     res.status(400).json({ error: err.message });
-  }
-});
-// GET /api/users/role-mappings
-router.get('/role-mappings', async (_req, res) => {
-  try {
-    const mappings = await usersService.getRoleMappings();
-    res.json({ ok: true, mappings });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to retrieve role mappings: ' + err.message });
-  }
-});
-
-// POST /api/users/role-mappings
-router.post('/role-mappings', async (req, res) => {
-  try {
-    const { discord_role_id, discord_role_name, luckperms_group, website_role, priority } = req.body;
-    if (!discord_role_id || !luckperms_group || !website_role) {
-      return res.status(400).json({ error: 'discord_role_id, luckperms_group, and website_role are required' });
-    }
-    const mappings = await usersService.saveRoleMapping({
-      discord_role_id,
-      discord_role_name,
-      luckperms_group,
-      website_role,
-      priority,
-    });
-    res.json({ ok: true, mappings });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to save role mapping: ' + err.message });
-  }
-});
-
-// DELETE /api/users/role-mappings/:id
-router.delete('/role-mappings/:id', async (req, res) => {
-  try {
-    await usersService.deleteRoleMapping(req.params.id);
-    res.json({ ok: true, message: 'Role mapping deleted' });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to delete role mapping: ' + err.message });
-  }
-});
-
-// POST /api/users/role-mappings/sync
-router.post('/role-mappings/sync', async (_req, res) => {
-  try {
-    const result = await usersService.syncAllRoleMappings();
-    res.json({ ok: true, ...result });
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to sync role mappings: ' + err.message });
   }
 });
 
