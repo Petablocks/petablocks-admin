@@ -22,6 +22,7 @@ import {
   Crown,
   Terminal,
   Calendar,
+  LogOut,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -91,6 +92,17 @@ export default function Layout() {
       return res.json()
     },
     refetchInterval: 30000,
+  })
+
+  // Central SSO Staff session query
+  const { data: authSession } = useQuery<{ authenticated: boolean; user?: any }>({
+    queryKey: ['admin-auth-session'],
+    queryFn: async () => {
+      const res = await fetch('/api/auth/me')
+      if (!res.ok) return { authenticated: false }
+      return res.json()
+    },
+    staleTime: 60000,
   })
 
   const hasActiveMaintenance = Array.isArray(activeMaintenance) && activeMaintenance.some((w) => w.status === 'in_progress')
@@ -343,6 +355,39 @@ export default function Layout() {
                 </button>
               </div>
 
+              {/* Mobile Staff Identity Card (Central SSO) */}
+              {authSession?.user && (
+                <div className="px-4 py-2.5 border-b border-border/80 bg-muted/20 flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <img
+                      src={authSession.user.minecraft?.avatarUrl || authSession.user.avatarUrl || 'https://mc-heads.net/avatar/Steve/32'}
+                      alt=""
+                      className="w-7 h-7 rounded-md border border-border shadow-xs shrink-0 object-cover bg-background"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-foreground truncate leading-tight">
+                        {authSession.user.minecraft?.username || authSession.user.username}
+                      </p>
+                      <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-primary/15 text-primary border border-primary/25">
+                        {authSession.user.role || 'Staff'}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await fetch('https://petablocks.com/api/auth/logout', { method: 'POST', credentials: 'include' });
+                      } catch (_) {}
+                      window.location.href = 'https://petablocks.com';
+                    }}
+                    title="Sign Out (Central SSO)"
+                    className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+                  >
+                    <LogOut className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+
               {/* Drawer Links */}
               <nav className="flex-1 p-3.5 space-y-3 overflow-y-auto overscroll-contain">
                 {navSections.map((section) => renderNavSection(section, true))}
@@ -390,6 +435,39 @@ export default function Layout() {
             <p className="text-[11px] text-muted-foreground mt-0.5">Admin &amp; Operations</p>
           </div>
         </div>
+
+        {/* Desktop Staff Identity Card (Central SSO) */}
+        {authSession?.user && (
+          <div className="px-4 py-2.5 border-b border-border/80 bg-muted/20 flex items-center justify-between">
+            <div className="flex items-center gap-2 min-w-0">
+              <img
+                src={authSession.user.minecraft?.avatarUrl || authSession.user.avatarUrl || 'https://mc-heads.net/avatar/Steve/32'}
+                alt=""
+                className="w-7 h-7 rounded-md border border-border shadow-xs shrink-0 object-cover bg-background"
+              />
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-foreground truncate leading-tight">
+                  {authSession.user.minecraft?.username || authSession.user.username}
+                </p>
+                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-mono font-bold uppercase tracking-wider bg-primary/15 text-primary border border-primary/25">
+                  {authSession.user.role || 'Staff'}
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                try {
+                  await fetch('https://petablocks.com/api/auth/logout', { method: 'POST', credentials: 'include' });
+                } catch (_) {}
+                window.location.href = 'https://petablocks.com';
+              }}
+              title="Sign Out (Central SSO)"
+              className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Categorized Nav */}
         <nav className="flex-1 px-3 py-3 space-y-2.5 overflow-y-auto">

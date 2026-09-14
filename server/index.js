@@ -19,11 +19,13 @@ const { initTrainMonitor } = require('./services/trainMonitorService');
 const { initBackupScheduler } = require('./services/backupScheduleService');
 const playerAnalyticsService = require('./services/playerAnalyticsService');
 
+const { requireStaffAuth } = require('./middleware/authMiddleware');
+
 const app = express();
 const server = http.createServer(app);
 const PORT = process.env.PORT || 3000;
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
 
 // Initialize WebSocket Bridge on the shared HTTP server
@@ -41,20 +43,7 @@ initBackupScheduler();
 // Initialize Native Player Analytics Engine (MariaDB session tracking & Plan history migration)
 playerAnalyticsService.init();
 
-// API routes
-app.use('/api/containers', containersRouter);
-app.use('/api/metrics', metricsRouter);
-app.use('/api/databases', databasesRouter);
-app.use('/api/files', filesRouter);
-app.use('/api/backups', backupsRouter);
-app.use('/api/server-manager', serverManagerRouter);
-app.use('/api/minecraft', minecraftRouter);
-app.use('/api/player-stats', playerAnalyticsRouter);
-app.use('/api/maintenance', maintenanceRouter);
-app.use('/api/users', usersRouter);
-app.use('/api/support', supportRouter);
-
-// Health check
+// Health check (public for docker health checks & uptime monitors)
 app.get('/api/health', async (_req, res) => {
   const Docker = require('dockerode');
   const docker = new Docker({ socketPath: process.env.DOCKER_HOST?.replace('unix://', '') || '/var/run/docker.sock' });
@@ -74,9 +63,27 @@ app.get('/api/health', async (_req, res) => {
   }
 });
 
-// Serve built React frontend in production
+// Central SSO Authenticated User Passthrough for Admin UI
+app.get('/api/auth/me', requireStaffAuth, (req, res) => {
+  res.json({ authenticated: true, user: req.user });
+});
+
+// Apply Central Network-Wide Staff RBAC Guard to all management APIs
+app.use('/api/containers', requireStaffAuth, containersRouter);
+app.use('/api/metrics', requireStaffAuth, metricsRouter);
+app.use('/api/databases', requireStaffAuth, databasesRouter);
+app.use('/api/files', requireStaffAuth, filesRouter);
+app.use('/api/backups', requireStaffAuth, backupsRouter);
+app.use('/api/server-manager', requireStaffAuth, serverManagerRouter);
+app.use('/api/minecraft', requireStaffAuth, minecraftRouter);
+app.use('/api/player-stats', requireStaffAuth, playerAnalyticsRouter);
+app.use('/api/maintenance', requireStaffAuth, maintenanceRouter);
+app.use('/api/users', requireStaffAuth, usersRouter);
+app.use('/api/support', requireStaffAuth, supportRouter);
+
+// Serve built React frontend in production (guarded by Central SSO)
 app.use(express.static(path.join(__dirname, '..', 'dist')));
-app.get('*', (_req, res) => {
+app.get('*', requireStaffAuth, (_req, res) => {
   res.sendFile(path.join(__dirname, '..', 'dist', 'index.html'));
 });
 
