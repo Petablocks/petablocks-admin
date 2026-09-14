@@ -153,6 +153,13 @@ function normalizeServerId(rawId) {
   return match ? match.id : rawId;
 }
 
+const logListeners = new Set();
+
+function onLogEntry(callback) {
+  logListeners.add(callback);
+  return () => logListeners.delete(callback);
+}
+
 function addServerLog(serverId, level, message, source = 'Server') {
   const normId = normalizeServerId(serverId);
   const timestamp = new Date().toISOString();
@@ -171,6 +178,13 @@ function addServerLog(serverId, level, message, source = 'Server') {
   serverLogBuffers[normId].push(entry);
   if (serverLogBuffers[normId].length > 500) {
     serverLogBuffers[normId].shift();
+  }
+
+  // Notify registered log entry listeners
+  for (const listener of logListeners) {
+    try {
+      listener(entry);
+    } catch (_) {}
   }
 
   const sseData = `data: ${JSON.stringify(entry)}\n\n`;
@@ -929,5 +943,12 @@ module.exports = {
   router,
   initWebSocket,
   executeCommandUnified,
-  sendModAction
+  sendModAction,
+  SERVERS,
+  normalizeServerId,
+  modTelemetryStore,
+  serverLogBuffers,
+  addServerLog,
+  onLogEntry,
+  getAdminDb,
 };

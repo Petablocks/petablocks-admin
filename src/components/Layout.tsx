@@ -16,6 +16,7 @@ import {
   Layers,
   Users,
   ShieldCheck,
+  ShieldAlert,
   Wrench,
   MoreHorizontal,
   ChevronRight,
@@ -118,6 +119,7 @@ export default function Layout() {
     if (pathname === '/events') return 'Community Events'
     if (pathname.startsWith('/minecraft')) return 'Live Telemetry'
     if (pathname === '/analytics') return 'Player Analytics'
+    if (pathname === '/moderation') return 'Staff Moderation'
     if (pathname === '/users') return 'Registered Users'
     if (pathname === '/role-mappings') return 'Role Mappings'
     if (pathname === '/maintenance') return 'Maintenance Hub'
@@ -157,6 +159,7 @@ export default function Layout() {
             ) : null,
         },
         { to: '/analytics', icon: Users, label: 'Player Analytics' },
+        { to: '/moderation', icon: ShieldAlert, label: 'Staff Moderation' },
         {
           to: '/users',
           icon: ShieldCheck,

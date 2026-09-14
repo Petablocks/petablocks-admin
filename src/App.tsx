@@ -19,6 +19,7 @@ import RegisteredUsersPage from './pages/RegisteredUsers'
 import RoleMappingsPage from './pages/RoleMappings'
 import FleetLogsPage from './pages/FleetLogs'
 import CommunityEventsPage from './pages/CommunityEvents'
+import ModerationPage from './pages/Moderation'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="fleet-logs" element={<FleetLogsPage />} />
           <Route path="events" element={<CommunityEventsPage />} />
           <Route path="analytics" element={<PlayerAnalyticsPage />} />
+          <Route path="moderation" element={<ModerationPage />} />
           <Route path="users" element={<RegisteredUsersPage />} />
           <Route path="role-mappings" element={<RoleMappingsPage />} />
           <Route path="maintenance" element={<MaintenanceManagerPage />} />
