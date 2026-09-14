@@ -59,6 +59,24 @@ const DEFAULT_PRODUCTION_CONFIGS = {
 
 const BOT_EVENT_URL = process.env.BOT_EVENT_URL || 'http://pb-bot:3001/api/events';
 
+// Deduplication cache to prevent duplicate dispatches from telemetry + log watcher
+const recentEvents = new Map();
+
+function isDuplicateEvent(key, windowMs = 5000) {
+  const now = Date.now();
+  const last = recentEvents.get(key);
+  if (last && now - last < windowMs) {
+    return true;
+  }
+  recentEvents.set(key, now);
+  if (recentEvents.size > 500) {
+    for (const [k, ts] of recentEvents.entries()) {
+      if (now - ts > windowMs * 2) recentEvents.delete(k);
+    }
+  }
+  return false;
+}
+
 async function forwardToBot(eventPayload) {
   try {
     const res = await fetch(BOT_EVENT_URL, {
@@ -195,8 +213,11 @@ function postToDiscord(webhookUrl, payload) {
  * Send an event or alert to the Server Console & Alerts Channel
  */
 async function sendConsoleAlert(serverId, { title, description, color = 0x3b82f6, fields = [], footerText }) {
+  const dedupeKey = `${serverId}:console:${title || ''}:${description || ''}`.toLowerCase().trim();
+  if (isDuplicateEvent(dedupeKey, 5000)) return;
+
   // Direct dispatch to dedicated pb-bot
-  await forwardToBot({
+  const botHandled = await forwardToBot({
     serverId,
     eventType: 'console',
     title,
@@ -205,6 +226,8 @@ async function sendConsoleAlert(serverId, { title, description, color = 0x3b82f6
     fields,
     footerText,
   });
+
+  if (botHandled) return;
 
   const cfg = getServerWebhookConfig(serverId);
   if (!cfg.consoleEnabled || !cfg.consoleWebhookUrl) return;
@@ -236,8 +259,11 @@ async function sendConsoleAlert(serverId, { title, description, color = 0x3b82f6
  * Send a chat message or game event to the Server Chat Channel
  */
 async function sendChatBroadcast(serverId, { username, message, avatarUrl, eventType = 'chat' }) {
+  const dedupeKey = `${serverId}:${eventType}:${username || ''}:${message || ''}`.toLowerCase().trim();
+  if (isDuplicateEvent(dedupeKey, 5000)) return;
+
   // Direct dispatch to dedicated pb-bot
-  await forwardToBot({
+  const botHandled = await forwardToBot({
     serverId,
     eventType,
     username,
@@ -245,8 +271,10 @@ async function sendChatBroadcast(serverId, { username, message, avatarUrl, event
     avatarUrl,
   });
 
+  // If pb-bot handled the event, do NOT post raw webhook duplicate!
+  if (botHandled) return;
+
   const cfg = getServerWebhookConfig(serverId);
-  console.log(`[DISCORD-CHAT] Event received for '${serverId}': ${eventType} from ${username} (enabled=${cfg.chatEnabled}, hasWebhook=${Boolean(cfg.chatWebhookUrl)})`);
   if (!cfg.chatEnabled || !cfg.chatWebhookUrl) return;
 
   // Check event toggles
@@ -293,8 +321,11 @@ async function sendChatBroadcast(serverId, { username, message, avatarUrl, event
  * Send a Create Train / Railway event to the Train Dispatch Channel
  */
 async function sendTrainEvent(serverId, { title, trainName, eventType = 'derail', description, location, player, station }) {
+  const dedupeKey = `${serverId}:train:${trainName || ''}:${eventType || ''}`.toLowerCase().trim();
+  if (isDuplicateEvent(dedupeKey, 5000)) return;
+
   // Direct dispatch to dedicated pb-bot
-  await forwardToBot({
+  const botHandled = await forwardToBot({
     serverId,
     eventType: 'train',
     title: title || `🚆 Train Event: ${trainName || 'Unknown Train'}`,
@@ -305,6 +336,8 @@ async function sendTrainEvent(serverId, { title, trainName, eventType = 'derail'
     player,
     station,
   });
+
+  if (botHandled) return;
 
   const cfg = getServerWebhookConfig(serverId);
   console.log(`[DISCORD-TRAIN] Train event received for '${serverId}': ${eventType} (enabled=${cfg.trainEnabled}, hasWebhook=${Boolean(cfg.trainWebhookUrl)})`);
