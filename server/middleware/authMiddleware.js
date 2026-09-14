@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Central PETABLOCKS SSO & Role-Based Access Control (RBAC) Guard for Admin Panel
  */
 
@@ -70,8 +70,10 @@ async function validateSession(token) {
  * Express middleware for role-based access control
  */
 async function requireStaffAuth(req, res, next) {
+  const url = req.originalUrl || req.url;
+
   // Allow health check and public static assets without authentication
-  if (req.path === '/api/health' || req.path.startsWith('/assets/') || req.path === '/favicon.ico') {
+  if (url === '/api/health' || url.startsWith('/assets/') || url === '/favicon.ico') {
     return next();
   }
 
@@ -79,19 +81,19 @@ async function requireStaffAuth(req, res, next) {
   const token = cookies.pb_session || req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
   if (!token) {
-    if (req.path.startsWith('/api/')) {
+    if (url.startsWith('/api/')) {
       return res.status(401).json({ error: 'unauthorized', message: 'Authentication required. Please log in at petablocks.com.' });
     }
-    const returnTo = encodeURIComponent('https://admin.petablocks.com' + req.originalUrl);
+    const returnTo = encodeURIComponent('https://admin.petablocks.com' + url);
     return res.redirect('https://petablocks.com/profile?returnTo=' + returnTo + '&auth_required=1');
   }
 
   const user = await validateSession(token);
   if (!user) {
-    if (req.path.startsWith('/api/')) {
+    if (url.startsWith('/api/')) {
       return res.status(401).json({ error: 'unauthorized', message: 'Session expired or invalid.' });
     }
-    const returnTo = encodeURIComponent('https://admin.petablocks.com' + req.originalUrl);
+    const returnTo = encodeURIComponent('https://admin.petablocks.com' + url);
     return res.redirect('https://petablocks.com/profile?returnTo=' + returnTo + '&auth_required=1');
   }
 
@@ -99,7 +101,7 @@ async function requireStaffAuth(req, res, next) {
   const isStaff = STAFF_ROLES.has(role);
 
   if (!isStaff) {
-    if (req.path.startsWith('/api/')) {
+    if (url.startsWith('/api/')) {
       return res.status(403).json({ error: 'forbidden', message: 'Access denied: Staff clearance required.' });
     }
     return res.redirect('https://petablocks.com/profile?denied=admin_clearance_required');
