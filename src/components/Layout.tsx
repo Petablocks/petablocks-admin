@@ -24,6 +24,7 @@ import {
   Terminal,
   Calendar,
   LogOut,
+  HeartPulse,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -34,6 +35,7 @@ interface NavItem {
   icon: React.ComponentType<{ className?: string }>
   label: string
   badge?: () => React.ReactNode
+  external?: boolean
 }
 
 interface NavSection {
@@ -215,6 +217,17 @@ export default function Layout() {
         { to: '/monitoring', icon: Activity, label: 'System Vitals' },
         { to: '/databases', icon: Database, label: 'Databases' },
         { to: '/files', icon: FolderOpen, label: 'File Manager' },
+        {
+          to: 'https://health.petablocks.com',
+          icon: HeartPulse,
+          label: 'Health Sentinel',
+          external: true,
+          badge: () => (
+            <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+              06:00
+            </span>
+          ),
+        },
       ],
     },
     {
@@ -236,47 +249,75 @@ export default function Layout() {
         </div>
       )}
       <div className={cn(isMobile ? "space-y-1" : "space-y-0.5")}>
-        {section.items.map(({ to, icon: Icon, label, badge }) => (
-          <NavLink
-            key={to}
-            to={to}
-            onClick={() => isMobile && setMobileMenuOpen(false)}
-            className={({ isActive }) =>
-              cn(
+        {section.items.map(({ to, icon: Icon, label, badge, external }) =>
+          external ? (
+            <a
+              key={to}
+              href={to}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => isMobile && setMobileMenuOpen(false)}
+              className={cn(
                 'group relative flex items-center transition-all duration-150',
                 isMobile
                   ? 'gap-3 px-4 py-3 rounded-xl text-sm font-semibold'
                   : 'gap-2.5 px-3 py-2 rounded-lg text-xs font-medium',
-                isActive
-                  ? 'bg-primary/10 text-primary font-semibold shadow-xs'
-                  : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground active:bg-accent/80'
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                {isActive && (
-                  <span className={cn(
-                    "absolute left-0 w-1 rounded-r-full bg-primary",
-                    isMobile ? "top-2 bottom-2" : "top-1.5 bottom-1.5"
-                  )} />
+                'text-muted-foreground hover:bg-accent/60 hover:text-foreground active:bg-accent/80'
+              )}
+            >
+              <Icon
+                className={cn(
+                  'shrink-0 transition-transform duration-150 group-hover:scale-105',
+                  isMobile ? 'h-5 w-5' : 'h-4 w-4',
+                  'text-emerald-400'
                 )}
-                <Icon
-                  className={cn(
-                    'shrink-0 transition-transform duration-150 group-hover:scale-105',
-                    isMobile ? 'h-5 w-5' : 'h-4 w-4',
-                    isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+              />
+              <span className="truncate">{label}</span>
+              {badge && badge()}
+              <ExternalLink className="ml-auto h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-foreground/80 transition-colors" />
+            </a>
+          ) : (
+            <NavLink
+              key={to}
+              to={to}
+              onClick={() => isMobile && setMobileMenuOpen(false)}
+              className={({ isActive }) =>
+                cn(
+                  'group relative flex items-center transition-all duration-150',
+                  isMobile
+                    ? 'gap-3 px-4 py-3 rounded-xl text-sm font-semibold'
+                    : 'gap-2.5 px-3 py-2 rounded-lg text-xs font-medium',
+                  isActive
+                    ? 'bg-primary/10 text-primary font-semibold shadow-xs'
+                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground active:bg-accent/80'
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  {isActive && (
+                    <span className={cn(
+                      "absolute left-0 w-1 rounded-r-full bg-primary",
+                      isMobile ? "top-2 bottom-2" : "top-1.5 bottom-1.5"
+                    )} />
                   )}
-                />
-                <span className="truncate">{label}</span>
-                {badge && badge()}
-                {isMobile && !badge && (
-                  <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground/40 group-hover:text-foreground/80 transition-colors" />
-                )}
-              </>
-            )}
-          </NavLink>
-        ))}
+                  <Icon
+                    className={cn(
+                      'shrink-0 transition-transform duration-150 group-hover:scale-105',
+                      isMobile ? 'h-5 w-5' : 'h-4 w-4',
+                      isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+                    )}
+                  />
+                  <span className="truncate">{label}</span>
+                  {badge && badge()}
+                  {isMobile && !badge && (
+                    <ChevronRight className="ml-auto h-4 w-4 text-muted-foreground/40 group-hover:text-foreground/80 transition-colors" />
+                  )}
+                </>
+              )}
+            </NavLink>
+          )
+        )}
       </div>
     </div>
   )

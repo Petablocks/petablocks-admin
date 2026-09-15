@@ -2,13 +2,18 @@
 
 > Comprehensive administration, container operations, object storage, live console streaming, autonomous maintenance pipelines, and Minecraft server telemetry platform for the PETABLOCKS ecosystem.
 >
-> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v1.7.0` • **Endpoint**: `https://admin.petablocks.com`
+> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.4.0` • **Endpoint**: `https://admin.petablocks.com`
 
 ---
 
 ## 🌟 Modules & Core Features
 
-### 1. 🤖 Autonomous Maintenance Hub (`/maintenance`)
+### 1. ❤️ Cluster Health Sentinel (`health.petablocks.com`)
+* **Automated Daily Health Checker**: Standalone Go service (`pb-reporter`) running 06:00 AM daily cluster diagnostic audits.
+* **Direct Navigation**: 1-click access from the Admin Portal Infrastructure sidebar with real-time schedule status.
+* **MariaDB Audit Logs & Discord Alerts**: Real-time morning digest and historical telemetry across all 5 VMs.
+
+### 2. 🤖 Autonomous Maintenance Hub (`/maintenance`)
 * **Automated Maintenance Execution Engine**: Background runner that executes scheduled updates with zero human intervention.
 * **Advance In-Game Warnings**: Automated countdown warnings ($T-15\text{m}$, $T-5\text{m}$, $T-1\text{m}$) broadcasted via `/tellraw`.
 * **Zero-Downtime Pipeline**: Automated world save (`/save-all flush`), container restart via SSH, TCP port & WebSocket health verification, and gateway unlock.

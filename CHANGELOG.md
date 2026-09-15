@@ -2,6 +2,13 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.4.0] - 2026-09-16
+### Added
+- **❤️ Health Sentinel Integration**:
+  - Added dedicated navigation shortcut in the Infrastructure section linking directly to `https://health.petablocks.com`.
+  - Displayed live 06:00 AM daily check indicator badge.
+  - Added support for external links in the sidebar navigation with responsive mobile menu integration.
+
 ## [2.2.0] - 2026-09-13
 ### Fixed & Overhauled
 - **🔄 Autonomous Scheduled Restart Engine Overhaul**:
