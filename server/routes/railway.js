@@ -181,6 +181,24 @@ router.delete('/lines/:id', async (req, res) => {
   }
 });
 
+// PUT /api/railway/lines/:id - update line
+router.put('/lines/:id', async (req, res) => {
+  const { code, name, color, description } = req.body;
+  if (!code || !name) {
+    return res.status(400).json({ error: 'Code and Name are required' });
+  }
+  try {
+    const p = await getAdminPool();
+    await p.query(
+      'UPDATE railway_lines SET code = ?, name = ?, color = ?, description = ? WHERE id = ?',
+      [code.toUpperCase(), name, color || '#3b82f6', description || '', req.params.id]
+    );
+    res.json({ id: parseInt(req.params.id), code: code.toUpperCase(), name, color, description, success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // 4. GET /api/railway/sections - list labeled sections
 router.get('/sections', async (req, res) => {
   try {
@@ -257,6 +275,60 @@ router.delete('/sections/:id', async (req, res) => {
     const p = await getAdminPool();
     await p.query('DELETE FROM railway_sections WHERE id = ?', [req.params.id]);
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/railway/sections/:id - update labeled section
+router.put('/sections/:id', async (req, res) => {
+  const {
+    name,
+    line_id,
+    ref_start_station,
+    ref_end_station,
+    dimension,
+    coord_x1,
+    coord_y1,
+    coord_z1,
+    coord_x2,
+    coord_y2,
+    coord_z2,
+    radius_blocks,
+    description,
+  } = req.body;
+
+  if (!name) {
+    return res.status(400).json({ error: 'Section name is required' });
+  }
+
+  try {
+    const p = await getAdminPool();
+    await p.query(
+      `UPDATE railway_sections SET
+        line_id = ?, name = ?, ref_start_station = ?, ref_end_station = ?, dimension = ?,
+        coord_x1 = ?, coord_y1 = ?, coord_z1 = ?, coord_x2 = ?, coord_y2 = ?, coord_z2 = ?,
+        radius_blocks = ?, description = ?
+       WHERE id = ?`,
+      [
+        line_id ? parseInt(line_id) : null,
+        name,
+        ref_start_station || null,
+        ref_end_station || null,
+        dimension || 'minecraft:overworld',
+        coord_x1 !== undefined && coord_x1 !== '' && coord_x1 !== null ? parseFloat(coord_x1) : null,
+        coord_y1 !== undefined && coord_y1 !== '' && coord_y1 !== null ? parseFloat(coord_y1) : null,
+        coord_z1 !== undefined && coord_z1 !== '' && coord_z1 !== null ? parseFloat(coord_z1) : null,
+        coord_x2 !== undefined && coord_x2 !== '' && coord_x2 !== null ? parseFloat(coord_x2) : null,
+        coord_y2 !== undefined && coord_y2 !== '' && coord_y2 !== null ? parseFloat(coord_y2) : null,
+        coord_z2 !== undefined && coord_z2 !== '' && coord_z2 !== null ? parseFloat(coord_z2) : null,
+        radius_blocks ? parseInt(radius_blocks) : 50,
+        description || '',
+        req.params.id,
+      ]
+    );
+
+    res.json({ id: parseInt(req.params.id), name, success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -472,6 +544,81 @@ router.post('/maintenance/:id/announce', async (req, res) => {
     await p.query('UPDATE railway_maintenance SET last_broadcast_at = NOW() WHERE id = ?', [req.params.id]);
 
     res.json({ success: true, message: 'In-game announcement dispatched' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// PUT /api/railway/maintenance/:id - update maintenance notice
+router.put('/maintenance/:id', async (req, res) => {
+  const {
+    title,
+    line_id,
+    section_id,
+    severity,
+    status,
+    reason,
+    speed_limit,
+    eta_completion,
+    broadcast_interval_minutes,
+    announced,
+  } = req.body;
+
+  if (!title || !reason) {
+    return res.status(400).json({ error: 'Title and reason are required' });
+  }
+
+  try {
+    const p = await getAdminPool();
+    await p.query(
+      `UPDATE railway_maintenance SET
+        title = ?, line_id = ?, section_id = ?, severity = ?, status = ?,
+        reason = ?, speed_limit = ?, eta_completion = ?, broadcast_interval_minutes = ?
+       WHERE id = ?`,
+      [
+        title,
+        line_id ? parseInt(line_id) : null,
+        section_id ? parseInt(section_id) : null,
+        severity || 'caution',
+        status || 'active',
+        reason,
+        speed_limit || 'Normal',
+        eta_completion ? new Date(eta_completion) : null,
+        broadcast_interval_minutes ? parseInt(broadcast_interval_minutes) : 30,
+        req.params.id,
+      ]
+    );
+
+    const [rows] = await p.query(`
+      SELECT m.*, s.name as section_name, s.ref_start_station, s.ref_end_station, l.name as line_name
+      FROM railway_maintenance m
+      LEFT JOIN railway_sections s ON m.section_id = s.id
+      LEFT JOIN railway_lines l ON m.line_id = l.id
+      WHERE m.id = ?
+    `, [req.params.id]);
+
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Maintenance notice not found' });
+    }
+
+    const updated = rows[0];
+
+    if (announced && updated.status === 'active') {
+      await dispatchInGameMaintenanceNotice(updated.server_id, updated, false);
+    }
+
+    res.json({ success: true, ...updated });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /api/railway/maintenance/:id
+router.delete('/maintenance/:id', async (req, res) => {
+  try {
+    const p = await getAdminPool();
+    await p.query('DELETE FROM railway_maintenance WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

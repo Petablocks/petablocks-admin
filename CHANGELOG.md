@@ -2,6 +2,14 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.5.1] - 2026-09-16
+### Added
+- **✏️ Interactive Railway Dispatch Entity Editing & Deletion**:
+  - **Notice Management**: Full edit and delete workflows for active maintenance notices (`PUT /api/railway/maintenance/:id`, `DELETE /api/railway/maintenance/:id`). Allows modifying severity, reason, status, speed limits, ETA, and option to trigger in-game re-announcements.
+  - **Track Sections & Landmarks**: Dedicated edit modals to update track section names, reference stations A & B, coordinate bounds, radius, and route descriptions (`PUT /api/railway/sections/:id`).
+  - **Transit Lines**: Added edit capability for transit lines (`PUT /api/railway/lines/:id`) with real-time accent color picker and route metadata editing.
+  - **Unified Modal UI**: Streamlined `RailwayDispatch.tsx` forms with adaptive "Create" vs "Edit" modes, pre-populated fields, and quick-action toolbars on entity cards.
+
 ## [2.5.0] - 2026-09-16
 ### Added
 - **🚂 Create 2 Railway Dispatch & Track Maintenance Platform (`/railway`)**:

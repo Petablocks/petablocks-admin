@@ -14,6 +14,7 @@ import {
   Search,
   Radio,
   Navigation,
+  Pencil,
 } from 'lucide-react'
 
 interface RailwayLine {
@@ -84,7 +85,12 @@ export default function RailwayDispatchPage() {
   const [activeTab, setActiveTab] = useState<'maintenance' | 'sections' | 'lines'>('maintenance')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Modal States
+  // Edit Target States
+  const [editingMaintenance, setEditingMaintenance] = useState<RailwayMaintenance | null>(null)
+  const [editingSection, setEditingSection] = useState<RailwaySection | null>(null)
+  const [editingLine, setEditingLine] = useState<RailwayLine | null>(null)
+
+  // Modal Visibility States
   const [maintenanceModalOpen, setMaintenanceModalOpen] = useState(false)
   const [sectionModalOpen, setSectionModalOpen] = useState(false)
   const [lineModalOpen, setLineModalOpen] = useState(false)
@@ -94,6 +100,7 @@ export default function RailwayDispatchPage() {
   const [mLineId, setMLineId] = useState<string>('')
   const [mSectionId, setMSectionId] = useState<string>('')
   const [mSeverity, setMSeverity] = useState<'closed' | 'caution' | 'info'>('caution')
+  const [mStatus, setMStatus] = useState<'active' | 'scheduled' | 'cleared' | 'cancelled'>('active')
   const [mReason, setMReason] = useState('')
   const [mSpeedLimit, setMSpeedLimit] = useState('15 m/s')
   const [mEtaMinutes, setMEtaMinutes] = useState('60')
@@ -165,7 +172,7 @@ export default function RailwayDispatchPage() {
     refetchInterval: 10000,
   })
 
-  // Mutations
+  // Maintenance Mutations
   const createMaintenanceMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await fetch('/api/railway/maintenance', {
@@ -179,10 +186,36 @@ export default function RailwayDispatchPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['railway-maintenance'] })
       setMaintenanceModalOpen(false)
-      setMTitle('')
-      setMReason('')
-      setMSectionId('')
-      setMLineId('')
+      resetMaintenanceForm()
+    },
+  })
+
+  const updateMaintenanceMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: any }) => {
+      const res = await fetch(`/api/railway/maintenance/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error('Failed to update maintenance')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['railway-maintenance'] })
+      setMaintenanceModalOpen(false)
+      setEditingMaintenance(null)
+      resetMaintenanceForm()
+    },
+  })
+
+  const deleteMaintenanceMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await fetch(`/api/railway/maintenance/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Failed to delete maintenance notice')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['railway-maintenance'] })
     },
   })
 
@@ -205,6 +238,7 @@ export default function RailwayDispatchPage() {
     },
   })
 
+  // Section Mutations
   const createSectionMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await fetch('/api/railway/sections', {
@@ -218,16 +252,25 @@ export default function RailwayDispatchPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['railway-sections'] })
       setSectionModalOpen(false)
-      setSecName('')
-      setSecDesc('')
-      setSecStartStation('')
-      setSecEndStation('')
-      setSecX1('')
-      setSecY1('')
-      setSecZ1('')
-      setSecX2('')
-      setSecY2('')
-      setSecZ2('')
+      resetSectionForm()
+    },
+  })
+
+  const updateSectionMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: any }) => {
+      const res = await fetch(`/api/railway/sections/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error('Failed to update section')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['railway-sections'] })
+      setSectionModalOpen(false)
+      setEditingSection(null)
+      resetSectionForm()
     },
   })
 
@@ -242,6 +285,7 @@ export default function RailwayDispatchPage() {
     },
   })
 
+  // Line Mutations
   const createLineMutation = useMutation({
     mutationFn: async (payload: any) => {
       const res = await fetch('/api/railway/lines', {
@@ -255,9 +299,25 @@ export default function RailwayDispatchPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['railway-lines'] })
       setLineModalOpen(false)
-      setLineCode('')
-      setLineName('')
-      setLineDesc('')
+      resetLineForm()
+    },
+  })
+
+  const updateLineMutation = useMutation({
+    mutationFn: async ({ id, payload }: { id: number; payload: any }) => {
+      const res = await fetch(`/api/railway/lines/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error('Failed to update line')
+      return res.json()
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['railway-lines'] })
+      setLineModalOpen(false)
+      setEditingLine(null)
+      resetLineForm()
     },
   })
 
@@ -272,29 +332,122 @@ export default function RailwayDispatchPage() {
     },
   })
 
-  const handleCreateMaintenance = (e: React.FormEvent) => {
+  // Form Resets
+  const resetMaintenanceForm = () => {
+    setMTitle('')
+    setMReason('')
+    setMSectionId('')
+    setMLineId('')
+    setMSeverity('caution')
+    setMStatus('active')
+    setMSpeedLimit('15 m/s')
+    setMEtaMinutes('60')
+    setMBroadcast(true)
+    setEditingMaintenance(null)
+  }
+
+  const resetSectionForm = () => {
+    setSecName('')
+    setSecDesc('')
+    setSecLineId('')
+    setSecStartStation('')
+    setSecEndStation('')
+    setSecX1('')
+    setSecY1('')
+    setSecZ1('')
+    setSecX2('')
+    setSecY2('')
+    setSecZ2('')
+    setSecRadius('50')
+    setEditingSection(null)
+  }
+
+  const resetLineForm = () => {
+    setLineCode('')
+    setLineName('')
+    setLineColor('#3b82f6')
+    setLineDesc('')
+    setEditingLine(null)
+  }
+
+  // Open Edit Modals
+  const openEditMaintenance = (m: RailwayMaintenance) => {
+    setEditingMaintenance(m)
+    setMTitle(m.title)
+    setMReason(m.reason)
+    setMSectionId(m.section_id ? String(m.section_id) : '')
+    setMLineId(m.line_id ? String(m.line_id) : '')
+    setMSeverity(m.severity)
+    setMStatus(m.status)
+    setMSpeedLimit(m.speed_limit || '15 m/s')
+    setMBroadcast(false)
+    setMaintenanceModalOpen(true)
+  }
+
+  const openEditSection = (s: RailwaySection) => {
+    setEditingSection(s)
+    setSecName(s.name)
+    setSecLineId(s.line_id ? String(s.line_id) : '')
+    setSecStartStation(s.ref_start_station || '')
+    setSecEndStation(s.ref_end_station || '')
+    setSecX1(s.coord_x1 !== null ? String(s.coord_x1) : '')
+    setSecY1(s.coord_y1 !== null ? String(s.coord_y1) : '')
+    setSecZ1(s.coord_z1 !== null ? String(s.coord_z1) : '')
+    setSecX2(s.coord_x2 !== null ? String(s.coord_x2) : '')
+    setSecY2(s.coord_y2 !== null ? String(s.coord_y2) : '')
+    setSecZ2(s.coord_z2 !== null ? String(s.coord_z2) : '')
+    setSecRadius(String(s.radius_blocks || 50))
+    setSecDesc(s.description || '')
+    setSectionModalOpen(true)
+  }
+
+  const openEditLine = (l: RailwayLine) => {
+    setEditingLine(l)
+    setLineCode(l.code)
+    setLineName(l.name)
+    setLineColor(l.color || '#3b82f6')
+    setLineDesc(l.description || '')
+    setLineModalOpen(true)
+  }
+
+  const openMaintenanceForSection = (section: RailwaySection) => {
+    resetMaintenanceForm()
+    setMTitle(`Trackwork: ${section.name}`)
+    setMSectionId(String(section.id))
+    if (section.line_id) setMLineId(String(section.line_id))
+    setMReason('Scheduled line inspection and track bed re-alignment')
+    setMaintenanceModalOpen(true)
+  }
+
+  const handleMaintenanceSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const startsAt = new Date()
+    const startsAt = editingMaintenance ? new Date(editingMaintenance.starts_at) : new Date()
     const etaMs = parseInt(mEtaMinutes || '60') * 60 * 1000
     const etaCompletion = new Date(startsAt.getTime() + etaMs)
 
-    createMaintenanceMutation.mutate({
+    const payload = {
       title: mTitle,
       line_id: mLineId || null,
       section_id: mSectionId || null,
       severity: mSeverity,
-      status: 'active',
+      status: mStatus,
       reason: mReason,
       speed_limit: mSpeedLimit,
       announced: mBroadcast,
       starts_at: startsAt.toISOString(),
       eta_completion: etaCompletion.toISOString(),
-    })
+    }
+
+    if (editingMaintenance) {
+      updateMaintenanceMutation.mutate({ id: editingMaintenance.id, payload })
+    } else {
+      createMaintenanceMutation.mutate(payload)
+    }
   }
 
-  const handleCreateSection = (e: React.FormEvent) => {
+  const handleSectionSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    createSectionMutation.mutate({
+    const payload = {
       name: secName,
       line_id: secLineId || null,
       ref_start_station: secStartStation || null,
@@ -307,26 +460,29 @@ export default function RailwayDispatchPage() {
       coord_z2: secZ2,
       radius_blocks: secRadius,
       description: secDesc,
-    })
+    }
+
+    if (editingSection) {
+      updateSectionMutation.mutate({ id: editingSection.id, payload })
+    } else {
+      createSectionMutation.mutate(payload)
+    }
   }
 
-  const handleCreateLine = (e: React.FormEvent) => {
+  const handleLineSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    createLineMutation.mutate({
+    const payload = {
       code: lineCode,
       name: lineName,
       color: lineColor,
       description: lineDesc,
-    })
-  }
+    }
 
-  // Pre-fill maintenance modal for a specific section
-  const openMaintenanceForSection = (section: RailwaySection) => {
-    setMTitle(`Trackwork: ${section.name}`)
-    setMSectionId(String(section.id))
-    if (section.line_id) setMLineId(String(section.line_id))
-    setMReason('Scheduled line inspection and track bed re-alignment')
-    setMaintenanceModalOpen(true)
+    if (editingLine) {
+      updateLineMutation.mutate({ id: editingLine.id, payload })
+    } else {
+      createLineMutation.mutate(payload)
+    }
   }
 
   const totalStations = networkData?.stations?.length || 0
@@ -366,7 +522,7 @@ export default function RailwayDispatchPage() {
                 )}
               </div>
               <p className="mt-1 text-sm text-slate-400">
-                Label intermediate track corridors, manage maintenance schedules, and broadcast automated in-game passenger advisories.
+                Label intermediate track corridors, manage maintenance schedules, edit work zones, and broadcast automated in-game passenger advisories.
               </p>
             </div>
           </div>
@@ -394,7 +550,10 @@ export default function RailwayDispatchPage() {
               <ExternalLink className="w-3 h-3 opacity-60" />
             </a>
             <button
-              onClick={() => setMaintenanceModalOpen(true)}
+              onClick={() => {
+                resetMaintenanceForm()
+                setMaintenanceModalOpen(true)
+              }}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 shadow-lg shadow-orange-500/20 transition-all transform active:scale-95"
             >
               <Plus className="w-4 h-4" />
@@ -474,7 +633,10 @@ export default function RailwayDispatchPage() {
 
         {activeTab === 'sections' && (
           <button
-            onClick={() => setSectionModalOpen(true)}
+            onClick={() => {
+              resetSectionForm()
+              setSectionModalOpen(true)
+            }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all"
           >
             <Plus className="w-3.5 h-3.5 text-amber-400" />
@@ -484,7 +646,10 @@ export default function RailwayDispatchPage() {
 
         {activeTab === 'lines' && (
           <button
-            onClick={() => setLineModalOpen(true)}
+            onClick={() => {
+              resetLineForm()
+              setLineModalOpen(true)
+            }}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 transition-all"
           >
             <Plus className="w-3.5 h-3.5 text-blue-400" />
@@ -520,7 +685,7 @@ export default function RailwayDispatchPage() {
                         ? isClosed
                           ? 'border-rose-500/40 bg-rose-950/10 shadow-lg shadow-rose-950/20'
                           : 'border-amber-500/40 bg-amber-950/10 shadow-lg shadow-amber-950/20'
-                        : 'border-slate-800/80 bg-slate-900/40 opacity-70'
+                        : 'border-slate-800/80 bg-slate-900/40 opacity-75'
                     }`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -532,6 +697,8 @@ export default function RailwayDispatchPage() {
                                 ? 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
                                 : notice.status === 'cleared'
                                 ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : notice.status === 'scheduled'
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                                 : 'bg-slate-800 text-slate-400'
                             }`}
                           >
@@ -561,24 +728,40 @@ export default function RailwayDispatchPage() {
                       </div>
 
                       {/* Action buttons */}
-                      {isActive && (
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            onClick={() => announceMutation.mutate(notice.id)}
-                            title="Re-broadcast announcement in-game"
-                            className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-all"
-                          >
-                            <Volume2 className="w-3.5 h-3.5 text-amber-400" />
-                          </button>
-                          <button
-                            onClick={() => clearMaintenanceMutation.mutate(notice.id)}
-                            title="Clear maintenance and reopen track"
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-900/30 transition-all"
-                          >
-                            Clear Track
-                          </button>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => openEditMaintenance(notice)}
+                          title="Edit Maintenance Notice"
+                          className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-all"
+                        >
+                          <Pencil className="w-3.5 h-3.5 text-slate-300" />
+                        </button>
+                        {isActive && (
+                          <>
+                            <button
+                              onClick={() => announceMutation.mutate(notice.id)}
+                              title="Re-broadcast announcement in-game"
+                              className="p-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700/60 transition-all"
+                            >
+                              <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+                            </button>
+                            <button
+                              onClick={() => clearMaintenanceMutation.mutate(notice.id)}
+                              title="Clear maintenance and reopen track"
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white text-xs font-semibold shadow-md shadow-emerald-900/30 transition-all"
+                            >
+                              Clear Track
+                            </button>
+                          </>
+                        )}
+                        <button
+                          onClick={() => deleteMaintenanceMutation.mutate(notice.id)}
+                          title="Delete Notice"
+                          className="p-2 rounded-xl bg-slate-800/80 hover:bg-rose-900/40 text-slate-400 hover:text-rose-400 border border-slate-700/60 transition-all"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     <p className="mt-2 text-xs text-slate-300 leading-relaxed">{notice.reason}</p>
@@ -646,14 +829,23 @@ export default function RailwayDispatchPage() {
                         <MapPin className="w-4 h-4 text-amber-400" />
                         <h4 className="font-bold text-sm text-white">{section.name}</h4>
                       </div>
-                      {section.line_name && (
-                        <span
-                          className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
-                          style={{ backgroundColor: `${section.line_color}20`, color: section.line_color }}
+                      <div className="flex items-center gap-1.5">
+                        {section.line_name && (
+                          <span
+                            className="px-2 py-0.5 rounded-full text-[10px] font-semibold"
+                            style={{ backgroundColor: `${section.line_color}20`, color: section.line_color }}
+                          >
+                            {section.line_code || section.line_name}
+                          </span>
+                        )}
+                        <button
+                          onClick={() => openEditSection(section)}
+                          title="Edit Section"
+                          className="p-1 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
                         >
-                          {section.line_code || section.line_name}
-                        </span>
-                      )}
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     </div>
 
                     {section.description && (
@@ -734,12 +926,22 @@ export default function RailwayDispatchPage() {
                       {line.description && <p className="text-xs text-slate-400 mt-1">{line.description}</p>}
                     </div>
                   </div>
-                  <button
-                    onClick={() => deleteLineMutation.mutate(line.id)}
-                    className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => openEditLine(line)}
+                      title="Edit Line"
+                      className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      onClick={() => deleteLineMutation.mutate(line.id)}
+                      title="Delete Line"
+                      className="p-1.5 text-slate-500 hover:text-rose-400 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -747,14 +949,16 @@ export default function RailwayDispatchPage() {
         </div>
       )}
 
-      {/* MODAL 1: CREATE MAINTENANCE NOTICE */}
+      {/* MODAL 1: CREATE / EDIT MAINTENANCE NOTICE */}
       {maintenanceModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <AlertTriangle className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-base text-white">Create Railway Maintenance Notice</h3>
+                <h3 className="font-bold text-base text-white">
+                  {editingMaintenance ? 'Edit Maintenance Notice' : 'Create Railway Maintenance Notice'}
+                </h3>
               </div>
               <button
                 onClick={() => setMaintenanceModalOpen(false)}
@@ -764,7 +968,7 @@ export default function RailwayDispatchPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateMaintenance} className="mt-4 space-y-4 text-xs">
+            <form onSubmit={handleMaintenanceSubmit} className="mt-4 space-y-4 text-xs">
               <div>
                 <label className="block text-slate-400 mb-1">Notice Title *</label>
                 <input
@@ -777,17 +981,30 @@ export default function RailwayDispatchPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-slate-400 mb-1">Severity / Status *</label>
+                  <label className="block text-slate-400 mb-1">Severity *</label>
                   <select
                     value={mSeverity}
                     onChange={(e) => setMSeverity(e.target.value as any)}
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-amber-500"
                   >
-                    <option value="caution">⚠️ Caution (Speed Restricted)</option>
-                    <option value="closed">⛔ Track Closed (Full Block)</option>
-                    <option value="info">ℹ️ Advisory (Work Crew Nearby)</option>
+                    <option value="caution">⚠️ Caution</option>
+                    <option value="closed">⛔ Closed</option>
+                    <option value="info">ℹ️ Advisory</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-slate-400 mb-1">Status *</label>
+                  <select
+                    value={mStatus}
+                    onChange={(e) => setMStatus(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="active">Active</option>
+                    <option value="scheduled">Scheduled</option>
+                    <option value="cleared">Cleared</option>
+                    <option value="cancelled">Cancelled</option>
                   </select>
                 </div>
                 <div>
@@ -796,7 +1013,7 @@ export default function RailwayDispatchPage() {
                     type="text"
                     value={mSpeedLimit}
                     onChange={(e) => setMSpeedLimit(e.target.value)}
-                    placeholder="e.g. 15 m/s or Stopped"
+                    placeholder="e.g. 15 m/s"
                     className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-white focus:outline-none focus:border-amber-500"
                   />
                 </div>
@@ -836,11 +1053,11 @@ export default function RailwayDispatchPage() {
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Maintenance Reason & Passenger Warning *</label>
+                <label className="block text-slate-400 mb-1">Maintenance Reason & Warning *</label>
                 <textarea
                   required
                   rows={3}
-                  placeholder="Explain why tracks are restricted (e.g. Gantry replacement and rail laying work crew on site)"
+                  placeholder="Explain why tracks are restricted"
                   value={mReason}
                   onChange={(e) => setMReason(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500"
@@ -866,7 +1083,7 @@ export default function RailwayDispatchPage() {
                       onChange={(e) => setMBroadcast(e.target.checked)}
                       className="rounded border-slate-700 bg-slate-900 text-amber-500 focus:ring-0"
                     />
-                    <span>Broadcast In-Game Immediately</span>
+                    <span>{editingMaintenance ? 'Re-broadcast In-Game' : 'Broadcast In-Game Immediately'}</span>
                   </label>
                 </div>
               </div>
@@ -881,10 +1098,10 @@ export default function RailwayDispatchPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={createMaintenanceMutation.isPending}
+                  disabled={createMaintenanceMutation.isPending || updateMaintenanceMutation.isPending}
                   className="px-5 py-2 rounded-xl font-semibold text-white bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 shadow-md shadow-orange-500/20"
                 >
-                  {createMaintenanceMutation.isPending ? 'Broadcasting...' : 'Publish & Broadcast'}
+                  {editingMaintenance ? 'Save Changes' : 'Publish & Broadcast'}
                 </button>
               </div>
             </form>
@@ -892,14 +1109,16 @@ export default function RailwayDispatchPage() {
         </div>
       )}
 
-      {/* MODAL 2: ADD LABELED TRACK SECTION */}
+      {/* MODAL 2: ADD / EDIT LABELED TRACK SECTION */}
       {sectionModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <MapPin className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-base text-white">Add Labeled Track Section</h3>
+                <h3 className="font-bold text-base text-white">
+                  {editingSection ? 'Edit Labeled Track Section' : 'Add Labeled Track Section'}
+                </h3>
               </div>
               <button
                 onClick={() => setSectionModalOpen(false)}
@@ -909,7 +1128,7 @@ export default function RailwayDispatchPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateSection} className="mt-4 space-y-4 text-xs">
+            <form onSubmit={handleSectionSubmit} className="mt-4 space-y-4 text-xs">
               <div>
                 <label className="block text-slate-400 mb-1">Section Name / Landmark *</label>
                 <input
@@ -1053,10 +1272,10 @@ export default function RailwayDispatchPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={createSectionMutation.isPending}
+                  disabled={createSectionMutation.isPending || updateSectionMutation.isPending}
                   className="px-5 py-2 rounded-xl font-semibold text-white bg-amber-600 hover:bg-amber-500 shadow-md shadow-amber-900/20"
                 >
-                  Save Labeled Section
+                  {editingSection ? 'Save Changes' : 'Save Labeled Section'}
                 </button>
               </div>
             </form>
@@ -1064,14 +1283,16 @@ export default function RailwayDispatchPage() {
         </div>
       )}
 
-      {/* MODAL 3: ADD TRANSIT LINE */}
+      {/* MODAL 3: ADD / EDIT TRANSIT LINE */}
       {lineModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in">
           <div className="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-950 p-6 shadow-2xl">
             <div className="flex items-center justify-between pb-4 border-b border-slate-800">
               <div className="flex items-center gap-2.5">
                 <TrainTrack className="w-5 h-5 text-blue-400" />
-                <h3 className="font-bold text-base text-white">Create Transit Line</h3>
+                <h3 className="font-bold text-base text-white">
+                  {editingLine ? 'Edit Transit Line' : 'Create Transit Line'}
+                </h3>
               </div>
               <button
                 onClick={() => setLineModalOpen(false)}
@@ -1081,7 +1302,7 @@ export default function RailwayDispatchPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateLine} className="mt-4 space-y-4 text-xs">
+            <form onSubmit={handleLineSubmit} className="mt-4 space-y-4 text-xs">
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="block text-slate-400 mb-1">Code *</label>
@@ -1146,10 +1367,10 @@ export default function RailwayDispatchPage() {
                 </button>
                 <button
                   type="submit"
-                  disabled={createLineMutation.isPending}
+                  disabled={createLineMutation.isPending || updateLineMutation.isPending}
                   className="px-5 py-2 rounded-xl font-semibold text-white bg-blue-600 hover:bg-blue-500"
                 >
-                  Save Transit Line
+                  {editingLine ? 'Save Changes' : 'Save Transit Line'}
                 </button>
               </div>
             </form>
