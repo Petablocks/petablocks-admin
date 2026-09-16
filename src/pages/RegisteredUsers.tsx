@@ -79,6 +79,8 @@ interface UserSummary {
   custom_status?: string | null
   playstyleTags?: string[]
   playstyle_tags?: string[] | string | null
+  playtime_ms?: number
+  playtime_hours?: number
   is_online?: boolean
 }
 
