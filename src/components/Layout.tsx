@@ -190,7 +190,9 @@ export default function Layout() {
   const currentTitle = getPageTitle(location.pathname)
 
   const userRole = (authSession?.user?.role || '').toLowerCase()
-  const isDevOrOwner = userRole === 'owner' || userRole === 'founder' || userRole === 'developer' || userRole === 'admin'
+  const isDevOrOwner = userRole === 'owner' || userRole === 'founder' || userRole === 'developer' || userRole === 'admin' || userRole === 'owner & founder'
+  // Staff and Moderators get a restricted view — moderation + server health only
+  const isStaffOnly = !isDevOrOwner && (userRole === 'staff' || userRole === 'moderator')
 
   const navSections: NavSection[] = [
     {
@@ -241,7 +243,8 @@ export default function Layout() {
         { to: '/analytics', icon: Users, label: 'Player Analytics' },
       ],
     },
-    {
+    // Server Fleet section — hidden for Staff-only roles (they cannot manage the fleet)
+    ...(!isStaffOnly ? [{
       title: 'Server Fleet',
       items: [
         { to: '/servers', icon: Server, label: 'Server Fleet' },
@@ -282,7 +285,29 @@ export default function Layout() {
         },
         { to: '/role-mappings', icon: Crown, label: 'Role Mappings' },
       ],
-    },
+    }] : []),
+    // Staff-only: Emergency Maintenance button (declare emergency only — no scheduling)
+    ...(isStaffOnly ? [{
+      title: 'Server Health',
+      items: [
+        {
+          to: '/maintenance',
+          icon: Wrench,
+          label: 'Emergency Maintenance',
+          badge: () => {
+            if (hasActiveMaintenance) {
+              return (
+                <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1 animate-pulse">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                  ACTIVE
+                </span>
+              )
+            }
+            return null
+          },
+        },
+      ],
+    }] : []),
     // Infrastructure section (collapsible & developer/admin role restricted)
     ...(isDevOrOwner ? [{
       id: 'infrastructure',
@@ -317,13 +342,15 @@ export default function Layout() {
         },
       ],
     }] : []),
-    {
+    // Settings — Admin and above only
+    ...(!isStaffOnly ? [{
       title: 'System',
       items: [
         { to: '/settings', icon: Settings, label: 'Settings' },
       ],
-    },
+    }] : []),
   ]
+
 
   const renderNavSection = (section: NavSection, isMobile = false) => {
     const isCollapsible = Boolean(section.collapsible && section.id)
@@ -729,61 +756,119 @@ export default function Layout() {
             )}
           </NavLink>
 
-          {/* 3. Server Fleet */}
-          <NavLink
-            to="/servers"
-            className={({ isActive }) =>
-              cn(
-                'flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[10px] font-medium transition-colors relative',
-                isActive
-                  ? 'text-primary font-bold'
-                  : 'text-muted-foreground hover:text-foreground active:scale-95'
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div className={cn(
-                  "p-1 rounded-lg transition-colors",
-                  isActive ? "bg-primary/15 text-primary" : "text-muted-foreground"
-                )}>
-                  <Server className="h-4 w-4" />
-                </div>
-                <span className="truncate mt-0.5">Fleet</span>
-              </>
-            )}
-          </NavLink>
+          {/* 3. Moderation (Staff) or Server Fleet (Admin+) */}
+          {isStaffOnly ? (
+            <NavLink
+              to="/moderation"
+              className={({ isActive }) =>
+                cn(
+                  'flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[10px] font-medium transition-colors relative',
+                  isActive
+                    ? 'text-primary font-bold'
+                    : 'text-muted-foreground hover:text-foreground active:scale-95'
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div className={cn(
+                    "p-1 rounded-lg transition-colors",
+                    isActive ? "bg-primary/15 text-primary" : "text-muted-foreground"
+                  )}>
+                    <ShieldAlert className="h-4 w-4" />
+                  </div>
+                  <span className="truncate mt-0.5">Moderation</span>
+                </>
+              )}
+            </NavLink>
+          ) : (
+            <NavLink
+              to="/servers"
+              className={({ isActive }) =>
+                cn(
+                  'flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[10px] font-medium transition-colors relative',
+                  isActive
+                    ? 'text-primary font-bold'
+                    : 'text-muted-foreground hover:text-foreground active:scale-95'
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div className={cn(
+                    "p-1 rounded-lg transition-colors",
+                    isActive ? "bg-primary/15 text-primary" : "text-muted-foreground"
+                  )}>
+                    <Server className="h-4 w-4" />
+                  </div>
+                  <span className="truncate mt-0.5">Fleet</span>
+                </>
+              )}
+            </NavLink>
+          )}
 
-          {/* 4. Maintenance Hub */}
-          <NavLink
-            to="/maintenance"
-            className={({ isActive }) =>
-              cn(
-                'flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[10px] font-medium transition-colors relative',
-                isActive
-                  ? 'text-primary font-bold'
-                  : 'text-muted-foreground hover:text-foreground active:scale-95'
-              )
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <div className={cn(
-                  "p-1 rounded-lg transition-colors relative",
-                  isActive ? "bg-primary/15 text-primary" : "text-muted-foreground"
-                )}>
-                  <Wrench className="h-4 w-4" />
-                  {hasActiveMaintenance && (
-                    <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
-                    </span>
-                  )}
-                </div>
-                <span className="truncate mt-0.5">Maint</span>
-              </>
-            )}
-          </NavLink>
+          {/* 4. Support Desk (Staff) or Maintenance Hub (Admin+) */}
+          {isStaffOnly ? (
+            <NavLink
+              to="/support"
+              className={({ isActive }) =>
+                cn(
+                  'flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[10px] font-medium transition-colors relative',
+                  isActive
+                    ? 'text-primary font-bold'
+                    : 'text-muted-foreground hover:text-foreground active:scale-95'
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div className={cn(
+                    "p-1 rounded-lg transition-colors relative",
+                    isActive ? "bg-primary/15 text-primary" : "text-muted-foreground"
+                  )}>
+                    <LifeBuoy className="h-4 w-4" />
+                    {openSupportTicketsCount > 0 && (
+                      <span className="absolute -top-1 -right-1.5 px-1 py-0.2 rounded-full text-[8px] font-mono font-bold bg-sky-500 text-white leading-none">
+                        {openSupportTicketsCount}
+                      </span>
+                    )}
+                  </div>
+                  <span className="truncate mt-0.5">Support</span>
+                </>
+              )}
+            </NavLink>
+          ) : (
+            <NavLink
+              to="/maintenance"
+              className={({ isActive }) =>
+                cn(
+                  'flex flex-col items-center justify-center py-1.5 px-1 rounded-xl text-[10px] font-medium transition-colors relative',
+                  isActive
+                    ? 'text-primary font-bold'
+                    : 'text-muted-foreground hover:text-foreground active:scale-95'
+                )
+              }
+            >
+              {({ isActive }) => (
+                <>
+                  <div className={cn(
+                    "p-1 rounded-lg transition-colors relative",
+                    isActive ? "bg-primary/15 text-primary" : "text-muted-foreground"
+                  )}>
+                    <Wrench className="h-4 w-4" />
+                    {hasActiveMaintenance && (
+                      <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
+                      </span>
+                    )}
+                  </div>
+                  <span className="truncate mt-0.5">Maint</span>
+                </>
+              )}
+            </NavLink>
+          )}
+
 
           {/* 5. More / Drawer Trigger */}
           <button

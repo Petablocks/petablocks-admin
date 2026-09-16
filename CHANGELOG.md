@@ -2,6 +2,27 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.9.0] - 2026-09-16
+### Added
+- **🔐 Granular Staff Role-Based Access Control (RBAC)**:
+  - Introduced `ROLE_LEVEL` numeric hierarchy in `authMiddleware.js`: `Player (10) → VIP (20) → Staff/Moderator (30) → Developer (80) → Admin (90) → Owner/Founder (95-100)`. Role comparisons are now numeric rather than set membership, enabling fine-grained per-route access control.
+  - Added `requireAdminAuth` middleware (blocks Staff/Moderator from Admin-only API routes) and `requireRoleLevel(n)` factory for inline per-route guards.
+  - `req.userRoleLevel` now attached to every authenticated request for downstream handlers.
+
+### Changed
+- **Staff view — sidebar is now role-filtered**:
+  - Staff/Moderator see: Dashboard, Live Telemetry (read-only), Staff Moderation, Railway Dispatch, Support Desk, Events & Tips, Player Analytics, **Emergency Maintenance**.
+  - Staff do NOT see: Server Fleet, World Backups, Registered Users, Role Mappings, Settings, Infrastructure & DevOps section.
+  - Admin+ retain the full view unchanged.
+- **Mobile bottom navigation is now role-aware**: Staff bottom bar shows Moderation + Support Desk instead of Server Fleet + Maintenance Hub.
+- **Maintenance Hub — Staff Emergency Mode**:
+  - Staff/Moderator may declare an immediate emergency maintenance window (`status: 'in_progress'`) if the owner isn't available — Discord + in-game notifications still fire.
+  - Staff cannot schedule future maintenance windows, update/edit existing windows, trigger automated pipelines, or delete windows (all require Admin).
+- **API route access control hardened**:
+  - `requireAdminAuth` applied to: `/api/server-manager`, `/api/backups`, `/api/users`, `/api/containers`, `/api/databases`, `/api/files`.
+  - `/api/maintenance`, `/api/minecraft`, `/api/moderation`, `/api/support`, `/api/railway`, `/api/player-stats` remain Staff-accessible.
+  - Per-operation guards on maintenance routes protect schedule/edit/delete/pipeline-trigger from Staff.
+
 ## [2.8.0] - 2026-09-16
 ### Added
 - **🎫 Unified Support Desk & Cross-Platform Issue Tracker (`/support`)**:

@@ -17,15 +17,31 @@ function parseCookies(req) {
   return list;
 }
 
-// Authorized roles for PETABLOCKS Admin Portal
-const STAFF_ROLES = new Set([
-  'owner & founder',
-  'founder',
-  'owner',
-  'admin',
-  'staff',
-  'developer'
-]);
+/**
+ * Role hierarchy levels.
+ * Higher number = more permissions.
+ * Use ROLE_LEVEL to do numeric comparisons between roles.
+ */
+const ROLE_LEVEL = {
+  'player':          10,
+  'vip':             20,
+  'moderator':       30,
+  'staff':           30,   // Staff & Moderator are equivalent level
+  'developer':       80,
+  'admin':           90,
+  'owner':           95,
+  'founder':         95,
+  'owner & founder': 100,
+};
+
+// Minimum level required for basic admin portal entry (Staff+)
+const STAFF_MIN_LEVEL = ROLE_LEVEL['staff'];  // 30
+
+// Minimum level required for fleet management, user management, backup restore etc.
+const ADMIN_MIN_LEVEL = ROLE_LEVEL['admin'];  // 90
+
+// Authorized roles for PETABLOCKS Admin Portal (any of these may enter)
+const STAFF_ROLES = new Set(Object.keys(ROLE_LEVEL).filter(r => ROLE_LEVEL[r] >= STAFF_MIN_LEVEL));
 
 /**
  * Validates session token against central pb-api
@@ -67,7 +83,17 @@ async function validateSession(token) {
 }
 
 /**
- * Express middleware for role-based access control
+ * Returns the numeric role level for a user object (defaults to 0 if unrecognized).
+ */
+function getUserRoleLevel(user) {
+  if (!user) return 0;
+  const role = (user.role || '').toLowerCase().trim();
+  return ROLE_LEVEL[role] ?? 0;
+}
+
+/**
+ * Express middleware — requires a valid staff session (Staff, Moderator, Admin, Owner, etc.)
+ * This is the entry guard for the entire admin panel.
  */
 async function requireStaffAuth(req, res, next) {
   const url = req.originalUrl || req.url;
@@ -116,23 +142,59 @@ async function requireStaffAuth(req, res, next) {
     return res.redirect('https://petablocks.com/login?returnTo=' + returnTo + '&service=Admin+Portal&requiredRole=staff');
   }
 
-  const role = (user.role || '').toLowerCase().trim();
-  const isStaff = STAFF_ROLES.has(role);
-
-  if (!isStaff) {
+  if (getUserRoleLevel(user) < STAFF_MIN_LEVEL) {
     if (url.startsWith('/api/')) {
       return res.status(403).json({ error: 'forbidden', message: 'Access denied: Staff clearance required.' });
     }
     return res.redirect('https://petablocks.com/login?denied=admin_clearance_required&service=Admin+Portal');
   }
 
-  // Attach user to request for downstream handlers
+  // Attach user + role level to request for downstream handlers
   req.user = user;
+  req.userRoleLevel = getUserRoleLevel(user);
   next();
+}
+
+/**
+ * Express middleware — requires Admin-level role (Admin, Owner, Founder, Developer).
+ * Blocks Staff & Moderator from fleet management, backup restore, user role changes, etc.
+ * Must be chained AFTER requireStaffAuth so req.user is already set.
+ */
+function requireAdminAuth(req, res, next) {
+  const level = req.userRoleLevel ?? getUserRoleLevel(req.user);
+  if (level < ADMIN_MIN_LEVEL) {
+    return res.status(403).json({
+      error: 'forbidden',
+      message: 'Admin clearance required. Contact the server owner to perform this action.',
+    });
+  }
+  next();
+}
+
+/**
+ * Factory — returns a middleware that enforces a minimum role level.
+ * Usage: router.post('/restart', requireRoleLevel(ROLE_LEVEL.admin), handler)
+ */
+function requireRoleLevel(minLevel) {
+  return (req, res, next) => {
+    const level = req.userRoleLevel ?? getUserRoleLevel(req.user);
+    if (level < minLevel) {
+      return res.status(403).json({
+        error: 'forbidden',
+        message: `Insufficient permissions. This action requires a higher role.`,
+      });
+    }
+    next();
+  };
 }
 
 module.exports = {
   parseCookies,
   validateSession,
   requireStaffAuth,
+  requireAdminAuth,
+  requireRoleLevel,
+  ROLE_LEVEL,
+  getUserRoleLevel,
 };
+

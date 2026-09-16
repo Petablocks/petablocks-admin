@@ -21,7 +21,7 @@ const { initTrainMonitor } = require('./services/trainMonitorService');
 const { initBackupScheduler } = require('./services/backupScheduleService');
 const playerAnalyticsService = require('./services/playerAnalyticsService');
 
-const { requireStaffAuth } = require('./middleware/authMiddleware');
+const { requireStaffAuth, requireAdminAuth } = require('./middleware/authMiddleware');
 
 const app = express();
 const server = http.createServer(app);
@@ -74,16 +74,18 @@ app.get('/api/auth/me', requireStaffAuth, (req, res) => {
 app.use('/api/support/public', supportRouter);
 
 // Apply Central Network-Wide Staff RBAC Guard to all management APIs
-app.use('/api/containers', requireStaffAuth, containersRouter);
+// Staff (level 30) can access: minecraft telemetry, moderation, support, railway, maintenance (read + emergency), player analytics, events
+// Admin (level 90+) only: server-manager (start/stop), backups (restore/delete), user role management
+app.use('/api/containers', requireStaffAuth, requireAdminAuth, containersRouter);
 app.use('/api/metrics', requireStaffAuth, metricsRouter);
-app.use('/api/databases', requireStaffAuth, databasesRouter);
-app.use('/api/files', requireStaffAuth, filesRouter);
-app.use('/api/backups', requireStaffAuth, backupsRouter);
-app.use('/api/server-manager', requireStaffAuth, serverManagerRouter);
+app.use('/api/databases', requireStaffAuth, requireAdminAuth, databasesRouter);
+app.use('/api/files', requireStaffAuth, requireAdminAuth, filesRouter);
+app.use('/api/backups', requireStaffAuth, requireAdminAuth, backupsRouter);
+app.use('/api/server-manager', requireStaffAuth, requireAdminAuth, serverManagerRouter);
 app.use('/api/minecraft', requireStaffAuth, minecraftRouter);
 app.use('/api/player-stats', requireStaffAuth, playerAnalyticsRouter);
 app.use('/api/maintenance', requireStaffAuth, maintenanceRouter);
-app.use('/api/users', requireStaffAuth, usersRouter);
+app.use('/api/users', requireStaffAuth, requireAdminAuth, usersRouter);
 app.use('/api/support', requireStaffAuth, supportRouter);
 app.use('/api/moderation', requireStaffAuth, moderationRouter);
 app.use('/api/railway', requireStaffAuth, railwayRouter);

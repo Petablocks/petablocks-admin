@@ -1,9 +1,10 @@
 const { Router } = require('express');
 const maintenanceService = require('../services/maintenanceService');
+const { requireAdminAuth, ROLE_LEVEL, requireRoleLevel } = require('../middleware/authMiddleware');
 
 const router = Router();
 
-// GET /api/maintenance - List maintenance windows (Admin)
+// GET /api/maintenance - List maintenance windows (Staff+)
 router.get('/', async (req, res) => {
   try {
     const { status, limit } = req.query;
@@ -35,8 +36,8 @@ router.get('/active', async (_req, res) => {
   }
 });
 
-// GET /api/maintenance/config - Get current Discord webhook config
-router.get('/config', (req, res) => {
+// GET /api/maintenance/config - Get current Discord webhook config (Admin only)
+router.get('/config', requireAdminAuth, (req, res) => {
   try {
     const cfg = maintenanceService.loadConfig();
     res.json(cfg);
@@ -45,8 +46,8 @@ router.get('/config', (req, res) => {
   }
 });
 
-// POST /api/maintenance/config - Update Discord webhook config
-router.post('/config', (req, res) => {
+// POST /api/maintenance/config - Update Discord webhook config (Admin only)
+router.post('/config', requireAdminAuth, (req, res) => {
   try {
     const { announcementWebhookUrl, pingRole, enabled } = req.body;
     const existing = maintenanceService.loadConfig();
@@ -63,7 +64,13 @@ router.post('/config', (req, res) => {
   }
 });
 
-// POST /api/maintenance - Create or schedule a maintenance window
+/**
+ * POST /api/maintenance - Create or schedule a maintenance window.
+ *
+ * Staff & Moderators may only declare an EMERGENCY (status = 'in_progress') —
+ * they cannot pre-schedule future maintenance windows.
+ * Admins and above can create any type of window.
+ */
 router.post('/', async (req, res) => {
   try {
     const {
@@ -77,24 +84,39 @@ router.post('/', async (req, res) => {
       notifyIngame = true,
       autoExecute = false,
       pipelineConfig = null,
-      createdBy = 'Admin',
     } = req.body;
 
     if (!title) {
       return res.status(400).json({ error: 'Maintenance title is required.' });
     }
 
+    const userRoleLevel = req.userRoleLevel ?? 0;
+    const isAdmin = userRoleLevel >= ROLE_LEVEL['admin'];
+
+    // Staff may only declare emergency maintenance (immediately in_progress)
+    if (!isAdmin && status !== 'in_progress') {
+      return res.status(403).json({
+        error: 'forbidden',
+        message: 'Staff may only declare emergency maintenance. To schedule planned maintenance, contact an Admin.',
+      });
+    }
+
+    // Staff emergency maintenance: force status to in_progress and strip scheduling options
+    const effectiveStatus = isAdmin ? status : 'in_progress';
+
+    const createdBy = req.user?.username || (isAdmin ? 'Admin' : 'Staff');
+
     const window = await maintenanceService.createMaintenance({
       title,
       description,
       serverIds,
-      status,
-      startTime,
+      status: effectiveStatus,
+      startTime: isAdmin ? startTime : null,
       estimatedDurationMin,
       notifyDiscord,
       notifyIngame,
-      autoExecute,
-      pipelineConfig,
+      autoExecute: isAdmin ? autoExecute : false,
+      pipelineConfig: isAdmin ? pipelineConfig : null,
       createdBy,
     });
 
@@ -105,8 +127,8 @@ router.post('/', async (req, res) => {
   }
 });
 
-// POST /api/maintenance/:id/trigger-pipeline - Trigger autonomous pipeline execution immediately
-router.post('/:id/trigger-pipeline', async (req, res) => {
+// POST /api/maintenance/:id/trigger-pipeline - Trigger autonomous pipeline (Admin only)
+router.post('/:id/trigger-pipeline', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const maintenanceRunner = require('../services/maintenanceRunner');
@@ -130,8 +152,8 @@ router.post('/:id/trigger-pipeline', async (req, res) => {
   }
 });
 
-// PATCH /api/maintenance/:id - Update status or properties
-router.patch('/:id', async (req, res) => {
+// PATCH /api/maintenance/:id - Update status or properties (Admin only)
+router.patch('/:id', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const updated = await maintenanceService.updateMaintenance(id, req.body);
@@ -145,8 +167,8 @@ router.patch('/:id', async (req, res) => {
   }
 });
 
-// DELETE /api/maintenance/:id - Delete record
-router.delete('/:id', async (req, res) => {
+// DELETE /api/maintenance/:id - Delete record (Admin only)
+router.delete('/:id', requireAdminAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const ok = await maintenanceService.deleteMaintenance(id);
@@ -161,3 +183,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 module.exports = router;
+
