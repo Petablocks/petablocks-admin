@@ -2,6 +2,15 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.9.1] - 2026-09-16
+### Fixed
+- **👥 Registered Users Dashboard & Auth Identity Sync (`/users`)**:
+  - Resolved UI data mapping mismatch where Minecraft account link status showed as "Unlinked" even when accounts were verified and linked via Discord/OAuth.
+  - Fixed Auth Provider column showing empty dashes (`—`) by aligning frontend properties (`primaryProvider`, `discord`, `microsoft`) with backend `usersService` schema.
+  - Fixed Minecraft avatar head preview by switching to reliable `mc-heads.net` avatar service.
+  - Corrected overview metrics cards (MC Linked %, Discord & Microsoft provider counts, Active Sessions) to read accurate backend summary fields.
+  - Updated role filters and inspect drawer role selector with proper PETABLOCKS roles (`Owner & Founder`, `Admin`, `Staff`, `Moderator`, `VIP`, `Player`).
+
 ## [2.9.0] - 2026-09-16
 ### Added
 - **🔐 Granular Staff Role-Based Access Control (RBAC)**:

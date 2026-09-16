@@ -25,44 +25,126 @@ interface OverviewData {
   totalUsers: number
   linkedUsers: number
   unlinkedUsers: number
-  linkedPercentage: number
-  activeSessions: number
-  providerCounts: {
+  linkPercentage?: number
+  linkedPercentage?: number
+  activeWebSessions?: number
+  activeSessions?: number
+  discordUsers?: number
+  microsoftUsers?: number
+  providerCounts?: {
     discord: number
     microsoft: number
   }
-  roles: Record<string, number>
+  roles?: Record<string, number>
 }
 
 interface UserSummary {
   id: number
   username: string
   email: string | null
-  avatar_url: string | null
-  minecraft_uuid: string | null
-  minecraft_username: string | null
-  primary_provider: string
-  discord_id: string | null
-  discord_username: string | null
-  discord_in_guild: number | boolean
-  microsoft_id: string | null
-  microsoft_email: string | null
+  avatarUrl?: string | null
+  avatar_url?: string | null
+  provider?: string
+  primary_provider?: string
+  discord?: {
+    id: string
+    username: string | null
+    inGuild: boolean
+  } | null
+  discord_id?: string | null
+  discord_username?: string | null
+  discord_in_guild?: number | boolean
+  microsoft?: {
+    id: string
+  } | null
+  microsoft_id?: string | null
+  microsoft_email?: string | null
+  minecraft?: {
+    uuid: string
+    username: string | null
+    headUrl?: string
+    isOnline?: boolean
+    totalPlaytimeFormatted?: string
+    totalSessions?: number
+    totalDeaths?: number
+  } | null
+  minecraft_uuid?: string | null
+  minecraft_username?: string | null
   role: string
-  created_at: string
-  updated_at: string
-  active_sessions_count: number
-  playtime_ms: number
-  playtime_hours: number
-  is_online: boolean
+  createdAt?: number
+  created_at?: string
+  updatedAt?: number
+  updated_at?: string
+  customStatus?: string | null
+  custom_status?: string | null
+  playstyleTags?: string[]
+  playstyle_tags?: string[] | string | null
+  is_online?: boolean
 }
 
-interface UserDetail extends UserSummary {
-  bio: string | null
-  custom_status: string | null
-  playstyle_tags: string[] | string | null
-  youtube_url: string | null
-  founder_broadcast: string | null
-  sessions: Array<{
+interface UserDetail {
+  id: number
+  username: string
+  email: string | null
+  avatarUrl?: string | null
+  avatar_url?: string | null
+  primaryProvider?: string
+  primary_provider?: string
+  role: string
+  bio?: string | null
+  customStatus?: string | null
+  custom_status?: string | null
+  playstyleTags?: string[]
+  playstyle_tags?: string[] | string | null
+  youtubeUrl?: string | null
+  youtube_url?: string | null
+  founderBroadcast?: string | null
+  founder_broadcast?: string | null
+  createdAt?: number
+  created_at?: string
+  updatedAt?: number
+  updated_at?: string
+  discord?: {
+    id: string
+    username: string | null
+    inGuild: boolean
+  } | null
+  discord_id?: string | null
+  discord_username?: string | null
+  microsoft?: {
+    id: string
+  } | null
+  microsoft_id?: string | null
+  microsoft_email?: string | null
+  minecraft?: {
+    uuid: string
+    username: string | null
+    avatarUrl?: string
+    headUrl?: string
+    bodyUrl?: string
+    isOnline?: boolean
+    firstSeen?: number
+    lastSeen?: number
+    totalPlaytimeFormatted?: string
+    totalSessions?: number
+    totalDeaths?: number
+    totalAdvancements?: number
+    servers?: Array<{
+      serverId: string
+      playtimeFormatted: string
+      sessions: number
+    }>
+  } | null
+  minecraft_uuid?: string | null
+  minecraft_username?: string | null
+  activeSessions?: Array<{
+    id: string
+    ipSubnet: string | null
+    userAgent: string | null
+    createdAt: number
+    expiresAt: number
+  }>
+  sessions?: Array<{
     id: string
     ip_address: string | null
     user_agent: string | null
@@ -70,7 +152,7 @@ interface UserDetail extends UserSummary {
     expires_at: string
     is_valid: boolean
   }>
-  analytics: {
+  analytics?: {
     playtime_ms: number
     playtime_hours: number
     playtime_formatted: string
@@ -85,9 +167,13 @@ interface UserDetail extends UserSummary {
 }
 
 const ROLE_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  'owner & founder': { bg: 'bg-amber-500/15', text: 'text-amber-400', border: 'border-amber-500/30' },
   owner: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
+  founder: { bg: 'bg-amber-500/10', text: 'text-amber-400', border: 'border-amber-500/30' },
   admin: { bg: 'bg-red-500/10', text: 'text-red-400', border: 'border-red-500/30' },
+  staff: { bg: 'bg-indigo-500/10', text: 'text-indigo-400', border: 'border-indigo-500/30' },
   moderator: { bg: 'bg-purple-500/10', text: 'text-purple-400', border: 'border-purple-500/30' },
+  vip: { bg: 'bg-cyan-500/10', text: 'text-cyan-400', border: 'border-cyan-500/30' },
   builder: { bg: 'bg-blue-500/10', text: 'text-blue-400', border: 'border-blue-500/30' },
   player: { bg: 'bg-emerald-500/10', text: 'text-emerald-400', border: 'border-emerald-500/30' },
 }
@@ -284,7 +370,7 @@ export default function RegisteredUsersPage() {
             <div className="text-2xl font-bold text-white">
               {loadingOverview ? '...' : overview?.linkedUsers || 0}
               <span className="text-xs font-medium text-sky-400 ml-1.5">
-                ({overview?.linkedPercentage || 0}%)
+                ({overview?.linkPercentage ?? overview?.linkedPercentage ?? 0}%)
               </span>
             </div>
             <p className="text-xs text-zinc-500 mt-0.5">Verified Minecraft UUIDs</p>
@@ -315,13 +401,13 @@ export default function RegisteredUsersPage() {
             <div>
               <span className="text-xs text-indigo-400 font-medium">Discord:</span>{' '}
               <span className="text-base font-bold text-white">
-                {loadingOverview ? '...' : overview?.providerCounts?.discord || 0}
+                {loadingOverview ? '...' : (overview?.discordUsers ?? overview?.providerCounts?.discord ?? 0)}
               </span>
             </div>
             <div>
               <span className="text-xs text-cyan-400 font-medium">MS:</span>{' '}
               <span className="text-base font-bold text-white">
-                {loadingOverview ? '...' : overview?.providerCounts?.microsoft || 0}
+                {loadingOverview ? '...' : (overview?.microsoftUsers ?? overview?.providerCounts?.microsoft ?? 0)}
               </span>
             </div>
           </div>
@@ -336,7 +422,7 @@ export default function RegisteredUsersPage() {
           </div>
           <div className="mt-2">
             <div className="text-2xl font-bold text-emerald-400">
-              {loadingOverview ? '...' : overview?.activeSessions || 0}
+              {loadingOverview ? '...' : (overview?.activeWebSessions ?? overview?.activeSessions ?? 0)}
             </div>
             <p className="text-xs text-zinc-500 mt-0.5">Current valid bearer tokens</p>
           </div>
@@ -395,11 +481,12 @@ export default function RegisteredUsersPage() {
             className="px-3 py-2 bg-zinc-950 border border-zinc-800 rounded-lg text-sm text-zinc-200 focus:outline-none focus:border-emerald-500/50"
           >
             <option value="all">All Roles</option>
-            <option value="owner">Owner</option>
-            <option value="admin">Admin</option>
-            <option value="moderator">Moderator</option>
-            <option value="builder">Builder</option>
-            <option value="player">Player</option>
+            <option value="Owner & Founder">Owner & Founder</option>
+            <option value="Admin">Admin</option>
+            <option value="Staff">Staff</option>
+            <option value="Moderator">Moderator</option>
+            <option value="VIP">VIP</option>
+            <option value="Player">Player</option>
           </select>
         </div>
       </div>
@@ -434,14 +521,24 @@ export default function RegisteredUsersPage() {
                 </tr>
               ) : (
                 usersData.users.map((u) => {
-                  const roleStyle = ROLE_COLORS[u.role] || ROLE_COLORS.player
+                  const roleKey = (u.role || 'player').toLowerCase()
+                  const roleStyle = ROLE_COLORS[roleKey] || ROLE_COLORS.player
+                  const avatarSrc = u.avatarUrl || u.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.username}`
+                  const primaryProvider = u.provider || u.primary_provider
+                  const discordName = u.discord?.username || u.discord_username
+                  const mcUuid = u.minecraft?.uuid || u.minecraft_uuid
+                  const mcUsername = u.minecraft?.username || u.minecraft_username
+                  const mcHead = u.minecraft?.headUrl || (mcUuid ? `https://mc-heads.net/avatar/${mcUuid}/24` : null)
+                  const isOnline = u.minecraft?.isOnline ?? u.is_online ?? false
+                  const playtimeStr = u.minecraft?.totalPlaytimeFormatted || (u.playtime_ms ? `${Math.round(u.playtime_ms / 3600000)} hrs played` : 'No playtime')
+
                   return (
                     <tr key={u.id} className="hover:bg-zinc-800/30 transition-colors">
                       {/* User Account */}
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <img
-                            src={u.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.username}`}
+                            src={avatarSrc}
                             alt={u.username}
                             className="w-9 h-9 rounded-full bg-zinc-800 border border-zinc-700 object-cover"
                             onError={(e) => {
@@ -454,7 +551,9 @@ export default function RegisteredUsersPage() {
                           <div>
                             <div className="font-semibold text-white flex items-center gap-1.5">
                               {u.username}
-                              {u.role === 'owner' && <Crown className="w-3.5 h-3.5 text-amber-400" />}
+                              {(roleKey === 'owner' || roleKey === 'owner & founder' || roleKey === 'founder') && (
+                                <Crown className="w-3.5 h-3.5 text-amber-400" />
+                              )}
                             </div>
                             <div className="text-xs text-zinc-400">{u.email || 'No email stored'}</div>
                           </div>
@@ -463,43 +562,45 @@ export default function RegisteredUsersPage() {
 
                       {/* Auth Provider */}
                       <td className="py-3 px-4">
-                        {u.primary_provider === 'discord' ? (
+                        {primaryProvider === 'discord' ? (
                           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-xs">
                             <span className="font-medium">Discord</span>
-                            {u.discord_username && <span className="text-zinc-400">({u.discord_username})</span>}
+                            {discordName && <span className="text-zinc-400">({discordName})</span>}
                           </div>
-                        ) : u.primary_provider === 'microsoft' ? (
+                        ) : primaryProvider === 'microsoft' ? (
                           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs">
                             <span className="font-medium">Microsoft 365</span>
                           </div>
                         ) : (
                           <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-zinc-800 text-zinc-400 border border-zinc-700 text-xs">
-                            {u.primary_provider}
+                            {primaryProvider || 'Unknown'}
                           </div>
                         )}
                       </td>
 
                       {/* Minecraft Account */}
                       <td className="py-3 px-4">
-                        {u.minecraft_uuid ? (
+                        {mcUuid ? (
                           <div className="flex items-center gap-2">
-                            <img
-                              src={`https://crafatar.com/avatars/${u.minecraft_uuid}?size=24&overlay`}
-                              alt={u.minecraft_username || 'Player'}
-                              className="w-6 h-6 rounded bg-zinc-800 border border-zinc-700"
-                              onError={(e) => {
-                                ;(e.target as HTMLElement).setAttribute(
-                                  'src',
-                                  'https://crafatar.com/avatars/8667ba71b85a4004af54457a9734eed7?size=24&overlay'
-                                )
-                              }}
-                            />
+                            {mcHead ? (
+                              <img
+                                src={mcHead}
+                                alt={mcUsername || 'Player'}
+                                className="w-6 h-6 rounded bg-zinc-800 border border-zinc-700"
+                                onError={(e) => {
+                                  ;(e.target as HTMLElement).setAttribute(
+                                    'src',
+                                    'https://mc-heads.net/avatar/Steve/24'
+                                  )
+                                }}
+                              />
+                            ) : null}
                             <div>
                               <div className="font-medium text-emerald-400 text-xs">
-                                {u.minecraft_username}
+                                {mcUsername || 'Linked'}
                               </div>
                               <div className="text-[10px] text-zinc-500 font-mono">
-                                {u.minecraft_uuid.substring(0, 8)}...
+                                {mcUuid.substring(0, 8)}...
                               </div>
                             </div>
                           </div>
@@ -528,14 +629,14 @@ export default function RegisteredUsersPage() {
                       {/* Playtime / Status */}
                       <td className="py-3 px-4">
                         <div className="text-xs">
-                          {u.is_online ? (
+                          {isOnline ? (
                             <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
                               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
                               Online
                             </span>
                           ) : (
                             <span className="text-zinc-400">
-                              {u.playtime_hours > 0 ? `${u.playtime_hours} hrs played` : 'No playtime'}
+                              {playtimeStr}
                             </span>
                           )}
                         </div>
@@ -543,7 +644,7 @@ export default function RegisteredUsersPage() {
 
                       {/* Registered Date */}
                       <td className="py-3 px-4 text-xs text-zinc-400">
-                        {formatTimeAgo(u.created_at)}
+                        {formatTimeAgo(u.createdAt ? new Date(u.createdAt).toISOString() : u.created_at)}
                       </td>
 
                       {/* Actions */}
@@ -593,7 +694,7 @@ export default function RegisteredUsersPage() {
                 {/* Modal Header */}
                 <div className="flex items-start gap-4 pb-4 border-b border-zinc-800">
                   <img
-                    src={userDetail.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${userDetail.username}`}
+                    src={userDetail.avatarUrl || userDetail.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${userDetail.username}`}
                     alt={userDetail.username}
                     className="w-16 h-16 rounded-xl border border-zinc-700 object-cover bg-zinc-800 shadow-md"
                   />
@@ -601,14 +702,16 @@ export default function RegisteredUsersPage() {
                     <div className="flex items-center gap-2">
                       <h2 className="text-xl font-bold text-white">{userDetail.username}</h2>
                       <span className="text-xs font-mono text-zinc-500">ID #{userDetail.id}</span>
-                      {userDetail.role === 'owner' && <Crown className="w-4 h-4 text-amber-400" />}
+                      {(userDetail.role?.toLowerCase() === 'owner' || userDetail.role?.toLowerCase() === 'owner & founder') && (
+                        <Crown className="w-4 h-4 text-amber-400" />
+                      )}
                     </div>
                     <div className="text-sm text-zinc-400">{userDetail.email || 'No primary email'}</div>
                     <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
                       <Calendar className="w-3.5 h-3.5" />
-                      <span>Registered {new Date(userDetail.created_at).toLocaleDateString()}</span>
+                      <span>Registered {new Date(userDetail.createdAt || userDetail.created_at || Date.now()).toLocaleDateString()}</span>
                       <span>•</span>
-                      <span>Active {formatTimeAgo(userDetail.updated_at)}</span>
+                      <span>Active {formatTimeAgo(userDetail.updatedAt ? new Date(userDetail.updatedAt).toISOString() : userDetail.updated_at)}</span>
                     </div>
                   </div>
                 </div>
@@ -632,11 +735,12 @@ export default function RegisteredUsersPage() {
                       onChange={(e) => setNewRole(e.target.value)}
                       className="flex-1 px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-sm text-white focus:outline-none focus:border-emerald-500"
                     >
-                      <option value="owner">Owner (Full Server & Portal Rights)</option>
-                      <option value="admin">Admin (Operational Control)</option>
-                      <option value="moderator">Moderator (Community Governance)</option>
-                      <option value="builder">Builder (Creative & World Access)</option>
-                      <option value="player">Player (Standard Member)</option>
+                      <option value="Owner & Founder">Owner & Founder (Full Server & Portal Rights)</option>
+                      <option value="Admin">Admin (Operational Control)</option>
+                      <option value="Staff">Staff (Moderation & Operations)</option>
+                      <option value="Moderator">Moderator (Community Governance)</option>
+                      <option value="VIP">VIP (Supporter Benefits)</option>
+                      <option value="Player">Player (Standard Member)</option>
                     </select>
                     <button
                       onClick={() => updateRoleMutation.mutate({ userId: userDetail.id, role: newRole })}
@@ -651,124 +755,148 @@ export default function RegisteredUsersPage() {
                 {/* Grid: Minecraft Link & OAuth Provider Info */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Minecraft Link Box */}
-                  <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Gamepad2 className="w-4 h-4 text-emerald-400" />
-                        Minecraft Identity
-                      </div>
-                      {userDetail.minecraft_uuid && (
-                        <button
-                          onClick={() => {
-                            if (window.confirm(`Unlink Minecraft account "${userDetail.minecraft_username}" from ${userDetail.username}?`)) {
-                              unlinkMinecraftMutation.mutate(userDetail.id)
-                            }
-                          }}
-                          disabled={unlinkMinecraftMutation.isPending}
-                          className="text-[11px] text-zinc-500 hover:text-rose-400 transition-colors"
-                        >
-                          {unlinkMinecraftMutation.isPending ? 'Unlinking...' : 'Unlink'}
-                        </button>
-                      )}
-                    </div>
+                  {(() => {
+                    const mcUuid = userDetail.minecraft?.uuid || userDetail.minecraft_uuid
+                    const mcUsername = userDetail.minecraft?.username || userDetail.minecraft_username
+                    const mcHead = userDetail.minecraft?.avatarUrl || userDetail.minecraft?.headUrl || (mcUuid ? `https://mc-heads.net/avatar/${mcUuid}/40` : null)
+                    return (
+                      <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Gamepad2 className="w-4 h-4 text-emerald-400" />
+                            Minecraft Identity
+                          </div>
+                          {mcUuid && (
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Unlink Minecraft account "${mcUsername}" from ${userDetail.username}?`)) {
+                                  unlinkMinecraftMutation.mutate(userDetail.id)
+                                }
+                              }}
+                              disabled={unlinkMinecraftMutation.isPending}
+                              className="text-[11px] text-zinc-500 hover:text-rose-400 transition-colors"
+                            >
+                              {unlinkMinecraftMutation.isPending ? 'Unlinking...' : 'Unlink'}
+                            </button>
+                          )}
+                        </div>
 
-                    {userDetail.minecraft_uuid ? (
-                      <div className="flex items-start gap-3">
-                        <img
-                          src={`https://crafatar.com/avatars/${userDetail.minecraft_uuid}?size=40&overlay`}
-                          alt="MC Avatar"
-                          className="w-10 h-10 rounded bg-zinc-800 border border-zinc-700"
-                        />
-                        <div className="space-y-1 flex-1">
-                          <div className="font-semibold text-white text-sm">
-                            {userDetail.minecraft_username}
+                        {mcUuid ? (
+                          <div className="flex items-start gap-3">
+                            {mcHead && (
+                              <img
+                                src={mcHead}
+                                alt="MC Avatar"
+                                className="w-10 h-10 rounded bg-zinc-800 border border-zinc-700"
+                                onError={(e) => {
+                                  ;(e.target as HTMLElement).setAttribute(
+                                    'src',
+                                    'https://mc-heads.net/avatar/Steve/40'
+                                  )
+                                }}
+                              />
+                            )}
+                            <div className="space-y-1 flex-1">
+                              <div className="font-semibold text-white text-sm">
+                                {mcUsername}
+                              </div>
+                              <div className="text-xs text-zinc-500 font-mono break-all">
+                                {mcUuid}
+                              </div>
+                              <div className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium pt-1">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Cryptographically Linked
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-xs text-zinc-500 font-mono break-all">
-                            {userDetail.minecraft_uuid}
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
+                              <AlertCircle className="w-4 h-4 shrink-0" />
+                              <span>No Minecraft account linked yet</span>
+                            </div>
+                            <p className="text-[11px] text-zinc-400">
+                              Player can run <code className="text-emerald-400 bg-zinc-900 px-1 py-0.5 rounded font-mono">/link</code> in-game, or you can link them manually:
+                            </p>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="text"
+                                placeholder="IGN (e.g. Bananawhoami)"
+                                value={manualMcInput}
+                                onChange={(e) => setManualMcInput(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' && manualMcInput.trim()) {
+                                    linkMinecraftMutation.mutate({ userId: userDetail.id, player: manualMcInput.trim() })
+                                  }
+                                }}
+                                className="flex-1 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
+                              />
+                              <button
+                                onClick={() => linkMinecraftMutation.mutate({ userId: userDetail.id, player: manualMcInput.trim() })}
+                                disabled={linkMinecraftMutation.isPending || !manualMcInput.trim()}
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
+                              >
+                                {linkMinecraftMutation.isPending ? 'Linking...' : 'Link IGN'}
+                              </button>
+                            </div>
                           </div>
-                          <div className="inline-flex items-center gap-1 text-[11px] text-emerald-400 font-medium pt-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Cryptographically Linked
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        <div className="flex items-center gap-2 text-xs text-amber-400 font-medium">
-                          <AlertCircle className="w-4 h-4 shrink-0" />
-                          <span>No Minecraft account linked yet</span>
-                        </div>
-                        <p className="text-[11px] text-zinc-400">
-                          Player can run <code className="text-emerald-400 bg-zinc-900 px-1 py-0.5 rounded font-mono">/link</code> in-game, or you can link them manually:
-                        </p>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="text"
-                            placeholder="IGN (e.g. Bananawhoami)"
-                            value={manualMcInput}
-                            onChange={(e) => setManualMcInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && manualMcInput.trim()) {
-                                linkMinecraftMutation.mutate({ userId: userDetail.id, player: manualMcInput.trim() })
-                              }
-                            }}
-                            className="flex-1 px-3 py-1.5 bg-zinc-900 border border-zinc-700 rounded-lg text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500"
-                          />
-                          <button
-                            onClick={() => linkMinecraftMutation.mutate({ userId: userDetail.id, player: manualMcInput.trim() })}
-                            disabled={linkMinecraftMutation.isPending || !manualMcInput.trim()}
-                            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-medium transition-colors whitespace-nowrap"
-                          >
-                            {linkMinecraftMutation.isPending ? 'Linking...' : 'Link IGN'}
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                        )}
 
-                    {linkSuccess && (
-                      <div className="mt-2 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded flex items-center gap-1.5">
-                        <Check className="w-3.5 h-3.5 shrink-0" /> {linkSuccess}
+                        {linkSuccess && (
+                          <div className="mt-2 text-[11px] text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 rounded flex items-center gap-1.5">
+                            <Check className="w-3.5 h-3.5 shrink-0" /> {linkSuccess}
+                          </div>
+                        )}
+                        {linkError && (
+                          <div className="mt-2 text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded flex items-center gap-1.5">
+                            <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {linkError}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {linkError && (
-                      <div className="mt-2 text-[11px] text-rose-400 bg-rose-500/10 border border-rose-500/20 px-2.5 py-1 rounded flex items-center gap-1.5">
-                        <AlertCircle className="w-3.5 h-3.5 shrink-0" /> {linkError}
-                      </div>
-                    )}
-                  </div>
+                    )
+                  })()}
 
                   {/* Provider Details */}
-                  <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4">
-                    <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-1.5">
-                      <Globe className="w-4 h-4 text-purple-400" />
-                      OAuth Provider Details
-                    </div>
-                    <div className="space-y-2.5 text-xs">
-                      <div>
-                        <span className="text-zinc-500 block">Primary Provider</span>
-                        <span className="font-semibold text-zinc-200 capitalize">
-                          {userDetail.primary_provider}
-                        </span>
+                  {(() => {
+                    const primaryProvider = userDetail.primaryProvider || userDetail.primary_provider
+                    const discordId = userDetail.discord?.id || userDetail.discord_id
+                    const discordName = userDetail.discord?.username || userDetail.discord_username
+                    const msId = userDetail.microsoft?.id || userDetail.microsoft_id
+                    const msEmail = userDetail.microsoft_email
+                    return (
+                      <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4">
+                        <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-1.5">
+                          <Globe className="w-4 h-4 text-purple-400" />
+                          OAuth Provider Details
+                        </div>
+                        <div className="space-y-2.5 text-xs">
+                          <div>
+                            <span className="text-zinc-500 block">Primary Provider</span>
+                            <span className="font-semibold text-zinc-200 capitalize">
+                              {primaryProvider}
+                            </span>
+                          </div>
+                          {discordId && (
+                            <div>
+                              <span className="text-zinc-500 block">Discord Snowflake ID</span>
+                              <span className="font-mono text-zinc-300">{discordId}</span>
+                              {discordName && (
+                                <span className="text-zinc-400 ml-1.5">(@{discordName})</span>
+                              )}
+                            </div>
+                          )}
+                          {msId && (
+                            <div>
+                              <span className="text-zinc-500 block">Microsoft 365 ID</span>
+                              <span className="font-mono text-zinc-300">{msId}</span>
+                              {msEmail && (
+                                <div className="text-zinc-400">{msEmail}</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {userDetail.discord_id && (
-                        <div>
-                          <span className="text-zinc-500 block">Discord Snowflake ID</span>
-                          <span className="font-mono text-zinc-300">{userDetail.discord_id}</span>
-                          {userDetail.discord_username && (
-                            <span className="text-zinc-400 ml-1.5">(@{userDetail.discord_username})</span>
-                          )}
-                        </div>
-                      )}
-                      {userDetail.microsoft_id && (
-                        <div>
-                          <span className="text-zinc-500 block">Microsoft 365 ID</span>
-                          <span className="font-mono text-zinc-300">{userDetail.microsoft_id}</span>
-                          {userDetail.microsoft_email && (
-                            <div className="text-zinc-400">{userDetail.microsoft_email}</div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
+                    )
+                  })()}
                 </div>
 
                 {/* In-Game Analytics Telemetry (if linked) */}
@@ -842,39 +970,44 @@ export default function RegisteredUsersPage() {
                 )}
 
                 {/* Active Sessions Token Table */}
-                <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <Key className="w-4 h-4 text-amber-400" />
-                      Active Auth Sessions ({userDetail.sessions?.length || 0})
-                    </div>
-                  </div>
-                  {userDetail.sessions && userDetail.sessions.length > 0 ? (
-                    <div className="space-y-2">
-                      {userDetail.sessions.map((s) => (
-                        <div
-                          key={s.id}
-                          className="flex items-center justify-between p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-xs"
-                        >
-                          <div>
-                            <div className="font-mono text-zinc-300">{s.ip_address || 'Unknown IP'}</div>
-                            <div className="text-zinc-500 text-[11px] truncate max-w-sm">
-                              {s.user_agent || 'Unknown Client'}
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-emerald-400 font-medium">Valid</span>
-                            <div className="text-[10px] text-zinc-500">
-                              Expires {new Date(s.expires_at).toLocaleDateString()}
-                            </div>
-                          </div>
+                {(() => {
+                  const sessList = userDetail.activeSessions || userDetail.sessions || []
+                  return (
+                    <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4">
+                      <div className="text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-3 flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <Key className="w-4 h-4 text-amber-400" />
+                          Active Auth Sessions ({sessList.length})
                         </div>
-                      ))}
+                      </div>
+                      {sessList.length > 0 ? (
+                        <div className="space-y-2">
+                          {sessList.map((s: any) => (
+                            <div
+                              key={s.id}
+                              className="flex items-center justify-between p-2.5 bg-zinc-900/60 border border-zinc-800 rounded-lg text-xs"
+                            >
+                              <div>
+                                <div className="font-mono text-zinc-300">{s.ipSubnet || s.ip_address || 'Unknown IP'}</div>
+                                <div className="text-zinc-500 text-[11px] truncate max-w-sm">
+                                  {s.userAgent || s.user_agent || 'Unknown Client'}
+                                </div>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-emerald-400 font-medium">Valid</span>
+                                <div className="text-[10px] text-zinc-500">
+                                  Expires {new Date(s.expiresAt || s.expires_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-zinc-500 text-center py-2">No active sessions.</div>
+                      )}
                     </div>
-                  ) : (
-                    <div className="text-xs text-zinc-500 text-center py-2">No active sessions.</div>
-                  )}
-                </div>
+                  )
+                })()}
               </div>
             )}
           </div>
