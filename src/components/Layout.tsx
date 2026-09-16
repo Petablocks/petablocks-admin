@@ -25,6 +25,7 @@ import {
   Calendar,
   LogOut,
   HeartPulse,
+  TrainTrack,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -75,6 +76,17 @@ export default function Layout() {
     refetchInterval: 10000,
   })
 
+  // Live query for railway maintenance badge
+  const { data: railwayMaintenance } = useQuery<any[]>({
+    queryKey: ['railway-maintenance-badge'],
+    queryFn: async () => {
+      const res = await fetch('/api/railway/maintenance')
+      if (!res.ok) return []
+      return res.json()
+    },
+    refetchInterval: 15000,
+  })
+
   // Live query for fleet player count badge
   const { data: telemetryData } = useQuery<{ totalOnline?: number }>({
     queryKey: ['fleet-telemetry-badge'],
@@ -110,6 +122,7 @@ export default function Layout() {
 
   const hasActiveMaintenance = Array.isArray(activeMaintenance) && activeMaintenance.some((w) => w.status === 'in_progress')
   const hasScheduledMaintenance = Array.isArray(activeMaintenance) && activeMaintenance.some((w) => w.status === 'scheduled')
+  const activeRailwayCount = Array.isArray(railwayMaintenance) ? railwayMaintenance.filter((m) => m.status === 'active').length : 0
   const totalPlayersOnline = telemetryData?.totalOnline ?? 0
   const totalRegisteredUsers = usersOverview?.totalUsers ?? 0
 
@@ -122,6 +135,7 @@ export default function Layout() {
     if (pathname.startsWith('/minecraft')) return 'Live Telemetry'
     if (pathname === '/analytics') return 'Player Analytics'
     if (pathname === '/moderation') return 'Staff Moderation'
+    if (pathname === '/railway') return 'Railway Dispatch'
     if (pathname === '/users') return 'Registered Users'
     if (pathname === '/role-mappings') return 'Role Mappings'
     if (pathname === '/maintenance') return 'Maintenance Hub'
@@ -162,6 +176,18 @@ export default function Layout() {
         },
         { to: '/analytics', icon: Users, label: 'Player Analytics' },
         { to: '/moderation', icon: ShieldAlert, label: 'Staff Moderation' },
+        {
+          to: '/railway',
+          icon: TrainTrack,
+          label: 'Railway Dispatch',
+          badge: () =>
+            activeRailwayCount > 0 ? (
+              <span className="ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                {activeRailwayCount} ACTIVE
+              </span>
+            ) : null,
+        },
         {
           to: '/users',
           icon: ShieldCheck,

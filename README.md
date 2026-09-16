@@ -2,13 +2,19 @@
 
 > Comprehensive administration, container operations, object storage, live console streaming, autonomous maintenance pipelines, and Minecraft server telemetry platform for the PETABLOCKS ecosystem.
 >
-> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.4.2` • **Endpoint**: `https://admin.petablocks.com`
+> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.5.0` • **Endpoint**: `https://admin.petablocks.com`
 
 ---
 
 ## 🌟 Modules & Core Features
 
-### 1. ❤️ Cluster Health Sentinel (`health.petablocks.com`)
+### 1. 🚂 Create 2 Railway Dispatch & Maintenance (`/railway`)
+* **Track Corridor & Section Registry**: Define and label intermediate track sections (bridges, viaducts, tunnels, junctions) with coordinate spans `[X1, Z1] ➔ [X2, Z2]` or radial zones without requiring stations at both ends.
+* **In-Game Tellraw Announcements**: Server-wide broadcast dispatch with audio chimes (`block.note_block.bell`) on maintenance start and all-clear resolution.
+* **Live Passenger Telemetry & Station Advisories**: Autonomous station arrival PA alerts passengers when a train arrives at a station adjoining an active work zone.
+* **Live Track Map & BlueMap Integration**: Quick navigation to `https://create2-trains.petablocks.com` and `https://create2-map.petablocks.com`.
+
+### 2. ❤️ Cluster Health Sentinel (`health.petablocks.com`)
 * **Automated Daily Health Checker**: Standalone Go service (`pb-reporter`) running 06:00 AM daily cluster diagnostic audits.
 * **Direct Navigation**: 1-click access from the Admin Portal Infrastructure sidebar with real-time schedule status.
 * **MariaDB Audit Logs & Discord Alerts**: Real-time morning digest and historical telemetry across all 5 VMs.

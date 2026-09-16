@@ -2,6 +2,17 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.5.0] - 2026-09-16
+### Added
+- **🚂 Create 2 Railway Dispatch & Track Maintenance Platform (`/railway`)**:
+  - **Track Sections & Landmarks Registry**: Dedicated interface to register and label intermediate track sections (bridges, tunnels, viaducts, junctions) with coordinate spans `[X1, Y1, Z1] ➔ [X2, Y2, Z2]` or radial zones, without requiring stations directly at both ends.
+  - **Reference Station Corridors**: Ability to link labeled track sections to flanking reference stations for human-readable passenger announcements.
+  - **In-Game Tellraw Maintenance Announcements**: Server-wide formatted tellraw alerts with audio chimes (`block.note_block.bell`) on maintenance start, status change, and all-clear resolution.
+  - **Autonomous Station Arrival Passenger Advisories**: Real-time integration into `trainMonitorService` that automatically detects when trains stop at stations adjoining an active work zone and broadcasts passenger station advisories.
+  - **Periodic Maintenance Bulletins**: Automated recurring in-game bulletin dispatch for active trackwork restrictions.
+  - **MariaDB Railway Schema**: Added `railway_lines`, `railway_sections`, and `railway_maintenance` tables in `petablocks_admin`.
+  - **Live Track Map & BlueMap Quick Links**: Direct navigation to `create2-trains.petablocks.com` and `create2-map.petablocks.com`.
+
 ## [2.4.2] - 2026-09-16
 ### Fixed & Hardened
 - **🛡️ 3-Tier Resilient Command Execution Cascade (`executeCommandUnified`)**:

@@ -14,6 +14,8 @@
 
 const http = require('http');
 const discordService = require('./discordWebhookService');
+const { getAdminPool, dispatchInGameMaintenanceNotice } = require('../routes/railway');
+const { executeCommandUnified } = require('../routes/minecraft');
 
 const TRAIN_SERVERS = [
   {
@@ -169,12 +171,87 @@ async function checkServerTrains(srv) {
           station: station,
           location: coords,
         });
+
+        // Passenger Station Advisory for active track maintenance on adjoining lines
+        if (station && srv.id === 'create-2') {
+          checkStationMaintenanceAdvisory(srv.id, station, train.name).catch(() => {});
+        }
       }
     }
   }
 
+  // Check periodic maintenance bulletins
+  if (srv.id === 'create-2') {
+    checkActiveMaintenanceBulletins(srv.id).catch(() => {});
+  }
+
   // Update memory state
   state.trainMap = currentMap;
+}
+
+// Check if an arriving station adjoins an active track maintenance notice
+async function checkStationMaintenanceAdvisory(serverId, stationName, trainName) {
+  try {
+    const p = await getAdminPool();
+    const [rows] = await p.query(
+      `SELECT m.*, s.name as section_name, s.ref_start_station, s.ref_end_station
+       FROM railway_maintenance m
+       LEFT JOIN railway_sections s ON m.section_id = s.id
+       WHERE m.server_id = ? AND m.status = 'active'`,
+      [serverId]
+    );
+
+    const affected = rows.find(
+      (m) =>
+        m.ref_start_station?.toLowerCase() === stationName.toLowerCase() ||
+        m.ref_end_station?.toLowerCase() === stationName.toLowerCase() ||
+        m.section_name?.toLowerCase() === stationName.toLowerCase()
+    );
+
+    if (affected) {
+      const warnTellraw = JSON.stringify([
+        { text: '[TRAIN DISPATCH] ', color: 'gold', bold: true },
+        { text: `⚠️ Station Advisory for ${stationName}: `, color: 'yellow', bold: true },
+        { text: `Adjoining track section "${affected.section_name || affected.title}" is under `, color: 'white' },
+        {
+          text: `${affected.severity.toUpperCase()} maintenance`,
+          color: affected.severity === 'closed' ? 'red' : 'gold',
+          bold: true,
+        },
+        { text: `. (Reason: ${affected.reason})`, color: 'gray' },
+      ]);
+      await executeCommandUnified(serverId, `tellraw @a ${warnTellraw}`);
+    }
+  } catch (err) {
+    // Ignore db blips
+  }
+}
+
+// Periodically broadcast active maintenance bulletins to all active players
+async function checkActiveMaintenanceBulletins(serverId) {
+  try {
+    const p = await getAdminPool();
+    const [rows] = await p.query(
+      `SELECT m.*, s.name as section_name, s.ref_start_station, s.ref_end_station
+       FROM railway_maintenance m
+       LEFT JOIN railway_sections s ON m.section_id = s.id
+       WHERE m.server_id = ? AND m.status = 'active'`,
+      [serverId]
+    );
+
+    const now = Date.now();
+    for (const m of rows) {
+      const intervalMs = (m.broadcast_interval_minutes || 30) * 60 * 1000;
+      const lastBroadcast = m.last_broadcast_at ? new Date(m.last_broadcast_at).getTime() : 0;
+      if (now - lastBroadcast > intervalMs) {
+        console.log(`[TRAIN-MONITOR] Dispatching periodic maintenance bulletin for ${m.title}`);
+        await dispatchInGameMaintenanceNotice(serverId, m, false);
+        await p.query('UPDATE railway_maintenance SET last_broadcast_at = NOW() WHERE id = ?', [m.id]);
+      }
+    }
+  } catch (err) {
+    // Ignore db blips
+  }
 }
 
 function initTrainMonitor() {

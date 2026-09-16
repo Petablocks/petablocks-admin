@@ -14,6 +14,7 @@ const maintenanceRouter = require('./routes/maintenance');
 const usersRouter = require('./routes/users');
 const supportRouter = require('./routes/supportRouter');
 const moderationRouter = require('./routes/moderation');
+const { router: railwayRouter } = require('./routes/railway');
 const { router: minecraftRouter, initWebSocket } = require('./routes/minecraft');
 const { initLogWatcher } = require('./services/logWatcherService');
 const { initTrainMonitor } = require('./services/trainMonitorService');
@@ -82,6 +83,7 @@ app.use('/api/maintenance', requireStaffAuth, maintenanceRouter);
 app.use('/api/users', requireStaffAuth, usersRouter);
 app.use('/api/support', requireStaffAuth, supportRouter);
 app.use('/api/moderation', requireStaffAuth, moderationRouter);
+app.use('/api/railway', requireStaffAuth, railwayRouter);
 
 // Serve built React frontend in production (guarded by Central SSO)
 app.use(express.static(path.join(__dirname, '..', 'dist')));
