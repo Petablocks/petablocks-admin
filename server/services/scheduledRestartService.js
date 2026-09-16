@@ -96,9 +96,15 @@ async function tick() {
       const serverId = sched.server_id;
       const session = activeRestarts.get(serverId);
 
-      // If this server is actively rebooting (docker restart / polling), don't touch it
+      // If this server is actively rebooting (docker restart / polling), check watchdog timeout (10m)
       if (session && session.phase === 'restarting') {
-        continue;
+        const restartAgeMs = now.getTime() - (session.initiatedAt ? new Date(session.initiatedAt).getTime() : 0);
+        if (session.initiatedAt && restartAgeMs > 10 * 60 * 1000) {
+          console.warn(`[RESTART-ENGINE] Watchdog timeout: ${serverId} in restarting phase for >10m. Resetting session.`);
+          activeRestarts.delete(serverId);
+        } else {
+          continue;
+        }
       }
 
       // Target time parsing (format "M H * * *")
@@ -295,8 +301,11 @@ async function executeRestartSequence(session, triggeredBy = 'scheduled') {
   const node = NODES[srv.nodeId];
   const initiatedAt = new Date();
   session.phase = 'restarting';
+  session.initiatedAt = initiatedAt;
 
   console.log(`[RESTART-PIPELINE] >>> Starting restart sequence for ${serverName} (${serverId})`);
+
+  try {
 
   let preRestartTps = 20.0;
   let preRestartMspt = 20.0;
@@ -467,7 +476,11 @@ async function executeRestartSequence(session, triggeredBy = 'scheduled') {
   }
 
   console.log(`[RESTART-PIPELINE] <<< Completed restart for ${serverName} in ${totalDowntimeMs}ms (Ready: ${isReady})`);
-  activeRestarts.delete(serverId);
+  } catch (err) {
+    console.error(`[RESTART-PIPELINE] Critical restart sequence error for ${serverName}:`, err.message);
+  } finally {
+    activeRestarts.delete(serverId);
+  }
 }
 
 /**

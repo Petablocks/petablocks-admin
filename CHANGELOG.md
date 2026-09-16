@@ -2,6 +2,15 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.4.2] - 2026-09-16
+### Fixed & Hardened
+- **🛡️ 3-Tier Resilient Command Execution Cascade (`executeCommandUnified`)**:
+  - Implemented automatic cascading fallback: Tier 1 (WebSocket companion mod) ➔ Tier 2 (TCP RCON socket) ➔ Tier 3 (SSH `docker exec <container> rcon-cli`).
+  - Completely bypasses localhost-only port bindings, firewall restrictions, and companion mod disconnects to guarantee command delivery for in-game chat, tellraw announcements, and maintenance saves.
+- **🔄 Scheduled Restart Engine Guardrails (`scheduledRestartService`)**:
+  - Wrapped `executeRestartSequence` in `try / finally` to guarantee unconditional session cleanup and prevent hung restarting states.
+  - Added a 10-minute watchdog timeout to auto-recover hung server reboot states in the tick evaluation loop.
+
 ## [2.4.1] - 2026-09-16
 ### Fixed
 - **🔐 Service-to-Service Internal Authentication**:

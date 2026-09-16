@@ -338,40 +338,135 @@ function initWebSocket(httpServer) {
   });
 }
 
+async function executeCommandOverSsh(srv, command, timeout = 6000) {
+  const host = srv.rconHost || srv.host;
+  const privateKey = process.env.MC_SSH_PRIVATE_KEY || DEFAULT_SSH_KEY;
+  if (!host || !privateKey || !srv.containerName) {
+    return { success: false, output: 'SSH execution not configured for this server' };
+  }
+
+  return new Promise((resolve) => {
+    const conn = new SshClient();
+    let stdout = '';
+    let stderr = '';
+    let resolved = false;
+
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        conn.end();
+        resolve({ success: false, output: `SSH command timed out (${timeout}ms)` });
+      }
+    }, timeout);
+
+    conn.on('ready', () => {
+      const escapedCmd = command.replace(/'/g, "'\\''");
+      conn.exec(`docker exec ${srv.containerName} rcon-cli '${escapedCmd}'`, (err, stream) => {
+        if (err) {
+          clearTimeout(timer);
+          if (!resolved) {
+            resolved = true;
+            conn.end();
+            resolve({ success: false, output: `SSH exec error: ${err.message}` });
+          }
+          return;
+        }
+
+        stream.on('data', d => stdout += d.toString());
+        stream.stderr.on('data', d => stderr += d.toString());
+        stream.on('close', (code) => {
+          clearTimeout(timer);
+          if (!resolved) {
+            resolved = true;
+            conn.end();
+            const output = (stdout || stderr || '').trim();
+            resolve({ success: code === 0, output: output || 'Done', viaSsh: true });
+          }
+        });
+      });
+    });
+
+    conn.on('error', (err) => {
+      clearTimeout(timer);
+      if (!resolved) {
+        resolved = true;
+        resolve({ success: false, output: `SSH connection error: ${err.message}` });
+      }
+    });
+
+    conn.connect({
+      host,
+      port: 22,
+      username: 'root',
+      privateKey,
+      readyTimeout: 4000,
+    });
+  });
+}
+
 async function executeCommandUnified(serverId, command) {
   const normId = normalizeServerId(serverId);
   const modSocket = modConnectedSockets.get(normId);
 
+  // Tier 1: WebSocket companion mod (fastest, zero overhead)
   if (modSocket && modSocket.readyState === WebSocket.OPEN) {
-    return new Promise((resolve) => {
-      const requestId = 'cmd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
-      const timer = setTimeout(() => {
-        pendingCommandCallbacks.delete(requestId);
-        resolve({ success: false, output: 'Mod command execution timed out (5s)' });
-      }, 5000);
+    try {
+      const res = await new Promise((resolve) => {
+        const requestId = 'cmd_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+        const timer = setTimeout(() => {
+          pendingCommandCallbacks.delete(requestId);
+          resolve(null); // Fall through on timeout
+        }, 5000);
 
-      pendingCommandCallbacks.set(requestId, (payload) => {
-        clearTimeout(timer);
-        const output = Array.isArray(payload.output) ? payload.output.join('\n') : (payload.message || 'Done');
-        resolve({ success: payload.success, output, viaModBridge: true });
+        pendingCommandCallbacks.set(requestId, (payload) => {
+          clearTimeout(timer);
+          const output = Array.isArray(payload.output) ? payload.output.join('\n') : (payload.message || 'Done');
+          resolve({ success: payload.success, output, viaModBridge: true });
+        });
+
+        modSocket.send(JSON.stringify({
+          type: 'COMMAND_REQUEST',
+          serverId: normId,
+          timestamp: Date.now(),
+          payload: {
+            requestId,
+            action: 'EXECUTE_COMMAND',
+            command,
+            issuer: 'AdminPortal'
+          }
+        }));
       });
 
-      modSocket.send(JSON.stringify({
-        type: 'COMMAND_REQUEST',
-        serverId: normId,
-        timestamp: Date.now(),
-        payload: {
-          requestId,
-          action: 'EXECUTE_COMMAND',
-          command,
-          issuer: 'AdminPortal'
-        }
-      }));
-    });
+      if (res && res.success) {
+        return res;
+      }
+    } catch (_) {
+      // Fall through to Tier 2
+    }
   }
 
   const srv = SERVERS.find(s => s.id === normId) || SERVERS[0];
-  return sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, command);
+
+  // Tier 2: Direct TCP RCON socket (3s timeout)
+  try {
+    const rconRes = await sendRconCommand(srv.rconHost || srv.host, srv.rconPort, srv.rconPassword, command, 3000);
+    if (rconRes && rconRes.success) {
+      return rconRes;
+    }
+  } catch (_) {
+    // Fall through to Tier 3
+  }
+
+  // Tier 3: SSH container execution via rcon-cli (bypasses network/port binding barriers)
+  try {
+    const sshRes = await executeCommandOverSsh(srv, command);
+    if (sshRes && sshRes.success) {
+      return sshRes;
+    }
+    return sshRes || { success: false, output: 'All command execution tiers failed' };
+  } catch (err) {
+    return { success: false, output: `Execution failed: ${err.message}` };
+  }
 }
 
 function writeVarInt(value) {
