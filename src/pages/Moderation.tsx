@@ -391,7 +391,7 @@ export default function ModerationPage() {
   }, [chatMessages, serverFilter, chatSearch, chatFilter])
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-300">
       {/* Top Header & SSO Verification Banner */}
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-900/60 p-5 rounded-2xl border border-slate-800/80 backdrop-blur-md">
         <div>

@@ -2,6 +2,19 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.6.0] - 2026-09-16
+### Changed & Enhanced
+- **🧭 Decluttered Sidebar & Role-Based Navigation Architecture**:
+  - **Reorganized Information Hierarchy**: Grouped navigation links into logical operational tiers: *Overview*, *Staff Operations*, *Server Fleet*, and *Infrastructure & DevOps*.
+  - **Role-Aware Section Filtering**: Restricted low-level DevOps and infrastructure views (`VM Nodes`, `Containers`, `System Vitals`, `Databases`, `File Manager`, `Fleet Log Search`) to administrators and developers (`owner`, `founder`, `developer`, `admin`), keeping staff and moderation views streamlined and free of clutter.
+  - **Collapsible Infrastructure Accordion**: Added interactive toggle button with chevron indicators for Infrastructure & DevOps with persistent state in `localStorage`.
+  - **Ultra-Slim Custom Scrollbars**: Replaced harsh default OS scrollbars with modern `.custom-scrollbar` semi-transparent hover tracks.
+  - **Label Truncation & Pill Wrap Fixes**: Fixed flex-wrap and badge overflow issues (e.g. `Railway Dispatch` clean typography and non-breaking active badge alignment).
+  - **Streamlined Footer**: Replaced the 3-line static IP dump with a compact, modern node cluster status badge.
+- **📐 Universal Standardized Page Layout & Breathing Room**:
+  - Standardized root padding across all major pages (`RailwayDispatch.tsx`, `Moderation.tsx`, `MaintenanceManager.tsx`, `CommunityEvents.tsx`, `RegisteredUsers.tsx`, `RoleMappings.tsx`, `FleetLogs.tsx`) using `p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto`.
+  - Eliminated awkward edge-to-edge stretching against the desktop sidebar.
+
 ## [2.5.1] - 2026-09-16
 ### Added
 - **✏️ Interactive Railway Dispatch Entity Editing & Deletion**:

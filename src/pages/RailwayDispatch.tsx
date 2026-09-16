@@ -500,7 +500,7 @@ export default function RailwayDispatchPage() {
   })
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-300">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-300">
       {/* Top Header Card */}
       <div className="relative overflow-hidden rounded-2xl border border-slate-800/80 bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 p-6 shadow-xl">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">

@@ -26,6 +26,7 @@ import {
   LogOut,
   HeartPulse,
   TrainTrack,
+  ChevronDown,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -37,16 +38,39 @@ interface NavItem {
   label: string
   badge?: () => React.ReactNode
   external?: boolean
+  minRole?: string[]
 }
 
 interface NavSection {
+  id?: string
   title?: string
+  collapsible?: boolean
+  defaultCollapsed?: boolean
+  minRole?: string[]
   items: NavItem[]
 }
 
 export default function Layout() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('pb_admin_sidebar_collapsed')
+      return saved ? JSON.parse(saved) : { infrastructure: false }
+    } catch {
+      return { infrastructure: false }
+    }
+  })
   const location = useLocation()
+
+  const toggleSectionCollapse = (sectionId: string) => {
+    setCollapsedSections((prev) => {
+      const updated = { ...prev, [sectionId]: !prev[sectionId] }
+      try {
+        localStorage.setItem('pb_admin_sidebar_collapsed', JSON.stringify(updated))
+      } catch {}
+      return updated
+    })
+  }
 
   // Close mobile drawer whenever route changes
   useEffect(() => {
@@ -151,6 +175,9 @@ export default function Layout() {
 
   const currentTitle = getPageTitle(location.pathname)
 
+  const userRole = (authSession?.user?.role || '').toLowerCase()
+  const isDevOrOwner = userRole === 'owner' || userRole === 'founder' || userRole === 'developer' || userRole === 'admin'
+
   const navSections: NavSection[] = [
     {
       items: [
@@ -158,23 +185,19 @@ export default function Layout() {
       ],
     },
     {
-      title: 'Game Operations',
+      title: 'Staff Operations',
       items: [
-        { to: '/servers', icon: Server, label: 'Server Fleet' },
-        { to: '/fleet-logs', icon: Terminal, label: 'Fleet Log Search' },
-        { to: '/events', icon: Calendar, label: 'Events & Tips' },
         {
           to: '/minecraft',
           icon: Gamepad2,
           label: 'Live Telemetry',
           badge: () =>
             totalPlayersOnline > 0 ? (
-              <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 animate-in fade-in">
+              <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
                 {totalPlayersOnline} online
               </span>
             ) : null,
         },
-        { to: '/analytics', icon: Users, label: 'Player Analytics' },
         { to: '/moderation', icon: ShieldAlert, label: 'Staff Moderation' },
         {
           to: '/railway',
@@ -182,24 +205,20 @@ export default function Layout() {
           label: 'Railway Dispatch',
           badge: () =>
             activeRailwayCount > 0 ? (
-              <span className="ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse">
+              <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 {activeRailwayCount} ACTIVE
               </span>
             ) : null,
         },
-        {
-          to: '/users',
-          icon: ShieldCheck,
-          label: 'Registered Users',
-          badge: () =>
-            totalRegisteredUsers > 0 ? (
-              <span className="ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30">
-                {totalRegisteredUsers}
-              </span>
-            ) : null,
-        },
-        { to: '/role-mappings', icon: Crown, label: 'Role Mappings' },
+        { to: '/events', icon: Calendar, label: 'Events & Tips' },
+        { to: '/analytics', icon: Users, label: 'Player Analytics' },
+      ],
+    },
+    {
+      title: 'Server Fleet',
+      items: [
+        { to: '/servers', icon: Server, label: 'Server Fleet' },
         {
           to: '/maintenance',
           icon: Wrench,
@@ -207,7 +226,7 @@ export default function Layout() {
           badge: () => {
             if (hasActiveMaintenance) {
               return (
-                <span className="ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1 animate-pulse">
+                <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center gap-1 animate-pulse">
                   <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                   ACTIVE
                 </span>
@@ -215,7 +234,7 @@ export default function Layout() {
             }
             if (hasScheduledMaintenance) {
               return (
-                <span className="ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-amber-500/15 text-amber-400 border border-amber-500/25">
                   SCHED
                 </span>
               )
@@ -224,17 +243,32 @@ export default function Layout() {
           },
         },
         { to: '/backups', icon: ArchiveRestore, label: 'World Backups' },
+        {
+          to: '/users',
+          icon: ShieldCheck,
+          label: 'Registered Users',
+          badge: () =>
+            totalRegisteredUsers > 0 ? (
+              <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded-full text-[10px] font-mono font-bold bg-sky-500/15 text-sky-400 border border-sky-500/30">
+                {totalRegisteredUsers}
+              </span>
+            ) : null,
+        },
+        { to: '/role-mappings', icon: Crown, label: 'Role Mappings' },
       ],
     },
-    {
-      title: 'Infrastructure',
+    // Infrastructure section (collapsible & developer/admin role restricted)
+    ...(isDevOrOwner ? [{
+      id: 'infrastructure',
+      title: 'Infrastructure & DevOps',
+      collapsible: true,
       items: [
         {
           to: '/nodes',
           icon: Layers,
           label: 'VM Nodes',
           badge: () => (
-            <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-mono text-muted-foreground bg-muted/60 border border-border/40">
+            <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded text-[10px] font-mono text-muted-foreground bg-muted/60 border border-border/40">
               4
             </span>
           ),
@@ -243,19 +277,20 @@ export default function Layout() {
         { to: '/monitoring', icon: Activity, label: 'System Vitals' },
         { to: '/databases', icon: Database, label: 'Databases' },
         { to: '/files', icon: FolderOpen, label: 'File Manager' },
+        { to: '/fleet-logs', icon: Terminal, label: 'Fleet Log Search' },
         {
           to: 'https://health.petablocks.com',
           icon: HeartPulse,
           label: 'Health Sentinel',
           external: true,
           badge: () => (
-            <span className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
+            <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20">
               06:00
             </span>
           ),
         },
       ],
-    },
+    }] : []),
     {
       title: 'System',
       items: [
@@ -264,17 +299,39 @@ export default function Layout() {
     },
   ]
 
-  const renderNavSection = (section: NavSection, isMobile = false) => (
-    <div key={section.title || 'main'} className="space-y-0.5">
-      {section.title && (
-        <div className={cn(
-          "font-bold text-muted-foreground/60 uppercase tracking-widest select-none",
-          isMobile ? "px-4 pt-4 pb-1.5 text-[11px]" : "px-3 pt-3 pb-1 text-[10px]"
-        )}>
-          {section.title}
-        </div>
-      )}
-      <div className={cn(isMobile ? "space-y-1" : "space-y-0.5")}>
+  const renderNavSection = (section: NavSection, isMobile = false) => {
+    const isCollapsible = Boolean(section.collapsible && section.id)
+    const isCollapsed = isCollapsible && Boolean(collapsedSections[section.id!])
+
+    return (
+      <div key={section.id || section.title || 'main'} className="space-y-0.5">
+        {section.title && (
+          isCollapsible ? (
+            <button
+              type="button"
+              onClick={() => toggleSectionCollapse(section.id!)}
+              className={cn(
+                "w-full flex items-center justify-between font-bold text-muted-foreground/70 uppercase tracking-widest select-none hover:text-foreground/90 transition-colors group cursor-pointer",
+                isMobile ? "px-4 pt-4 pb-1.5 text-[11px]" : "px-3 pt-3 pb-1 text-[10px]"
+              )}
+            >
+              <span>{section.title}</span>
+              <ChevronDown className={cn(
+                "h-3.5 w-3.5 text-muted-foreground/60 transition-transform duration-200 group-hover:text-foreground",
+                isCollapsed && "-rotate-90"
+              )} />
+            </button>
+          ) : (
+            <div className={cn(
+              "font-bold text-muted-foreground/60 uppercase tracking-widest select-none",
+              isMobile ? "px-4 pt-4 pb-1.5 text-[11px]" : "px-3 pt-3 pb-1 text-[10px]"
+            )}>
+              {section.title}
+            </div>
+          )
+        )}
+        {!isCollapsed && (
+          <div className={cn(isMobile ? "space-y-1" : "space-y-0.5")}>
         {section.items.map(({ to, icon: Icon, label, badge, external }) =>
           external ? (
             <a
@@ -345,8 +402,10 @@ export default function Layout() {
           )
         )}
       </div>
-    </div>
+    )}
+  </div>
   )
+}
 
   return (
     <div className="flex flex-col lg:flex-row h-screen h-[100dvh] bg-background text-foreground overflow-hidden">
@@ -459,7 +518,7 @@ export default function Layout() {
               )}
 
               {/* Drawer Links */}
-              <nav className="flex-1 p-3.5 space-y-3 overflow-y-auto overscroll-contain">
+              <nav className="flex-1 p-3.5 space-y-3 overflow-y-auto overscroll-contain custom-scrollbar">
                 {navSections.map((section) => renderNavSection(section, true))}
               </nav>
 
@@ -467,7 +526,7 @@ export default function Layout() {
               <div className="p-4 border-t border-border bg-card/60 shrink-0 space-y-2.5">
                 <div className="flex items-center justify-between text-xs">
                   <span className="font-mono text-muted-foreground text-[11px]">
-                    v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.2.0'}
+                    v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.6.0'}
                   </span>
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                     ONLINE • FEA
@@ -540,22 +599,23 @@ export default function Layout() {
         )}
 
         {/* Categorized Nav */}
-        <nav className="flex-1 px-3 py-3 space-y-2.5 overflow-y-auto">
+        <nav className="flex-1 px-3 py-3 space-y-2.5 overflow-y-auto custom-scrollbar">
           {navSections.map((section) => renderNavSection(section, false))}
         </nav>
 
         {/* Footer info & MDRCloud attribution */}
-        <div className="px-5 py-3.5 border-t border-border bg-card/60 space-y-2">
+        <div className="px-4 py-3 border-t border-border bg-card/60 space-y-1.5 shrink-0">
           <div className="flex items-center justify-between text-xs">
             <span className="font-mono text-muted-foreground text-[11px]">
-              v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.2.0'}
+              v{typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.6.0'}
             </span>
-            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               PROD
             </span>
           </div>
 
-          <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1 border-t border-border/50">
+          <div className="text-[11px] text-muted-foreground flex items-center justify-between pt-1 border-t border-border/40">
             <span className="flex items-center gap-1">
               <Server className="h-3 w-3 text-primary" /> Host:
             </span>
@@ -563,25 +623,15 @@ export default function Layout() {
               href="https://mdrcloud.com"
               target="_blank"
               rel="noreferrer"
-              className="font-bold text-foreground hover:text-primary transition-colors inline-flex items-center gap-0.5"
+              className="font-bold text-foreground hover:text-primary transition-colors inline-flex items-center gap-0.5 text-xs"
             >
               MDRCloud <ExternalLink className="h-2.5 w-2.5" />
             </a>
           </div>
 
-          <div className="text-[10px] text-muted-foreground/80 font-mono space-y-0.5">
-            <div className="flex justify-between">
-              <span>MCS1-3:</span>
-              <span>10.20.110.118-120</span>
-            </div>
-            <div className="flex justify-between">
-              <span>FEA:</span>
-              <span>10.20.110.116</span>
-            </div>
-            <div className="flex justify-between">
-              <span>DB:</span>
-              <span>10.20.110.117</span>
-            </div>
+          <div className="text-[10px] text-muted-foreground/70 font-mono flex items-center justify-between pt-0.5">
+            <span>Cluster Fleet:</span>
+            <span className="text-slate-300 font-semibold">5 Nodes Online</span>
           </div>
         </div>
       </aside>
