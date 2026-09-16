@@ -104,7 +104,7 @@ async function requireStaffAuth(req, res, next) {
       return res.status(401).json({ error: 'unauthorized', message: 'Authentication required. Please log in at petablocks.com.' });
     }
     const returnTo = encodeURIComponent('https://admin.petablocks.com' + url);
-    return res.redirect('https://petablocks.com/profile?returnTo=' + returnTo + '&auth_required=1');
+    return res.redirect('https://petablocks.com/login?returnTo=' + returnTo + '&service=Admin+Portal&requiredRole=staff');
   }
 
   const user = await validateSession(token);
@@ -113,7 +113,7 @@ async function requireStaffAuth(req, res, next) {
       return res.status(401).json({ error: 'unauthorized', message: 'Session expired or invalid.' });
     }
     const returnTo = encodeURIComponent('https://admin.petablocks.com' + url);
-    return res.redirect('https://petablocks.com/profile?returnTo=' + returnTo + '&auth_required=1');
+    return res.redirect('https://petablocks.com/login?returnTo=' + returnTo + '&service=Admin+Portal&requiredRole=staff');
   }
 
   const role = (user.role || '').toLowerCase().trim();
@@ -123,7 +123,7 @@ async function requireStaffAuth(req, res, next) {
     if (url.startsWith('/api/')) {
       return res.status(403).json({ error: 'forbidden', message: 'Access denied: Staff clearance required.' });
     }
-    return res.redirect('https://petablocks.com/profile?denied=admin_clearance_required');
+    return res.redirect('https://petablocks.com/login?denied=admin_clearance_required&service=Admin+Portal');
   }
 
   // Attach user to request for downstream handlers

@@ -2,6 +2,13 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.7.1] - 2026-09-16
+### Changed
+- **🔐 Unified Central SSO Redirection (`authMiddleware.js`)**:
+  - Migrated unauthenticated and expired session redirects from `petablocks.com/profile` to dedicated Central SSO portal `https://petablocks.com/login`.
+  - Passed contextual metadata: `?returnTo=https://admin.petablocks.com...&service=Admin+Portal&requiredRole=staff`.
+  - Updated access denied redirect to `https://petablocks.com/login?denied=admin_clearance_required&service=Admin+Portal` for instant explanatory feedback.
+
 ## [2.7.0] - 2026-09-16
 ### Added & Enhanced
 - **🚀 Staff Operations Mission Control Dashboard (`/dashboard`)**:
