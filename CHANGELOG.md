@@ -2,6 +2,13 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.4.1] - 2026-09-16
+### Fixed
+- **🔐 Service-to-Service Internal Authentication**:
+  - Added support for `API_SECRET_TOKEN` authentication in `authMiddleware.js` via `Authorization: Bearer` and `x-api-secret` headers.
+  - Allowed background services and internal daemons (such as `pb-bot`) to authenticate against `/api/minecraft/rcon` and server telemetry endpoints without requiring session cookies.
+  - Resolved HTTP 401 Unauthorized errors on server status telemetry and Discord-to-Minecraft chat bridge execution.
+
 ## [2.4.0] - 2026-09-16
 ### Added
 - **❤️ Health Sentinel Integration**:
