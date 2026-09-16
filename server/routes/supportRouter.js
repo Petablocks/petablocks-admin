@@ -215,6 +215,30 @@ router.patch('/tickets/:id', async (req, res) => {
     params.push(req.params.id, req.params.id);
     await p.query('UPDATE support_tickets SET ' + updates.join(', ') + ' WHERE id = ? OR ticket_code = ?', params);
 
+    // Send asynchronous Discord DM notification to reporter if linked
+    try {
+      const [ticketRows] = await p.query(
+        'SELECT ticket_code, subject, discord_user_id, status FROM support_tickets WHERE id = ? OR ticket_code = ? LIMIT 1',
+        [req.params.id, req.params.id]
+      );
+      if (ticketRows.length > 0 && ticketRows[0].discord_user_id) {
+        const t = ticketRows[0];
+        fetch('http://10.20.110.116:3001/api/events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            eventType: 'ticket_update',
+            discordUserId: t.discord_user_id,
+            ticketCode: t.ticket_code,
+            subject: t.subject,
+            newStatus: status || t.status,
+            staffName: assigned_to || req.headers['x-admin-user'] || 'Staff Member',
+            staffNotes: staff_notes || null,
+          }),
+        }).catch(() => {});
+      }
+    } catch (_) {}
+
     res.json({ success: true, message: 'Ticket updated successfully' });
   } catch (err) {
     console.error('[API-SUPPORT] Update ticket error:', err.message);
@@ -232,7 +256,7 @@ router.post('/tickets/:id/reply-tellraw', async (req, res) => {
 
     const p = await getPool();
     const [tickets] = await p.query(
-      'SELECT ticket_code, minecraft_username, server_id FROM support_tickets WHERE id = ? OR ticket_code = ? LIMIT 1',
+      'SELECT ticket_code, subject, minecraft_username, discord_user_id, server_id FROM support_tickets WHERE id = ? OR ticket_code = ? LIMIT 1',
       [req.params.id, req.params.id]
     );
 
@@ -241,17 +265,34 @@ router.post('/tickets/:id/reply-tellraw', async (req, res) => {
     }
 
     const ticket = tickets[0];
-    if (!ticket.minecraft_username) {
-      return res.status(400).json({ error: 'Ticket has no associated Minecraft username' });
-    }
-
     const targetServer = normalizeServerId(serverId || ticket.server_id || 'create-2');
     const cleanMsg = message.trim().replace(/"/g, '\\"');
-    const tellrawCmd = 'tellraw ' + ticket.minecraft_username + ' ["",{"text":"[PETABLOCKS Helpdesk] ","color":"aqua","bold":true},{"text":"Staff reply on ticket ","color":"white"},{"text":"' + ticket.ticket_code + '","color":"yellow","bold":true},{"text":": ","color":"white"},{"text":"' + cleanMsg + '","color":"green"}]';
 
-    const rconResult = await executeCommandUnified(targetServer, tellrawCmd);
+    // 1. In-game RCON tellraw
+    let rconResult = { success: false, output: '' };
+    if (ticket.minecraft_username) {
+      const tellrawCmd = 'tellraw ' + ticket.minecraft_username + ' ["",{"text":"[PETABLOCKS Helpdesk] ","color":"aqua","bold":true},{"text":"Staff reply on ticket ","color":"white"},{"text":"' + ticket.ticket_code + '","color":"yellow","bold":true},{"text":": ","color":"white"},{"text":"' + cleanMsg + '","color":"green"}]';
+      rconResult = await executeCommandUnified(targetServer, tellrawCmd);
+    }
+
+    // 2. Dispatch Discord DM notification to player if discord_user_id exists
+    if (ticket.discord_user_id) {
+      fetch('http://10.20.110.116:3001/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventType: 'ticket_reply',
+          discordUserId: ticket.discord_user_id,
+          ticketCode: ticket.ticket_code,
+          subject: ticket.subject,
+          replyMessage: message.trim(),
+          staffName: req.headers['x-admin-user'] || 'Staff Member',
+        }),
+      }).catch(() => {});
+    }
+
     res.json({
-      success: rconResult.success,
+      success: true,
       target: ticket.minecraft_username,
       server: targetServer,
       output: rconResult.output,

@@ -2,6 +2,12 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.9.2] - 2026-09-16
+### Added
+- **💬 Automated Player Discord DM Notification on Support Updates**:
+  - Connected `supportRouter.js` to `pb-bot` HTTP event engine (`/api/events`).
+  - When staff replies to a ticket or updates its status, the player receives an instant direct message via Discord with the ticket code, subject, and staff reply message.
+
 ## [2.9.1] - 2026-09-16
 ### Fixed
 - **👥 Registered Users Dashboard & Auth Identity Sync (`/users`)**:
