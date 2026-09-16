@@ -294,7 +294,7 @@ async function dispatchInGameMaintenanceNotice(serverId, notice, isClearNotice =
         { text: ' has reopened for normal operations.', color: 'yellow' }
       ]);
       await executeCommandUnified(targetServer, `tellraw @a ${clearTellraw}`);
-      await executeCommandUnified(targetServer, `playsound minecraft:entity.player.levelup master @a ~ ~ ~ 0.8 1.4`);
+      await executeCommandUnified(targetServer, `execute as @a at @s run playsound minecraft:entity.player.levelup master @s ~ ~ ~ 0.8 1.4`);
       return;
     }
 
@@ -318,7 +318,7 @@ async function dispatchInGameMaintenanceNotice(serverId, notice, isClearNotice =
     ];
 
     await executeCommandUnified(targetServer, `tellraw @a ${JSON.stringify(tellrawComponent)}`);
-    await executeCommandUnified(targetServer, `playsound minecraft:block.note_block.bell master @a ~ ~ ~ 1.0 1.0`);
+    await executeCommandUnified(targetServer, `execute as @a at @s run playsound minecraft:block.note_block.bell master @s ~ ~ ~ 1.0 1.0`);
   } catch (err) {
     console.error(`[RAILWAY-ROUTER] Failed to broadcast in-game tellraw to ${targetServer}:`, err.message);
   }
