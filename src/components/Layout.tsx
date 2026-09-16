@@ -27,6 +27,7 @@ import {
   HeartPulse,
   TrainTrack,
   ChevronDown,
+  LifeBuoy,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -133,6 +134,17 @@ export default function Layout() {
     refetchInterval: 30000,
   })
 
+  // Live query for open support tickets badge
+  const { data: supportOverview } = useQuery<{ success: boolean; tickets: any[] }>({
+    queryKey: ['support-open-badge'],
+    queryFn: async () => {
+      const res = await fetch('/api/support/tickets?status=open')
+      if (!res.ok) return { success: true, tickets: [] }
+      return res.json()
+    },
+    refetchInterval: 12000,
+  })
+
   // Central SSO Staff session query
   const { data: authSession } = useQuery<{ authenticated: boolean; user?: any }>({
     queryKey: ['admin-auth-session'],
@@ -147,6 +159,7 @@ export default function Layout() {
   const hasActiveMaintenance = Array.isArray(activeMaintenance) && activeMaintenance.some((w) => w.status === 'in_progress')
   const hasScheduledMaintenance = Array.isArray(activeMaintenance) && activeMaintenance.some((w) => w.status === 'scheduled')
   const activeRailwayCount = Array.isArray(railwayMaintenance) ? railwayMaintenance.filter((m) => m.status === 'active').length : 0
+  const openSupportTicketsCount = Array.isArray(supportOverview?.tickets) ? supportOverview.tickets.length : 0
   const totalPlayersOnline = telemetryData?.totalOnline ?? 0
   const totalRegisteredUsers = usersOverview?.totalUsers ?? 0
 
@@ -160,6 +173,7 @@ export default function Layout() {
     if (pathname === '/analytics') return 'Player Analytics'
     if (pathname === '/moderation') return 'Staff Moderation'
     if (pathname === '/railway') return 'Railway Dispatch'
+    if (pathname === '/support') return 'Support Desk'
     if (pathname === '/users') return 'Registered Users'
     if (pathname === '/role-mappings') return 'Role Mappings'
     if (pathname === '/maintenance') return 'Maintenance Hub'
@@ -208,6 +222,18 @@ export default function Layout() {
               <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center gap-1 animate-pulse">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 {activeRailwayCount} ACTIVE
+              </span>
+            ) : null,
+        },
+        {
+          to: '/support',
+          icon: LifeBuoy,
+          label: 'Support Desk',
+          badge: () =>
+            openSupportTicketsCount > 0 ? (
+              <span className="shrink-0 ml-auto px-1.5 py-0.5 rounded-full text-[9px] font-bold tracking-wider bg-sky-500/20 text-sky-400 border border-sky-500/30 flex items-center gap-1 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-sky-500" />
+                {openSupportTicketsCount} OPEN
               </span>
             ) : null,
         },

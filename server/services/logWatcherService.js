@@ -14,7 +14,27 @@
 
 const fs = require('fs');
 const { Client: SshClient } = require('ssh2');
+const mysql = require('mysql2/promise');
 const discordService = require('./discordWebhookService');
+const { executeCommandUnified } = require('../routes/minecraft');
+
+const rawDbUrl = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
+const DB_URL = rawDbUrl.includes(':3307')
+  ? rawDbUrl.replace(/\/minecraft(\?|$)/, '/petablocks$1')
+  : rawDbUrl;
+
+let dbPool = null;
+function getDbPool() {
+  if (!dbPool) {
+    dbPool = mysql.createPool({
+      uri: DB_URL,
+      waitForConnections: true,
+      connectionLimit: 5,
+      queueLimit: 0,
+    });
+  }
+  return dbPool;
+}
 
 // Cluster SSH private key loaded securely from environment
 function getClusterSshKey() {
@@ -127,6 +147,15 @@ function processServerLogLine(serverId, line) {
     const rawPlayer = chatMatch[1].trim();
     const chatMsg = chatMatch[2].trim();
 
+    // 1a. Intercept In-Game Report, Bug, or Suggestion Commands: /report, /bug, /suggest
+    const reportCmdMatch = chatMsg.match(/^!(?:report|bug|suggest)\b|^\/(?:report|bug|suggest)\b/i);
+    if (reportCmdMatch) {
+      handleInGameReport(serverId, rawPlayer, chatMsg).catch(err => {
+        console.warn('[LOG-WATCHER] In-game report handling error:', err.message);
+      });
+      return;
+    }
+
     // Ignore discord bot loopback messages if prefixed
     if (!chatMsg.startsWith('[Discord]')) {
       discordService.sendChatBroadcast(serverId, {
@@ -224,6 +253,55 @@ function processServerLogLine(serverId, line) {
       }
     }
   }
+}
+
+async function handleInGameReport(serverId, player, text) {
+  const isBug = /^[!/]bug\b/i.test(text);
+  const isSuggest = /^[!/]suggest\b/i.test(text);
+  const ticketType = isBug ? 'bug' : isSuggest ? 'suggestion' : 'report';
+  const prefix = isBug ? 'BUG' : isSuggest ? 'SUGG' : 'REP';
+
+  const cleanContent = text.replace(/^[!/](?:report|bug|suggest)\s*/i, '').trim();
+  if (!cleanContent) {
+    const hint = `tellraw ${player} ["",{"text":"[PETABLOCKS] ","color":"red","bold":true},{"text":"Usage: /${ticketType} <your message/details>","color":"yellow"}]`;
+    await executeCommandUnified(serverId, hint);
+    return;
+  }
+
+  const ticketCode = prefix + '-' + Math.random().toString(36).substring(2, 7).toUpperCase();
+  const pool = getDbPool();
+
+  if (isSuggest) {
+    // Insert into community_suggestions table
+    const suggId = 'sugg_ig_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+    await pool.query(
+      'INSERT INTO community_suggestions (id, author_id, author_name, title, description, category, status) VALUES (?, ?, ?, ?, ?, ?, "under_review")',
+      [suggId, player, player, cleanContent.slice(0, 80), cleanContent, 'In-Game Idea']
+    );
+  }
+
+  // Insert into support_tickets table
+  await pool.query(
+    'INSERT INTO support_tickets (ticket_code, minecraft_username, server_id, ticket_type, source, subject, description, priority) VALUES (?, ?, ?, ?, "in_game", ?, ?, "normal")',
+    [ticketCode, player, serverId, ticketType, cleanContent.slice(0, 100), cleanContent]
+  );
+
+  // Send Alert to Discord Staff Alerts
+  discordService.sendConsoleAlert(serverId, {
+    title: `🎮 In-Game ${ticketType.toUpperCase()} Filed: ${ticketCode}`,
+    description: `**Reporter**: \`${player}\`\n**Server**: \`${serverId}\`\n**Content**: ${cleanContent}`,
+    color: isBug ? 0xef4444 : isSuggest ? 0x3b82f6 : 0xf59e0b,
+    fields: [
+      { name: 'Ticket Code', value: `\`${ticketCode}\``, inline: true },
+      { name: 'Platform', value: 'In-Game Chat / Command', inline: true },
+    ],
+    footerText: 'PETABLOCKS Unified Dispatch Sentinel',
+  });
+
+  // Whisper player immediate confirmation in-game
+  const tellrawConfirm = `tellraw ${player} ["",{"text":"[PETABLOCKS] ","color":"aqua","bold":true},{"text":"✔ Your ${ticketType} ","color":"white"},{"text":"${ticketCode}","color":"yellow","bold":true},{"text":" has been received by our staff team!","color":"white"}]`;
+  await executeCommandUnified(serverId, tellrawConfirm);
+  console.log(`[IN-GAME-REPORT] ${player} submitted ${ticketType} (${ticketCode}): ${cleanContent}`);
 }
 
 function initLogWatcher() {

@@ -70,6 +70,9 @@ app.get('/api/auth/me', requireStaffAuth, (req, res) => {
   res.json({ authenticated: true, user: req.user });
 });
 
+// Public / Player Feedback & Suggestions Endpoints (accessible with player session or public submit)
+app.use('/api/support/public', supportRouter);
+
 // Apply Central Network-Wide Staff RBAC Guard to all management APIs
 app.use('/api/containers', requireStaffAuth, containersRouter);
 app.use('/api/metrics', requireStaffAuth, metricsRouter);

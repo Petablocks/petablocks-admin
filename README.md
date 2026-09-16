@@ -2,13 +2,19 @@
 
 > Comprehensive administration, container operations, object storage, live console streaming, autonomous maintenance pipelines, and Minecraft server telemetry platform for the PETABLOCKS ecosystem.
 >
-> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.7.1` • **Endpoint**: `https://admin.petablocks.com`
+> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.8.0` • **Endpoint**: `https://admin.petablocks.com`
 
 ---
 
 ## 🌟 Modules & Core Features
 
-### 1. 🚂 Create 2 Railway Dispatch & Maintenance (`/railway`)
+### 1. 🎫 Unified Support Desk & Cross-Platform Issue Tracker (`/support`)
+* **Multi-Source Ticket Pipeline**: Aggregates tickets, bug reports, grief reports, and community ideas from In-Game (`/report`, `/bug`, `/suggest`), Discord (`pb-bot`), and Website (`petablocks.com/feedback`).
+* **Real-Time Triage & Status Workflow**: Granular status updating (`Open`, `In Progress`, `Resolved`, `Closed`), severity scoring, staff assignment, and internal notes.
+* **Direct In-Game RCON `/tellraw` Response**: Send instant formatted replies directly to the reporter's chat in-game with one click.
+* **Community Suggestions Management**: Review, prioritize (`Planned`, `In Progress`, `Completed`), and publish staff responses back to the public website and Discord.
+
+### 2. 🚂 Create 2 Railway Dispatch & Maintenance (`/railway`)
 * **Track Corridor & Section Registry**: Define and label intermediate track sections (bridges, viaducts, tunnels, junctions) with coordinate spans `[X1, Z1] ➔ [X2, Z2]` or radial zones without requiring stations at both ends.
 * **In-Game Tellraw Announcements**: Server-wide broadcast dispatch with audio chimes (`block.note_block.bell`) on maintenance start and all-clear resolution.
 * **Live Passenger Telemetry & Station Advisories**: Autonomous station arrival PA alerts passengers when a train arrives at a station adjoining an active work zone.

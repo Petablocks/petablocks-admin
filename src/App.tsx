@@ -21,6 +21,7 @@ import FleetLogsPage from './pages/FleetLogs'
 import CommunityEventsPage from './pages/CommunityEvents'
 import ModerationPage from './pages/Moderation'
 import RailwayDispatchPage from './pages/RailwayDispatch'
+import SupportDeskPage from './pages/SupportDesk'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="analytics" element={<PlayerAnalyticsPage />} />
           <Route path="moderation" element={<ModerationPage />} />
           <Route path="railway" element={<RailwayDispatchPage />} />
+          <Route path="support" element={<SupportDeskPage />} />
           <Route path="users" element={<RegisteredUsersPage />} />
           <Route path="role-mappings" element={<RoleMappingsPage />} />
           <Route path="maintenance" element={<MaintenanceManagerPage />} />

@@ -2,6 +2,19 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.8.0] - 2026-09-16
+### Added
+- **🎫 Unified Support Desk & Cross-Platform Issue Tracker (`/support`)**:
+  - Implemented comprehensive triage hub in Admin Portal connecting reports from In-Game (`/report`, `/bug`, `/suggest`), Discord bot (`pb-bot`), and Main Website (`petablocks.com/feedback`).
+  - **Triage & Filter System**: Granular filtering by ticket status (`Open`, `In Progress`, `Resolved`, `Closed`), type (`Bug`, `Report`, `Suggestion`, `Support`), and target server (`create-2`, `fabric-main`, `patreon-creative`, `general`).
+  - **Interactive Triage Drawer**: View reporter UUID/name, coordinates, description, priority, assigned staff member, and internal staff notes.
+  - **Direct In-Game RCON `/tellraw` Reply Action**: Staff can type an instant response inside the ticket drawer that immediately transmits formatted tellraw chimes to the player online in-game.
+  - **Community Suggestions Management**: Review, prioritize, and update lifecycle statuses (`Planned`, `In Progress`, `Completed`, `Declined`) with public staff responses.
+  - **Real-Time Sidebar Badge**: Added live count badge in `Layout.tsx` showing active open tickets requiring staff triage.
+- **⚡ In-Game Chat Interception (`logWatcherService.js`)**:
+  - Integrated Docker log watcher regex intercepting `/report`, `/bug`, `/suggest` commands in real time without requiring server mod restarts.
+  - Automated ticket creation in MariaDB, Discord staff alerts, and player confirmation with ticket IDs.
+
 ## [2.7.1] - 2026-09-16
 ### Changed
 - **🔐 Unified Central SSO Redirection (`authMiddleware.js`)**:
