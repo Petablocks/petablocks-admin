@@ -2,6 +2,15 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.7.0] - 2026-09-16
+### Added & Enhanced
+- **🚀 Staff Operations Mission Control Dashboard (`/dashboard`)**:
+  - **Live Operational Alerts Strip**: Integrated automatic warning banner detecting active Create 2 railway closures, work zones, and speed restrictions with 1-click transit dispatch access.
+  - **Staff Quick-Action Command Bar**: Added Instant Player Search autocomplete (typing player names jumps directly to their moderation record) and Quick In-Game Broadcast modal (`/tellraw` or big screen title).
+  - **Live Player Radar**: Real-time cross-realm roster rendering player 3D avatars (`mc-heads.net`), active server badges (`Fabric Main`, `Create 2`, `Patreon Creative`), latency ping, dimension, and infraction count.
+  - **Recent Sanctions & Moderation Feed**: Live stream displaying the last 5 moderation actions (warns, kicks, bans, pardons) with executor attribution and relative timestamps.
+  - **Compacted Secondary Host Vitals**: Streamlined CPU, RAM, and Docker container telemetry into a secondary footer card, preserving high-value primary screen space for game operations.
+
 ## [2.6.0] - 2026-09-16
 ### Changed & Enhanced
 - **🧭 Decluttered Sidebar & Role-Based Navigation Architecture**:
