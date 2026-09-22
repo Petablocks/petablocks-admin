@@ -44,15 +44,37 @@ const DEFAULT_PRODUCTION_CONFIGS = {
     trainEnabled: true,
     trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
   },
-  'fabric-main': {
-    chatWebhookUrl: process.env.DISCORD_FABRIC_CHAT_WEBHOOK || '',
+  'lobby-main': {
+    chatWebhookUrl: process.env.DISCORD_LOBBY_CHAT_WEBHOOK || '',
     chatEnabled: true,
     chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
-    consoleWebhookUrl: process.env.DISCORD_FABRIC_CONSOLE_WEBHOOK || '',
+    consoleWebhookUrl: process.env.DISCORD_LOBBY_CONSOLE_WEBHOOK || '',
     consoleEnabled: true,
     consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
     trainWebhookUrl: '',
-    trainEnabled: true,
+    trainEnabled: false,
+    trainEvents: { assembly: false, derailments: false, crashes: false, stations: false },
+  },
+  'velocity-proxy': {
+    chatWebhookUrl: process.env.DISCORD_PROXY_CHAT_WEBHOOK || '',
+    chatEnabled: true,
+    chatEvents: { chat: false, joinLeave: true, deaths: false, advancements: false },
+    consoleWebhookUrl: process.env.DISCORD_PROXY_CONSOLE_WEBHOOK || '',
+    consoleEnabled: true,
+    consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
+    trainWebhookUrl: '',
+    trainEnabled: false,
+    trainEvents: { assembly: false, derailments: false, crashes: false, stations: false },
+  },
+  'fabric-main': {
+    chatWebhookUrl: process.env.DISCORD_FABRIC_CHAT_WEBHOOK || '',
+    chatEnabled: false,
+    chatEvents: { chat: true, joinLeave: true, deaths: true, advancements: true },
+    consoleWebhookUrl: process.env.DISCORD_FABRIC_CONSOLE_WEBHOOK || '',
+    consoleEnabled: false,
+    consoleEvents: { lifecycle: true, crashes: true, rconCommands: true, tpsWarnings: true },
+    trainWebhookUrl: '',
+    trainEnabled: false,
     trainEvents: { assembly: true, derailments: true, crashes: true, stations: true },
   },
 };
@@ -124,6 +146,8 @@ function getServerWebhookConfig(serverId) {
     'create2-smp': 'create-2',
     'create-patreon': 'patreon-creative',
     'modpack-fabric': 'fabric-main',
+    'pb-lobby-main': 'lobby-main',
+    'pb-velocity-proxy': 'velocity-proxy',
   };
   const resolvedId = aliasMap[serverId] || serverId;
   return (

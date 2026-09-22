@@ -86,6 +86,24 @@ ensureBucket();
 
 // ── Server SSH & Path Configuration ────────────────────────────────
 const SERVER_CONFIG = {
+  'lobby-main': {
+    name: 'PETABLOCKS Network Lobby Hub',
+    sshHost: process.env.MC_MCS1_SSH_HOST || '10.20.110.118',
+    sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
+    sshUser: process.env.MC_SSH_USER || 'root',
+    serverDataPath: '/home/user/data/servers/lobby-main',
+    worldDirs: ['world', 'world_nether', 'world_the_end'],
+    worldName: 'world',
+  },
+  'velocity-proxy': {
+    name: 'Velocity Proxy Gateway',
+    sshHost: process.env.MC_MCS1_SSH_HOST || '10.20.110.118',
+    sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
+    sshUser: process.env.MC_SSH_USER || 'root',
+    serverDataPath: '/home/user/data/servers/velocity-proxy',
+    worldDirs: [],
+    worldName: '',
+  },
   'patreon-creative': {
     name: 'PETABLOCKS Patreon Creative',
     sshHost: process.env.MC_PATREON_SSH_HOST || '10.20.110.120',
@@ -105,11 +123,11 @@ const SERVER_CONFIG = {
     worldName: 'world_PBC2',
   },
   'fabric-main': {
-    name: 'PETABLOCKS Official Modpack',
+    name: 'Official Modpack (Season 1 Archived)',
     sshHost: process.env.MC_FABRIC_SSH_HOST || '10.20.110.118',
     sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
     sshUser: process.env.MC_SSH_USER || 'root',
-    serverDataPath: '/home/user/data/servers/petablocks-modpack-main',
+    serverDataPath: '/home/user/data/servers/archived-petablocks-modpack-m1',
     worldDirs: ['world-PETABLOCKS-M1'],
     worldName: 'world-PETABLOCKS-M1',
   },

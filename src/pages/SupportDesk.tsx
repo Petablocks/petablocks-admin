@@ -58,10 +58,11 @@ interface CommunitySuggestion {
 
 const SERVER_OPTIONS = [
   { id: 'all', name: 'All Servers' },
+  { id: 'lobby-main', name: 'Lobby Hub' },
   { id: 'create-2', name: 'Create 2 SMP' },
-  { id: 'fabric-main', name: 'Fabric Main' },
   { id: 'patreon-creative', name: 'Patreon Creative' },
   { id: 'general', name: 'General / Web' },
+  { id: 'fabric-main', name: 'Fabric Main (Legacy)' },
 ]
 
 export default function SupportDeskPage() {

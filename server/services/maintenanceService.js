@@ -19,12 +19,16 @@ const DEFAULT_CONFIG = {
 
 const SERVER_LABELS = {
   'all': 'All PETABLOCKS Servers',
+  'velocity-proxy': 'Velocity Proxy Gateway (Velocity 4.2.1)',
+  'pb-velocity-proxy': 'Velocity Proxy Gateway (Velocity 4.2.1)',
+  'lobby-main': 'Central Network Lobby Hub (Paper 1.21.4)',
+  'pb-lobby-main': 'Central Network Lobby Hub (Paper 1.21.4)',
   'create-2': 'Just Create SMP 2 (NeoForge 1.21.1)',
   'create2-smp': 'Just Create SMP 2 (NeoForge 1.21.1)',
-  'fabric-main': 'Official Modpack Server (Fabric 1.20.1)',
-  'modpack-fabric': 'Official Modpack Server (Fabric 1.20.1)',
   'patreon-creative': 'Patreon Creative Server',
   'create-patreon': 'Patreon Creative Server',
+  'fabric-main': 'Official Modpack Server (Season 1 Archived)',
+  'modpack-fabric': 'Official Modpack Server (Season 1 Archived)',
 };
 
 let pool = null;
@@ -265,7 +269,7 @@ async function sendIngameBroadcast(serverIds, message) {
   try {
     const { executeCommandUnified } = require('../routes/minecraft');
     const targetServers = (!Array.isArray(serverIds) || serverIds.includes('all'))
-      ? ['fabric-main', 'create-2', 'patreon-creative']
+      ? ['lobby-main', 'create-2', 'patreon-creative']
       : serverIds;
 
     for (const sid of targetServers) {
@@ -287,7 +291,7 @@ function syncModMaintenanceMode(serverIds, enabled, title = 'Server Maintenance'
   try {
     const { sendModAction } = require('../routes/minecraft');
     const targetServers = (!Array.isArray(serverIds) || serverIds.includes('all'))
-      ? ['fabric-main', 'create-2', 'patreon-creative']
+      ? ['lobby-main', 'create-2', 'patreon-creative']
       : serverIds;
 
     for (const sid of targetServers) {

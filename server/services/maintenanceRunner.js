@@ -91,7 +91,7 @@ async function tick() {
  */
 async function broadcastWarning(win, minutes) {
   const targetServers = (!Array.isArray(win.server_ids) || win.server_ids.includes('all'))
-    ? ['fabric-main', 'create-2', 'patreon-creative']
+    ? ['lobby-main', 'create-2', 'patreon-creative']
     : win.server_ids;
 
   const msg = minutes === 1
@@ -140,7 +140,7 @@ async function runPipeline(windowId) {
     const healthTimeoutSec = parseInt(cfg.healthTimeoutSec, 10) || 300;
 
     const targetServerIds = (!Array.isArray(win.server_ids) || win.server_ids.includes('all'))
-      ? ['fabric-main', 'create-2', 'patreon-creative']
+      ? ['lobby-main', 'create-2', 'patreon-creative']
       : win.server_ids;
 
     logStep('INIT', `Automated pipeline initiated for servers: ${targetServerIds.join(', ')}`);

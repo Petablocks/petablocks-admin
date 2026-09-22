@@ -327,7 +327,7 @@ async function updateUserRole(userId, newRole, issuer = 'Admin') {
       };
       const lpGroup = ROLE_TO_LP[newRole] || 'default';
       const { executeCommandUnified } = require('../routes/minecraft');
-      for (const srvId of ['fabric-main', 'create-2', 'create-patreon']) {
+      for (const srvId of ['lobby-main', 'create-2', 'create-patreon']) {
         executeCommandUnified(srvId, `lp user ${mcName} parent set ${lpGroup}`).catch(() => {});
       }
     }
@@ -479,7 +479,7 @@ async function syncAllRoleMappings() {
       const lpGroup = ROLE_TO_LP[u.role] || 'default';
       try {
         const { executeCommandUnified } = require('../routes/minecraft');
-        for (const srvId of ['fabric-main', 'create-2', 'create-patreon']) {
+        for (const srvId of ['lobby-main', 'create-2', 'create-patreon']) {
           executeCommandUnified(srvId, `lp user ${u.minecraft_username} parent set ${lpGroup}`).catch(() => {});
         }
         count++;

@@ -2,6 +2,21 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.10.0] - 2026-09-23
+### Added
+- **🌐 Network Phase 1 Infrastructure Integration**:
+  - Registered `velocity-proxy` (`pb-velocity-proxy`, Velocity 4.2.1, port `11601`, `play.petablocks.com`) and `lobby-main` (`pb-lobby-main`, Paper 1.21.4, port `11602`, RCON port `25575`, Java 21 LTS) into active server registries across `minecraft.js` and `serverManager.js`.
+  - Configured live log streaming and automated log watcher daemon for `pb-velocity-proxy` and `pb-lobby-main` on MCS-1 (`10.20.110.118`).
+  - Added dedicated backup targets and MinIO S3 sync paths for `lobby-main` (world, nether, the_end) and `velocity-proxy` configuration files.
+  - Added daily staggered restart schedule cards for `velocity-proxy` (04:55 UTC) and `lobby-main` (05:00 UTC).
+
+### Changed
+- **🧹 Fleet Tidy-up & Season 1 Retirement**:
+  - Safely marked the retired Season 1 Modpack (`fabric-main`) as `archived: true` across all server managers, backup lists, and historical analytics tabs, preventing background TCP timeouts and connection error spam.
+  - Re-routed network-wide LuckPerms permission synchronizations (`usersService.js`) to target `lobby-main`, which synchronizes directly with the cluster MySQL database (`petablocks_luckperms`).
+  - Re-routed active broadcasts, maintenance notifications, and warning count-downs to target live servers (`lobby-main`, `create-2`, `patreon-creative`).
+  - Set default server selection and moderation forms across `MinecraftServers.tsx`, `Moderation.tsx`, `SupportDesk.tsx`, `PlayerAnalytics.tsx`, and `Dashboard.tsx` to `lobby-main`.
+
 ## [2.9.2] - 2026-09-16
 ### Added
 - **💬 Automated Player Discord DM Notification on Support Updates**:

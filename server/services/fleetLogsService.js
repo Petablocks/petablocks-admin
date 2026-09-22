@@ -70,7 +70,7 @@ async function searchFleetLogs(options = {}) {
   const {
     query = '',
     isRegex = false,
-    servers = ['fabric-main', 'create-2', 'patreon-creative'],
+    servers = ['lobby-main', 'velocity-proxy', 'create-2', 'patreon-creative'],
     severity = 'ALL',
     limit = 150,
     tailLines = 1500,

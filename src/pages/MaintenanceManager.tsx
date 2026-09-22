@@ -91,9 +91,10 @@ interface MaintenanceConfig {
 
 const SERVER_OPTIONS = [
   { id: 'all', label: 'All Servers (Entire Fleet)' },
+  { id: 'velocity-proxy', label: 'Velocity Proxy Gateway (Velocity 4.2.1)' },
+  { id: 'lobby-main', label: 'Central Network Lobby Hub (Paper 1.21.4)' },
   { id: 'create-2', label: 'Just Create SMP 2 (NeoForge 1.21.1)' },
-  { id: 'fabric-main', label: 'Official Modpack (Fabric 1.20.1)' },
-  { id: 'patreon-creative', label: 'Patreon Creative Server' },
+  { id: 'patreon-creative', label: 'Patreon Creative Server (NeoForge 1.21.1)' },
 ]
 
 export default function MaintenanceManagerPage() {
@@ -757,15 +758,23 @@ export default function MaintenanceManagerPage() {
               <span className="text-xs text-muted-foreground">Staggered to prevent fleet network congestion</span>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 {
-                  id: 'patreon-creative',
-                  name: 'Patreon Creative',
-                  sub: 'Paper / Purpur 1.21.1',
+                  id: 'velocity-proxy',
+                  name: 'Velocity Gateway',
+                  sub: 'Velocity 4.2.1',
+                  time: '04:55 UTC',
+                  cron: '55 4 * * *',
+                  stagger: 'MCS-1 (-5m offset)',
+                },
+                {
+                  id: 'lobby-main',
+                  name: 'Central Lobby Hub',
+                  sub: 'Paper 1.21.4',
                   time: '05:00 UTC',
                   cron: '0 5 * * *',
-                  stagger: 'MCS-3 (Direct)',
+                  stagger: 'MCS-1 (Primary)',
                 },
                 {
                   id: 'create-2',
@@ -776,12 +785,12 @@ export default function MaintenanceManagerPage() {
                   stagger: 'MCS-2 (+5m offset)',
                 },
                 {
-                  id: 'fabric-main',
-                  name: 'Official Modpack',
-                  sub: 'Fabric 1.20.1',
+                  id: 'patreon-creative',
+                  name: 'Patreon Creative',
+                  sub: 'NeoForge 1.21.1',
                   time: '05:10 UTC',
                   cron: '10 5 * * *',
-                  stagger: 'MCS-1 (+10m offset)',
+                  stagger: 'MCS-3 (+10m offset)',
                 },
               ].map((srv) => {
                 const schedule = restartStatusData?.schedules?.find((s) => s.server_id === srv.id)

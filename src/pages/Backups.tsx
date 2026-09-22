@@ -46,12 +46,20 @@ interface StorageResponse {
 
 const SERVERS = [
   {
-    id: 'patreon-creative',
-    name: 'PETABLOCKS Patreon Creative',
-    color: 'text-purple-400',
-    border: 'border-purple-500/30',
-    worldSize: '~3.6 GB',
-    fullSize: '~4+ GB',
+    id: 'lobby-main',
+    name: 'PETABLOCKS Network Lobby',
+    color: 'text-amber-400',
+    border: 'border-amber-500/30',
+    worldSize: '~150 MB',
+    fullSize: '~450 MB',
+  },
+  {
+    id: 'velocity-proxy',
+    name: 'Velocity Proxy Gateway',
+    color: 'text-cyan-400',
+    border: 'border-cyan-500/30',
+    worldSize: 'N/A',
+    fullSize: '~100 MB',
   },
   {
     id: 'create-2',
@@ -62,12 +70,20 @@ const SERVERS = [
     fullSize: '~35+ GB',
   },
   {
+    id: 'patreon-creative',
+    name: 'PETABLOCKS Patreon Creative',
+    color: 'text-purple-400',
+    border: 'border-purple-500/30',
+    worldSize: '~3.6 GB',
+    fullSize: '~4+ GB',
+  },
+  {
     id: 'fabric-main',
-    name: 'PETABLOCKS Official Modpack',
-    color: 'text-emerald-400',
-    border: 'border-emerald-500/30',
-    worldSize: '~? GB',
-    fullSize: '~? GB',
+    name: 'Official Modpack (S1 Archived)',
+    color: 'text-zinc-500',
+    border: 'border-zinc-700/40',
+    worldSize: '~34 GB',
+    fullSize: '~36 GB',
   },
 ]
 
@@ -158,7 +174,7 @@ function TypeBadge({ type }: { type: 'world' | 'full' }) {
 export default function BackupsPage() {
   const queryClient = useQueryClient()
   const [showNewModal, setShowNewModal] = useState(false)
-  const [selectedServer, setSelectedServer] = useState<string>('patreon-creative')
+  const [selectedServer, setSelectedServer] = useState<string>('lobby-main')
   const [selectedType, setSelectedType] = useState<'world' | 'full'>('world')
   const [triggerError, setTriggerError] = useState<string | null>(null)
 

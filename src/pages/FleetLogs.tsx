@@ -44,7 +44,8 @@ interface FleetLogsResponse {
 }
 
 const SERVER_OPTIONS = [
-  { id: 'fabric-main', name: 'Fabric Main', node: 'MCS-01', color: 'emerald' },
+  { id: 'velocity-proxy', name: 'Velocity Proxy', node: 'MCS-01', color: 'cyan' },
+  { id: 'lobby-main', name: 'Lobby Hub', node: 'MCS-01', color: 'amber' },
   { id: 'create-2', name: 'Create 2 SMP', node: 'MCS-02', color: 'sky' },
   { id: 'patreon-creative', name: 'Patreon Creative', node: 'MCS-03', color: 'purple' },
 ]
@@ -54,7 +55,8 @@ export default function FleetLogsPage() {
   const [debouncedQuery, setDebouncedQuery] = useState('')
   const [isRegex, setIsRegex] = useState(false)
   const [selectedServers, setSelectedServers] = useState<string[]>([
-    'fabric-main',
+    'velocity-proxy',
+    'lobby-main',
     'create-2',
     'patreon-creative',
   ])
@@ -156,12 +158,16 @@ export default function FleetLogsPage() {
 
   const getServerBadge = (serverId: string) => {
     switch (serverId) {
-      case 'fabric-main':
-        return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+      case 'velocity-proxy':
+        return 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
+      case 'lobby-main':
+        return 'bg-amber-500/10 text-amber-400 border-amber-500/20'
       case 'create-2':
         return 'bg-sky-500/10 text-sky-400 border-sky-500/20'
       case 'patreon-creative':
         return 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+      case 'fabric-main':
+        return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'
       default:
         return 'bg-muted text-muted-foreground'
     }

@@ -280,7 +280,7 @@ router.get('/players', async (_req, res) => {
  */
 router.post('/action', async (req, res) => {
   const {
-    serverId = 'fabric-main',
+    serverId = 'lobby-main',
     action,
     target,
     reason = 'No reason specified',
@@ -531,7 +531,7 @@ router.get('/infractions', async (req, res) => {
 router.post('/infractions', async (req, res) => {
   try {
     const {
-      serverId = 'fabric-main',
+      serverId = 'lobby-main',
       playerName,
       playerUuid = null,
       type = 'warn',
@@ -622,7 +622,7 @@ router.patch('/infractions/:id/pardon', async (req, res) => {
  * Aggregated live ban list and whitelist from all servers.
  */
 router.get('/bans', async (req, res) => {
-  const { serverId = 'fabric-main' } = req.query;
+  const { serverId = 'lobby-main' } = req.query;
   const srv = SERVERS.find((s) => s.id === normalizeServerId(serverId)) || SERVERS[0];
 
   let bans = [];

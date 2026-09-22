@@ -82,7 +82,7 @@ async function runBroadcastTick() {
     const item = rows[0];
 
     const targets = item.server_id === 'all'
-      ? ['fabric-main', 'create-2', 'patreon-creative']
+      ? ['lobby-main', 'create-2', 'patreon-creative']
       : [item.server_id];
 
     for (const srvId of targets) {

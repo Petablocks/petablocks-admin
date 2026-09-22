@@ -597,7 +597,7 @@ export default function CommunityEventsPage() {
                     className="w-full py-2 px-3 rounded-xl bg-background border border-border text-white text-xs focus:outline-none"
                   >
                     <option value="ALL">🌐 All Realms</option>
-                    <option value="fabric-main">Fabric Main (play.petablocks.com)</option>
+                    <option value="lobby-main">Lobby Hub (play.petablocks.com)</option>
                     <option value="create-2">Create 2 SMP</option>
                     <option value="patreon-creative">Patreon Creative</option>
                   </select>
@@ -708,7 +708,7 @@ export default function CommunityEventsPage() {
                     className="w-full py-2 px-3 rounded-xl bg-background border border-border text-white text-xs focus:outline-none"
                   >
                     <option value="ALL">All Realms</option>
-                    <option value="fabric-main">Fabric Main</option>
+                    <option value="lobby-main">Lobby Hub</option>
                     <option value="create-2">Create 2 SMP</option>
                     <option value="patreon-creative">Patreon Creative</option>
                   </select>

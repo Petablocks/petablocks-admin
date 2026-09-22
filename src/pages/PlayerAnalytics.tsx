@@ -88,9 +88,12 @@ interface PlayerProfile {
 }
 
 const SERVER_NAMES: Record<string, string> = {
-  'fabric-main': 'Official Modpack',
+  'lobby-main': 'Central Lobby Hub',
+  'velocity-proxy': 'Velocity Gateway',
   'create-2': 'Create 2 SMP',
   'create-patreon': 'Patreon Creative',
+  'patreon-creative': 'Patreon Creative',
+  'fabric-main': 'Official Modpack (Season 1)',
 }
 
 export default function PlayerAnalyticsPage() {
@@ -244,15 +247,15 @@ export default function PlayerAnalyticsPage() {
             All Servers
           </button>
           <button
-            onClick={() => setSelectedServer('fabric-main')}
+            onClick={() => setSelectedServer('lobby-main')}
             className={cn(
               'px-3 py-1.5 rounded-md font-medium transition-colors whitespace-nowrap',
-              selectedServer === 'fabric-main'
+              selectedServer === 'lobby-main'
                 ? 'bg-card text-foreground shadow-sm'
                 : 'text-muted-foreground hover:text-foreground'
             )}
           >
-            Official Modpack
+            Lobby Hub
           </button>
           <button
             onClick={() => setSelectedServer('create-2')}
@@ -275,6 +278,17 @@ export default function PlayerAnalyticsPage() {
             )}
           >
             Patreon Creative
+          </button>
+          <button
+            onClick={() => setSelectedServer('fabric-main')}
+            className={cn(
+              'px-3 py-1.5 rounded-md font-medium transition-colors whitespace-nowrap',
+              selectedServer === 'fabric-main'
+                ? 'bg-card text-foreground shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            )}
+          >
+            Season 1 (Archived)
           </button>
         </div>
 

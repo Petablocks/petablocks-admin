@@ -121,7 +121,7 @@ export function MinecraftServersPage() {
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false)
 
   // Overview / RCON State
-  const [selectedServer, setSelectedServer] = useState<string>('fabric-main')
+  const [selectedServer, setSelectedServer] = useState<string>('lobby-main')
   const [rconCommand, setRconCommand] = useState<string>('')
   const [rconHistory, setRconHistory] = useState<Array<{ serverId: string; time: string; type: 'cmd' | 'res' | 'err'; text: string }>>([
     { serverId: 'system', time: new Date().toLocaleTimeString(), type: 'res', text: 'PETABLOCKS Web RCON terminal initialized. Select a server and enter Minecraft commands.' },
@@ -144,7 +144,7 @@ export function MinecraftServersPage() {
   const logContainerRef = useRef<HTMLDivElement>(null)
 
   // Moderation State
-  const [modServer, setModServer] = useState<string>('fabric-main')
+  const [modServer, setModServer] = useState<string>('lobby-main')
   const [modAction, setModAction] = useState<string>('ban')
   const [modTarget, setModTarget] = useState<string>('')
   const [modReason, setModReason] = useState<string>('')

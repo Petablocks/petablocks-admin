@@ -594,7 +594,7 @@ export default function DashboardPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {(mc?.servers || [
-            { id: 'fabric-main', name: 'PETABLOCKS Modpack Server', online: true, latency: 25, players: { online: 0 } },
+            { id: 'lobby-main', name: 'PETABLOCKS Lobby Hub', online: true, latency: 15, players: { online: 0 } },
             { id: 'create-2', name: 'PETABLOCKS Create 2', online: true, latency: 30, players: { online: 0 } },
             { id: 'create-patreon', name: 'PETABLOCKS Patreon Server', online: true, latency: 28, players: { online: 0 } },
           ]).map((srv) => (
@@ -681,7 +681,7 @@ export default function DashboardPage() {
                   className="w-full px-3 py-2 rounded-xl bg-background border border-border text-xs text-foreground focus:outline-none focus:border-primary"
                 >
                   <option value="all">🌐 All Production Realms (Network-Wide)</option>
-                  <option value="fabric-main">Fabric Main (play.petablocks.com)</option>
+                  <option value="lobby-main">Lobby Hub (play.petablocks.com)</option>
                   <option value="create-2">Just Create SMP 2 (create2.petablocks.com)</option>
                   <option value="create-patreon">Patreon Creative (createcreative.petablocks.com)</option>
                 </select>

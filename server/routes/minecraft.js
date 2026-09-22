@@ -23,19 +23,34 @@ const VALID_SECRET_TOKENS = new Set([
 
 const SERVERS = [
   {
-    id: 'fabric-main',
-    modServerId: 'modpack-fabric',
-    name: 'PETABLOCKS Modpack Server',
-    host: process.env.MC_FABRIC_HOST || 'play.petablocks.com',
-    port: parseInt(process.env.MC_FABRIC_PORT || '11691', 10),
+    id: 'velocity-proxy',
+    modServerId: 'velocity-proxy',
+    name: 'PETABLOCKS Network Proxy',
+    host: process.env.MC_PROXY_HOST || '10.20.110.118',
+    port: parseInt(process.env.MC_PROXY_PORT || '11601', 10),
     displayHost: 'play.petablocks.com',
-    rconHost: process.env.MC_FABRIC_RCON_HOST || '10.20.110.118',
-    rconPort: parseInt(process.env.MC_FABRIC_RCON_PORT || '16901', 10),
-    rconPassword: process.env.MC_FABRIC_RCON_PASSWORD || '',
-    containerName: 'petablocks-modpack-main',
-    type: 'fabric',
-    version: '1.20.1',
-    description: 'Main Fabric 1.20.1 Modpack Server (Plan & LuckPerms DB)',
+    rconHost: '',
+    rconPort: null,
+    rconPassword: '',
+    containerName: 'pb-velocity-proxy',
+    type: 'velocity',
+    version: '4.2.1',
+    description: 'Velocity 4.2.1 Gateway & Routing Proxy (Port 11601)',
+  },
+  {
+    id: 'lobby-main',
+    modServerId: 'lobby-main',
+    name: 'PETABLOCKS Lobby Hub',
+    host: process.env.MC_LOBBY_HOST || '10.20.110.118',
+    port: parseInt(process.env.MC_LOBBY_PORT || '11602', 10),
+    displayHost: '10.20.110.118:11602',
+    rconHost: process.env.MC_LOBBY_RCON_HOST || '10.20.110.118',
+    rconPort: parseInt(process.env.MC_LOBBY_RCON_PORT || '25575', 10),
+    rconPassword: process.env.MC_LOBBY_RCON_PASSWORD || 'PBLobbyRcon2024!',
+    containerName: 'pb-lobby-main',
+    type: 'paper',
+    version: '1.21.4',
+    description: 'Central Network Hub & Lobby (Paper 1.21.4, LuckPerms, EssentialsX)',
   },
   {
     id: 'create-2',
@@ -137,9 +152,11 @@ async function fetchSparkMetrics(srv) {
 
 // In-Memory Circular Console Log Buffers (up to 500 lines per server)
 const serverLogBuffers = {
-  'fabric-main': [],
+  'velocity-proxy': [],
+  'lobby-main': [],
   'create-2': [],
   'create-patreon': [],
+  'fabric-main': [],
 };
 
 const sseClients = new Set();
@@ -148,7 +165,7 @@ const modTelemetryStore = new Map();
 const pendingCommandCallbacks = new Map();
 
 function normalizeServerId(rawId) {
-  if (!rawId) return 'fabric-main';
+  if (!rawId) return 'lobby-main';
   const match = SERVERS.find(s => s.id === rawId || s.modServerId === rawId);
   return match ? match.id : rawId;
 }
@@ -753,7 +770,7 @@ router.get('/servers', async (_req, res) => {
 
 // GET /api/minecraft/logs
 router.get('/logs', (req, res) => {
-  const { serverId = 'fabric-main', limit = 100 } = req.query;
+  const { serverId = 'lobby-main', limit = 100 } = req.query;
   const buffer = serverLogBuffers[normalizeServerId(serverId)] || [];
   const count = Math.min(parseInt(limit, 10) || 100, 500);
   res.json({
@@ -793,7 +810,7 @@ router.get('/logs/stream', (req, res) => {
 
 // GET /api/minecraft/moderation/bans
 router.get('/moderation/bans', async (req, res) => {
-  const { serverId = 'fabric-main' } = req.query;
+  const { serverId = 'lobby-main' } = req.query;
   const srv = SERVERS.find((s) => s.id === normalizeServerId(serverId)) || SERVERS[0];
 
   let bans = [];
@@ -858,7 +875,7 @@ router.get('/moderation/audit', async (_req, res) => {
 
 // POST /api/minecraft/moderation/action
 router.post('/moderation/action', async (req, res) => {
-  const { serverId = 'fabric-main', action, target, reason = 'No reason specified', executor = 'Admin' } = req.body;
+  const { serverId = 'lobby-main', action, target, reason = 'No reason specified', executor = 'Admin' } = req.body;
 
   if (!action || !target) {
     return res.status(400).json({ error: 'Action and target player required' });

@@ -46,9 +46,16 @@ const CLUSTER_SSH_KEY = getClusterSshKey();
 
 const SERVER_WATCH_LIST = [
   {
-    id: 'fabric-main',
-    name: 'PETABLOCKS Modpack Server',
-    containerName: 'petablocks-modpack-main',
+    id: 'velocity-proxy',
+    name: 'Velocity Proxy Gateway',
+    containerName: 'pb-velocity-proxy',
+    nodeHost: process.env.MC_MCS1_HOST || '10.20.110.118',
+    user: 'root',
+  },
+  {
+    id: 'lobby-main',
+    name: 'Central Network Lobby Hub',
+    containerName: 'pb-lobby-main',
     nodeHost: process.env.MC_MCS1_HOST || '10.20.110.118',
     user: 'root',
   },

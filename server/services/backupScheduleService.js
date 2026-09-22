@@ -34,9 +34,11 @@ function getAvailableDiskGb() {
 }
 
 const BACKUP_TARGETS = [
+  { id: 'lobby-main', name: 'PETABLOCKS Network Lobby Hub' },
+  { id: 'velocity-proxy', name: 'Velocity Proxy Gateway' },
   { id: 'create-2', name: 'Just Create SMP 2' },
   { id: 'patreon-creative', name: 'PETABLOCKS Patreon Creative' },
-  { id: 'fabric-main', name: 'PETABLOCKS Official Modpack' },
+  { id: 'fabric-main', name: 'Official Modpack (Season 1 Archived)', archived: true },
 ];
 
 function getS3Client() {

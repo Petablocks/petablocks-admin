@@ -229,7 +229,7 @@ export default function ModerationPage() {
   }>({
     queryKey: ['moderation-bans', serverFilter],
     queryFn: async () => {
-      const srv = serverFilter === 'all' ? 'fabric-main' : serverFilter
+      const srv = serverFilter === 'all' ? 'lobby-main' : serverFilter
       const res = await fetch(`/api/moderation/bans?serverId=${srv}`)
       if (!res.ok) return { bans: [], whitelist: [] }
       return res.json()
@@ -568,7 +568,7 @@ export default function ModerationPage() {
             className="bg-slate-950 border border-slate-800 text-slate-300 text-xs rounded-lg px-2.5 py-1.5 focus:outline-none focus:border-rose-500"
           >
             <option value="all">All Servers</option>
-            <option value="fabric-main">Modpack Main (play.petablocks.com)</option>
+            <option value="lobby-main">Lobby Hub (play.petablocks.com)</option>
             <option value="create-2">Create 2 SMP (create2.petablocks.com)</option>
             <option value="create-patreon">Patreon Server (createcreative.petablocks.com)</option>
           </select>
@@ -583,27 +583,27 @@ export default function ModerationPage() {
           {/* Controls Bar */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-slate-900/40 p-3 rounded-xl border border-slate-800/80">
             <div className="relative flex-1">
-              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-500" />
+              <Search className="w-4 h-4 absolute left-3 top-3 text-slate-500" />
               <input
                 type="text"
-                placeholder="Search online players by username or UUID..."
                 value={playerSearch}
                 onChange={(e) => setPlayerSearch(e.target.value)}
-                className="w-full bg-slate-950/80 border border-slate-800 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-rose-500"
+                placeholder="Search online players by username or UUID..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-rose-500"
               />
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={() => refetchPlayers()}
-                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-slate-800/60 hover:bg-slate-800 text-slate-300 border border-slate-700/60 transition"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-slate-800 hover:bg-slate-800 text-slate-300 transition"
               >
                 <RefreshCw className={cn('w-3.5 h-3.5', playersLoading && 'animate-spin')} />
                 Refresh Roster
               </button>
 
               <button
-                onClick={() => handleOpenActionModal({ username: '', serverId: serverFilter === 'all' ? 'fabric-main' : serverFilter }, 'warn')}
+                onClick={() => handleOpenActionModal({ username: '', serverId: serverFilter === 'all' ? 'lobby-main' : serverFilter }, 'warn')}
                 className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950/40 transition"
               >
                 <ShieldAlert className="w-3.5 h-3.5" />
@@ -926,7 +926,7 @@ export default function ModerationPage() {
                         onClick={() => {
                           if (confirm(`Unban player ${b.name}?`)) {
                             executeActionMutation.mutate({
-                              serverId: serverFilter === 'all' ? 'fabric-main' : serverFilter,
+                              serverId: serverFilter === 'all' ? 'lobby-main' : serverFilter,
                               action: 'pardon',
                               target: b.name,
                               reason: 'Unbanned via staff panel',
@@ -967,7 +967,7 @@ export default function ModerationPage() {
                         onClick={() => {
                           if (confirm(`Remove ${name} from whitelist?`)) {
                             executeActionMutation.mutate({
-                              serverId: serverFilter === 'all' ? 'fabric-main' : serverFilter,
+                              serverId: serverFilter === 'all' ? 'lobby-main' : serverFilter,
                               action: 'whitelist_remove',
                               target: name,
                               reason: 'Removed via staff panel',
@@ -1190,8 +1190,8 @@ export default function ModerationPage() {
                   onChange={(e) => setBroadcastTarget(e.target.value)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2.5 text-slate-200 focus:outline-none focus:border-rose-500"
                 >
-                  <option value="all">Network-Wide (All 3 Servers)</option>
-                  <option value="fabric-main">play.petablocks.com (Main Modpack)</option>
+                  <option value="all">Network-Wide (All Production Servers)</option>
+                  <option value="lobby-main">play.petablocks.com (Lobby Hub)</option>
                   <option value="create-2">create2.petablocks.com (Create 2 SMP)</option>
                   <option value="create-patreon">createcreative.petablocks.com (Patreon)</option>
                 </select>
@@ -1320,7 +1320,7 @@ export default function ModerationPage() {
                 <input
                   type="text"
                   value={selectedPlayer?.username || ''}
-                  onChange={(e) => setSelectedPlayer({ username: e.target.value, serverId: selectedPlayer?.serverId || 'fabric-main' })}
+                  onChange={(e) => setSelectedPlayer({ username: e.target.value, serverId: selectedPlayer?.serverId || 'lobby-main' })}
                   placeholder="Minecraft Player Username"
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 font-mono focus:outline-none focus:border-rose-500"
                 />
