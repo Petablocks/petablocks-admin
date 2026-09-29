@@ -1070,6 +1070,7 @@ module.exports = {
   SERVERS,
   normalizeServerId,
   modTelemetryStore,
+  modConnectedSockets,
   serverLogBuffers,
   addServerLog,
   onLogEntry,

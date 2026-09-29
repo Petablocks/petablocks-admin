@@ -28,6 +28,9 @@ import {
   ToggleRight,
   Shield,
   MessageSquare,
+  Sparkles,
+  Settings,
+  ArrowUpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -74,6 +77,17 @@ export default function ServerDashboardPage() {
   const [modSearch, setModSearch] = useState('')
   const modUploadInputRef = useRef<HTMLInputElement>(null)
 
+  // Telemetry installer state
+  const [restartAfterInstall, setRestartAfterInstall] = useState(true)
+  const [showConfigModal, setShowConfigModal] = useState(false)
+  const [configForm, setConfigForm] = useState({
+    gatewayUrl: 'wss://admin.petablocks.com/api/minecraft/mod-bridge',
+    apiSecretToken: '',
+    telemetryIntervalSeconds: 10,
+    enableDetailedPlayerMetrics: true,
+    enableCreateTrainMetrics: true,
+  })
+
   // 1. Fetch Server Details
   const { data: serverData, isLoading: isServerLoading, refetch: refetchServer } = useQuery({
     queryKey: ['server-detail', serverId],
@@ -108,6 +122,40 @@ export default function ServerDashboardPage() {
     queryFn: () => fetch(`/api/server-manager/servers/${serverId}/players`).then(r => r.json()),
     enabled: activeTab === 'players',
   })
+
+  // 6. Fetch Telemetry Status
+  const { data: telemetryData, refetch: refetchTelemetry } = useQuery<{
+    serverId: string
+    serverName: string
+    platform: string
+    containerName: string
+    targetDir: string
+    installed: boolean
+    installedVersion: string | null
+    installedFile: string | null
+    latestVersion: string
+    status: 'up_to_date' | 'update_available' | 'disabled' | 'not_installed' | 'unknown'
+    connected: boolean
+    latestRelease: any
+    config: any
+  }>({
+    queryKey: ['server-telemetry', serverId],
+    queryFn: () => fetch(`/api/server-manager/servers/${serverId}/telemetry`).then(r => r.json()),
+    refetchInterval: 10000,
+  })
+
+  // Sync config form state when telemetry data arrives
+  useEffect(() => {
+    if (telemetryData?.config) {
+      setConfigForm({
+        gatewayUrl: telemetryData.config.gatewayUrl || telemetryData.config.gateway_url || 'wss://admin.petablocks.com/api/minecraft/mod-bridge',
+        apiSecretToken: telemetryData.config.apiSecretToken || telemetryData.config.api_secret_token || '',
+        telemetryIntervalSeconds: telemetryData.config.telemetryIntervalSeconds ?? telemetryData.config.telemetry_interval_seconds ?? 10,
+        enableDetailedPlayerMetrics: telemetryData.config.enableDetailedPlayerMetrics ?? telemetryData.config.enable_detailed_player_metrics ?? true,
+        enableCreateTrainMetrics: telemetryData.config.enableCreateTrainMetrics ?? telemetryData.config.enable_create_train_metrics ?? true,
+      })
+    }
+  }, [telemetryData?.config])
 
   // Auto-scroll console
   useEffect(() => {
@@ -212,6 +260,51 @@ export default function ServerDashboardPage() {
       return res.json()
     },
     onSuccess: () => refetchMods(),
+  })
+
+  const installTelemetryMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/server-manager/servers/${serverId}/telemetry/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restartImmediately: restartAfterInstall }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to install/update telemetry')
+      return data
+    },
+    onSuccess: (data) => {
+      refetchTelemetry()
+      refetchMods()
+      if (restartAfterInstall) {
+        setTimeout(() => refetchServer(), 3000)
+      }
+      alert(`PETABLOCKS Telemetry companion successfully deployed (v${data.installedVersion})!`)
+    },
+    onError: (err: any) => {
+      alert(`Installation error: ${err.message}`)
+    },
+  })
+
+  const saveTelemetryConfigMutation = useMutation({
+    mutationFn: async (cfg: typeof configForm) => {
+      const res = await fetch(`/api/server-manager/servers/${serverId}/telemetry/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(cfg),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update telemetry config')
+      return data
+    },
+    onSuccess: () => {
+      refetchTelemetry()
+      setShowConfigModal(false)
+      alert('Telemetry companion configuration saved!')
+    },
+    onError: (err: any) => {
+      alert(`Config error: ${err.message}`)
+    },
   })
 
   async function openFileForEdit(filePath: string) {
@@ -415,13 +508,16 @@ export default function ServerDashboardPage() {
           <FolderOpen className="h-4 w-4" /> File Manager
         </button>
         <button
-          onClick={() => { setActiveTab('mods'); refetchMods(); setEditingFile(null) }}
+          onClick={() => { setActiveTab('mods'); refetchMods(); refetchTelemetry(); setEditingFile(null) }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all',
+            'flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all relative',
             activeTab === 'mods' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
           )}
         >
-          <Package className="h-4 w-4" /> Mods ({modsData?.mods?.length || 0})
+          <Package className="h-4 w-4" /> Mods & Plugins ({modsData?.mods?.length || 0})
+          {telemetryData?.status === 'update_available' && (
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse ml-0.5" title="Telemetry update available" />
+          )}
         </button>
         <button
           onClick={() => { setActiveTab('players'); refetchPlayers(); setEditingFile(null) }}
@@ -710,9 +806,126 @@ export default function ServerDashboardPage() {
         </div>
       )}
 
-      {/* TAB 3: MODS MANAGER */}
+      {/* TAB 3: MODS & PLUGINS MANAGER */}
       {activeTab === 'mods' && (
-        <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm">
+        <div className="space-y-4">
+          {/* PETABLOCKS Telemetry Companion Hero Card */}
+          <div className="bg-gradient-to-r from-primary/10 via-card to-card border border-primary/30 rounded-2xl p-5 shadow-lg relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                  <div className="p-2 rounded-xl bg-primary/20 text-primary border border-primary/30">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                      PETABLOCKS Telemetry Companion
+                      <span className="text-[10px] uppercase font-bold font-mono px-2 py-0.5 rounded-md bg-primary/20 border border-primary/30 text-primary">
+                        {telemetryData?.platform?.toUpperCase() || 'MOD'}
+                      </span>
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      High-throughput live metrics bridge (TPS, MSPT, RAM, Entities, Create Trains & Discord Chat)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 pt-1 flex-wrap text-xs">
+                  {/* Status pill */}
+                  {telemetryData?.status === 'up_to_date' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold font-mono">
+                      <CheckCircle2 className="h-3.5 w-3.5" /> v{telemetryData.installedVersion} (Latest)
+                    </span>
+                  )}
+                  {telemetryData?.status === 'update_available' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/30 font-bold font-mono animate-pulse">
+                      <ArrowUpCircle className="h-3.5 w-3.5" /> Update: v{telemetryData.installedVersion} &rarr; v{telemetryData.latestVersion}
+                    </span>
+                  )}
+                  {telemetryData?.status === 'not_installed' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-500/10 text-zinc-400 border border-zinc-500/30 font-bold font-mono">
+                      Not Installed (Latest: v{telemetryData?.latestVersion || '1.4.0'})
+                    </span>
+                  )}
+                  {telemetryData?.status === 'disabled' && (
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 font-bold font-mono">
+                      Disabled ({telemetryData.installedFile})
+                    </span>
+                  )}
+
+                  {/* WebSocket connection status */}
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/60 text-muted-foreground border border-border font-mono text-[11px]">
+                    <span className={cn("h-2 w-2 rounded-full", telemetryData?.connected ? "bg-emerald-400 animate-pulse" : "bg-zinc-500")} />
+                    Bridge: {telemetryData?.connected ? <span className="text-emerald-400 font-bold">Connected</span> : 'Disconnected'}
+                  </span>
+
+                  {telemetryData?.installedFile && (
+                    <span className="text-muted-foreground font-mono text-[11px] truncate max-w-[240px]" title={telemetryData.installedFile}>
+                      File: {telemetryData.installedFile}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none bg-muted/30 px-3 py-2 rounded-xl border border-border/60">
+                  <input
+                    type="checkbox"
+                    checked={restartAfterInstall}
+                    onChange={(e) => setRestartAfterInstall(e.target.checked)}
+                    className="rounded border-border text-primary focus:ring-0"
+                  />
+                  <span>Restart server on install</span>
+                </label>
+
+                <button
+                  onClick={() => setShowConfigModal(true)}
+                  className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground text-xs font-bold rounded-xl border border-border flex items-center justify-center gap-1.5 transition-colors"
+                  title="Edit Telemetry Configuration (Gateway URL, Secret, Interval)"
+                >
+                  <Settings className="h-3.5 w-3.5" /> Config
+                </button>
+
+                <button
+                  onClick={() => installTelemetryMutation.mutate()}
+                  disabled={installTelemetryMutation.isPending}
+                  className={cn(
+                    "px-4 py-2 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition-all shadow-md",
+                    telemetryData?.status === 'update_available'
+                      ? "bg-amber-500 hover:bg-amber-600 text-black shadow-amber-500/20"
+                      : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary/20"
+                  )}
+                >
+                  {installTelemetryMutation.isPending ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Deploying...
+                    </>
+                  ) : telemetryData?.status === 'update_available' ? (
+                    <>
+                      <ArrowUpCircle className="h-4 w-4" />
+                      1-Click Update to v{telemetryData.latestVersion}
+                    </>
+                  ) : telemetryData?.status === 'not_installed' ? (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Install Companion v{telemetryData?.latestVersion || '1.4.0'}
+                    </>
+                  ) : (
+                    <>
+                      <RotateCw className="h-3.5 w-3.5" />
+                      Re-deploy v{telemetryData?.latestVersion || '1.4.0'}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Regular Installed Mods List */}
+          <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
             <div>
               <h3 className="font-bold text-base text-foreground flex items-center gap-2">
@@ -805,6 +1018,7 @@ export default function ServerDashboardPage() {
               ))}
             </div>
           )}
+        </div>
         </div>
       )}
 
@@ -1063,6 +1277,111 @@ export default function ServerDashboardPage() {
                 </button>
                 <span className="text-[10px] text-muted-foreground font-mono">Create: Steam &apos;n Rails</span>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Telemetry Config Modal */}
+      {showConfigModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-card border border-border rounded-2xl max-w-lg w-full p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-xl bg-primary/10 text-primary border border-primary/20">
+                  <Settings className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">Telemetry Companion Config</h3>
+                  <p className="text-[11px] text-muted-foreground">{server.name} ({telemetryData?.platform?.toUpperCase()})</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowConfigModal(false)}
+                className="text-muted-foreground hover:text-foreground text-sm font-bold p-1.5 rounded-lg hover:bg-muted"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3.5 text-xs">
+              <div>
+                <label className="font-bold text-foreground block mb-1">Gateway WebSocket URL</label>
+                <input
+                  type="text"
+                  value={configForm.gatewayUrl}
+                  onChange={(e) => setConfigForm({ ...configForm, gatewayUrl: e.target.value })}
+                  className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground font-mono text-xs focus:outline-none focus:border-primary"
+                  placeholder="wss://admin.petablocks.com/api/minecraft/mod-bridge"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">Endpoint where live TPS, RAM, entity counts and chat packets are sent.</p>
+              </div>
+
+              <div>
+                <label className="font-bold text-foreground block mb-1">API Secret Token</label>
+                <input
+                  type="password"
+                  value={configForm.apiSecretToken}
+                  onChange={(e) => setConfigForm({ ...configForm, apiSecretToken: e.target.value })}
+                  className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground font-mono text-xs focus:outline-none focus:border-primary"
+                  placeholder="Secret token matching TELEMETRY_API_SECRET"
+                />
+              </div>
+
+              <div>
+                <label className="font-bold text-foreground block mb-1">Telemetry Broadcast Interval (Seconds)</label>
+                <input
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={configForm.telemetryIntervalSeconds}
+                  onChange={(e) => setConfigForm({ ...configForm, telemetryIntervalSeconds: parseInt(e.target.value) || 10 })}
+                  className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-foreground font-mono text-xs focus:outline-none focus:border-primary"
+                />
+              </div>
+
+              <div className="pt-2 space-y-2 border-t border-border/50">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={configForm.enableDetailedPlayerMetrics}
+                    onChange={(e) => setConfigForm({ ...configForm, enableDetailedPlayerMetrics: e.target.checked })}
+                    className="rounded border-border text-primary"
+                  />
+                  <span className="font-medium text-foreground">Detailed Player Metrics (IP GeoIP forwarding & ping)</span>
+                </label>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={configForm.enableCreateTrainMetrics}
+                    onChange={(e) => setConfigForm({ ...configForm, enableCreateTrainMetrics: e.target.checked })}
+                    className="rounded border-border text-primary"
+                  />
+                  <span className="font-medium text-foreground">Create Train Metrics (Create Mod Railway telemetry)</span>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+              <button
+                onClick={() => setShowConfigModal(false)}
+                className="px-4 py-2 rounded-xl bg-muted hover:bg-muted/80 text-foreground text-xs font-bold"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => saveTelemetryConfigMutation.mutate(configForm)}
+                disabled={saveTelemetryConfigMutation.isPending}
+                className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              >
+                {saveTelemetryConfigMutation.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Save className="h-3.5 w-3.5" />
+                )}
+                Save Configuration
+              </button>
             </div>
           </div>
         </div>

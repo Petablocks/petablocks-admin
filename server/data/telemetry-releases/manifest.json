@@ -1,0 +1,31 @@
+{
+  "latestVersion": "1.4.0",
+  "releaseDate": "2026-09-29",
+  "changelog": "Multi-platform network parity (Paper 1.21.4 & Velocity 4.2.1), real client IP GeoIP resolution on join, zero-allocation entity counting, and non-blocking /link command execution.",
+  "artifacts": {
+    "neoforge": {
+      "platform": "NeoForge 1.21.1",
+      "filename": "PetablocksTelemetry-NeoForge-1.21.1-1.4.0.jar",
+      "targetDir": "mods",
+      "configPath": "config/petablocks-telemetry.json"
+    },
+    "fabric": {
+      "platform": "Fabric 1.20.1",
+      "filename": "PetablocksTelemetry-Fabric-1.20.1-1.4.0.jar",
+      "targetDir": "mods",
+      "configPath": "config/petablocks-telemetry.json"
+    },
+    "paper": {
+      "platform": "Paper 1.21.4",
+      "filename": "PetablocksTelemetry-Paper-1.21.4-1.4.0.jar",
+      "targetDir": "plugins",
+      "configPath": "plugins/PetablocksTelemetry/config.json"
+    },
+    "velocity": {
+      "platform": "Velocity 4.2.1",
+      "filename": "PetablocksTelemetry-Velocity-1.4.0.jar",
+      "targetDir": "plugins",
+      "configPath": "plugins/petablocks_telemetry/config.json"
+    }
+  }
+}

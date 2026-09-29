@@ -17,6 +17,8 @@ const os = require('os');
 const net = require('net');
 const Docker = require('dockerode');
 const discordService = require('../services/discordWebhookService');
+const telemetryInstaller = require('../services/telemetryInstallerService');
+const { modConnectedSockets } = require('./minecraft');
 
 const localDocker = new Docker({ socketPath: process.env.DOCKER_HOST?.replace('unix://', '') || '/var/run/docker.sock' });
 
@@ -810,6 +812,132 @@ router.post('/servers/:id/mods/toggle', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── GET /api/server-manager/servers/:id/telemetry ──────────────────
+// Returns telemetry companion mod/plugin status, installed version, and gateway status
+router.get('/servers/:id/telemetry', async (req, res) => {
+  const srv = SERVERS_REGISTRY.find(s => s.id === req.params.id);
+  if (!srv) return res.status(404).json({ error: 'Server not found' });
+
+  const node = NODES[srv.nodeId];
+  try {
+    const status = await telemetryInstaller.getTelemetryStatus(srv, node, runSshCommand, modConnectedSockets);
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/server-manager/servers/:id/telemetry/install ─────────
+// Installs or updates telemetry mod/plugin, generates config if missing, optional restart
+router.post('/servers/:id/telemetry/install', async (req, res) => {
+  const srv = SERVERS_REGISTRY.find(s => s.id === req.params.id);
+  if (!srv) return res.status(404).json({ error: 'Server not found' });
+
+  const node = NODES[srv.nodeId];
+  const { restartImmediately } = req.body || {};
+
+  try {
+    const result = await telemetryInstaller.installOrUpdateTelemetry(srv, node, { restartImmediately }, runSshCommand);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/server-manager/servers/:id/telemetry/config ───────────
+// Reads current configuration file for the server's telemetry mod
+router.get('/servers/:id/telemetry/config', async (req, res) => {
+  const srv = SERVERS_REGISTRY.find(s => s.id === req.params.id);
+  if (!srv) return res.status(404).json({ error: 'Server not found' });
+
+  const node = NODES[srv.nodeId];
+  try {
+    const config = await telemetryInstaller.getTelemetryConfig(srv, node, runSshCommand);
+    res.json({ config });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /api/server-manager/servers/:id/telemetry/config ──────────
+// Writes updated configuration for the server's telemetry mod
+router.post('/servers/:id/telemetry/config', async (req, res) => {
+  const srv = SERVERS_REGISTRY.find(s => s.id === req.params.id);
+  if (!srv) return res.status(404).json({ error: 'Server not found' });
+
+  const node = NODES[srv.nodeId];
+  const { config } = req.body;
+  if (!config || typeof config !== 'object') {
+    return res.status(400).json({ error: 'Invalid config payload' });
+  }
+
+  try {
+    await telemetryInstaller.saveTelemetryConfig(srv, node, config, runSshCommand);
+    res.json({ success: true, message: 'Configuration updated successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── GET /api/server-manager/telemetry/fleet-status ─────────────────
+// Batch status check across all registered servers
+router.get('/telemetry/fleet-status', async (_req, res) => {
+  const manifest = telemetryInstaller.getManifest();
+  const activeServers = SERVERS_REGISTRY.filter(s => !s.archived);
+
+  const statuses = await Promise.all(
+    activeServers.map(async (srv) => {
+      const node = NODES[srv.nodeId];
+      if (!node) return { serverId: srv.id, status: 'error', error: 'Node not found' };
+      try {
+        return await telemetryInstaller.getTelemetryStatus(srv, node, runSshCommand, modConnectedSockets);
+      } catch (err) {
+        return { serverId: srv.id, serverName: srv.name, status: 'error', error: err.message };
+      }
+    })
+  );
+
+  const outdatedCount = statuses.filter(s => s.status === 'update_available').length;
+  const notInstalledCount = statuses.filter(s => s.status === 'not_installed').length;
+
+  res.json({
+    latestVersion: manifest.latestVersion,
+    releaseDate: manifest.releaseDate,
+    servers: statuses,
+    outdatedCount,
+    notInstalledCount,
+  });
+});
+
+// ── POST /api/server-manager/telemetry/fleet-update ────────────────
+// Batch update all or specified servers across nodes
+router.post('/telemetry/fleet-update', async (req, res) => {
+  const { serverIds, restartImmediately } = req.body || {};
+  const activeServers = SERVERS_REGISTRY.filter(s => !s.archived && (!serverIds || serverIds.includes(s.id)));
+
+  const results = [];
+  for (const srv of activeServers) {
+    const node = NODES[srv.nodeId];
+    if (!node) {
+      results.push({ serverId: srv.id, success: false, error: 'Node config missing' });
+      continue;
+    }
+
+    try {
+      const resData = await telemetryInstaller.installOrUpdateTelemetry(srv, node, { restartImmediately }, runSshCommand);
+      results.push(resData);
+    } catch (err) {
+      results.push({ serverId: srv.id, success: false, error: err.message });
+    }
+  }
+
+  res.json({
+    success: true,
+    totalAttempted: activeServers.length,
+    results,
+  });
 });
 
 // ── GET /api/server-manager/servers/:id/players ───────────────────

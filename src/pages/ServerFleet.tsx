@@ -15,6 +15,8 @@ import {
   CheckCircle2,
   Loader2,
   Terminal,
+  Sparkles,
+  ArrowUpCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import CreateServerModal from '@/components/CreateServerModal'
@@ -89,6 +91,50 @@ export default function ServerFleetPage() {
     },
   })
 
+  // Fetch Fleet Telemetry Status
+  const { data: fleetTelemetry, isLoading: isFleetTelemetryLoading, refetch: refetchFleetTelemetry } = useQuery<{
+    latestVersion: string
+    releaseDate: string
+    servers: Array<{
+      serverId: string
+      serverName: string
+      platform: string
+      installed: boolean
+      installedVersion: string | null
+      latestVersion: string
+      status: 'up_to_date' | 'update_available' | 'disabled' | 'not_installed' | 'unknown'
+      connected: boolean
+    }>
+    outdatedCount: number
+    notInstalledCount: number
+  }>({
+    queryKey: ['fleet-telemetry-status'],
+    queryFn: () => fetch('/api/server-manager/telemetry/fleet-status').then(r => r.json()),
+    refetchInterval: 15000,
+  })
+
+  // Batch update fleet telemetry mutation
+  const fleetUpdateMutation = useMutation({
+    mutationFn: async ({ restartImmediately }: { restartImmediately: boolean }) => {
+      const res = await fetch('/api/server-manager/telemetry/fleet-update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restartImmediately }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to update fleet telemetry')
+      return data
+    },
+    onSuccess: (data) => {
+      refetchFleetTelemetry()
+      refetchServers()
+      alert(`Fleet update completed! Updated ${data.totalAttempted} servers.`)
+    },
+    onError: (err: any) => {
+      alert(`Error updating fleet: ${err.message}`)
+    },
+  })
+
   const onlineServers = servers.filter(s => s.online).length
   const totalServers = servers.length
 
@@ -106,12 +152,31 @@ export default function ServerFleetPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {fleetTelemetry && (fleetTelemetry.outdatedCount > 0 || fleetTelemetry.notInstalledCount > 0) && (
+            <button
+              onClick={() => {
+                if (confirm(`Update Telemetry to v${fleetTelemetry.latestVersion} on all active servers?`)) {
+                  fleetUpdateMutation.mutate({ restartImmediately: false })
+                }
+              }}
+              disabled={fleetUpdateMutation.isPending}
+              className="px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors shadow-sm"
+              title="Batch update Telemetry mod/plugins to latest version on all servers"
+            >
+              {fleetUpdateMutation.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              Update Fleet Telemetry ({fleetTelemetry.outdatedCount} outdated)
+            </button>
+          )}
           <button
-            onClick={() => refetchServers()}
-            disabled={isServersLoading}
+            onClick={() => { refetchServers(); refetchFleetTelemetry(); }}
+            disabled={isServersLoading || isFleetTelemetryLoading}
             className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground text-xs font-mono rounded-xl border border-border flex items-center gap-1.5 transition-colors"
           >
-            <RefreshCw className={cn('h-3.5 w-3.5', isServersLoading && 'animate-spin')} /> Refresh
+            <RefreshCw className={cn('h-3.5 w-3.5', (isServersLoading || isFleetTelemetryLoading) && 'animate-spin')} /> Refresh
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
@@ -187,6 +252,7 @@ export default function ServerFleetPage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {servers.map((server) => {
               const isPowerPending = powerMutation.isPending && powerMutation.variables?.serverId === server.id
+              const tStatus = fleetTelemetry?.servers?.find(s => s.serverId === server.id)
 
               return (
                 <div
@@ -210,6 +276,32 @@ export default function ServerFleetPage() {
                       <p className="text-xs text-muted-foreground font-mono">
                         {server.nodeName} • Port {server.gamePort}
                       </p>
+                      {tStatus && (
+                        <div className="pt-1 flex items-center gap-1.5 flex-wrap">
+                          {tStatus.status === 'up_to_date' && (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                              <span className={cn("h-1.5 w-1.5 rounded-full", tStatus.connected ? "bg-emerald-400 animate-pulse" : "bg-zinc-500")} />
+                              Telemetry v{tStatus.installedVersion}
+                            </span>
+                          )}
+                          {tStatus.status === 'update_available' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-mono font-semibold">
+                              <ArrowUpCircle className="h-3 w-3 text-amber-400" />
+                              Telemetry v{tStatus.installedVersion} → v{tStatus.latestVersion}
+                            </span>
+                          )}
+                          {tStatus.status === 'not_installed' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[10px] font-mono">
+                              Telemetry not installed
+                            </span>
+                          )}
+                          {tStatus.status === 'disabled' && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-500/10 text-zinc-500 border border-zinc-500/20 text-[10px] font-mono">
+                              Telemetry disabled
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     {/* Status Pill */}

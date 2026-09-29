@@ -110,7 +110,7 @@ export default function SettingsPage() {
     }
   }
 
-  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.13.0'
+  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.14.0'
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-4xl mx-auto">
@@ -234,12 +234,26 @@ export default function SettingsPage() {
           </span>
         </div>
         <div className="space-y-2.5 text-xs">
-          {/* v2.13.0 */}
+          {/* v2.14.0 */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/30">
             <div className="flex items-center gap-2.5">
               <GitBranch className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <span className="font-mono font-bold text-foreground">v2.13.0 (Current)</span>
+                <span className="font-mono font-bold text-foreground">v2.14.0 (Current)</span>
+                <p className="text-muted-foreground text-[11px]">
+                  In-Portal Telemetry mod/plugin installer &amp; fleet batch updater, live version status badges &amp; companion configuration editor
+                </p>
+              </div>
+            </div>
+            <span className="text-muted-foreground font-mono text-[11px] shrink-0">September 2026</span>
+          </div>
+
+          {/* v2.13.0 */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border">
+            <div className="flex items-center gap-2.5">
+              <GitBranch className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <span className="font-mono font-bold text-foreground">v2.13.0</span>
                 <p className="text-muted-foreground text-[11px]">
                   React lazy route chunking, modpack download telemetry &amp; GeoIP maps, dynamic settings, fleet log quick-links &amp; backup restore previews
                 </p>

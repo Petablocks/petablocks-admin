@@ -2,6 +2,18 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.14.0] - 2026-09-29
+### Added
+- **⚡ In-Portal Telemetry Companion Installer & Fleet Batch Updater**:
+  - Pre-packaged official companion JARs (NeoForge 1.21.1, Fabric 1.20.1, Paper 1.21.4, Velocity 4.2.1) in `server/data/telemetry-releases/v1.4.0/` with platform release manifest.
+  - Implemented `telemetryInstallerService.js` for remote inspection of companion JARs across game nodes (`mcs-01`, `mcs-02`, `mcs-03`), zero-dependency SSH base64 streaming deployment, legacy version cleanup, and automated config generation.
+  - Added REST endpoints in `routes/serverManager.js`:
+    - `GET /servers/:id/telemetry` & `POST /servers/:id/telemetry/install`
+    - `GET /servers/:id/telemetry/config` & `POST /servers/:id/telemetry/config`
+    - `GET /telemetry/fleet-status` & `POST /telemetry/fleet-update`
+  - Integrated **PETABLOCKS Telemetry Companion Hero Card** in `ServerDashboard.tsx` (Mods & Plugins tab) with 1-click update/install, companion config editor modal (Gateway URL, Secret Token, interval, Create Train & Player metrics toggles), and post-install auto-restart option.
+  - Added fleet-wide telemetry status badges and one-click "Update Fleet Telemetry" batch button in `ServerFleet.tsx`.
+
 ## [2.13.0] - 2026-09-29
 ### Added
 - **⚡ Frontend Route-Level Code Splitting & Manual Vendor Chunking**:

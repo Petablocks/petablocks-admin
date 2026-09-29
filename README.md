@@ -2,7 +2,7 @@
 
 > Comprehensive administration, container operations, object storage, live console streaming, autonomous maintenance pipelines, and Minecraft server telemetry platform for the PETABLOCKS ecosystem.
 >
-> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.13.0` • **Endpoint**: `https://admin.petablocks.com`
+> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.14.0` • **Endpoint**: `https://admin.petablocks.com`
 
 ---
 
@@ -20,26 +20,31 @@
 * **Live Passenger Telemetry & Station Advisories**: Autonomous station arrival PA alerts passengers when a train arrives at a station adjoining an active work zone.
 * **Live Track Map & BlueMap Integration**: Quick navigation to `https://create2-trains.petablocks.com` and `https://create2-map.petablocks.com`.
 
-### 2. ❤️ Cluster Health Sentinel (`health.petablocks.com`)
+### 3. ❤️ Cluster Health Sentinel (`health.petablocks.com`)
 * **Automated Daily Health Checker**: Standalone Go service (`pb-reporter`) running 06:00 AM daily cluster diagnostic audits.
 * **Direct Navigation**: 1-click access from the Admin Portal Infrastructure sidebar with real-time schedule status.
 * **MariaDB Audit Logs & Discord Alerts**: Real-time morning digest and historical telemetry across all 5 VMs.
 
-### 2. 🤖 Autonomous Maintenance Hub (`/maintenance`)
+### 4. 🤖 Autonomous Maintenance Hub (`/maintenance`)
 * **Automated Maintenance Execution Engine**: Background runner that executes scheduled updates with zero human intervention.
 * **Advance In-Game Warnings**: Automated countdown warnings ($T-15\text{m}$, $T-5\text{m}$, $T-1\text{m}$) broadcasted via `/tellraw`.
 * **Zero-Downtime Pipeline**: Automated world save (`/save-all flush`), container restart via SSH, TCP port & WebSocket health verification, and gateway unlock.
 * **Multi-Channel Synchronous Broadcasts**: Real-time Discord announcements with status transitions and live website banner updates.
 
-### 3. 📢 Announcements & Fleet Dispatch (`/announcements`)
+### 5. 📢 Announcements & Fleet Dispatch (`/announcements`)
 * **Multi-Channel Broadcast Engine**: Instant dispatch to Discord announcements channel and in-game Minecraft servers (`tellraw`, `title`, and audio chimes).
 * **Presets & Quick Templates**: Ready-made templates for Modrinth releases, emergency downtime/outages, scheduled maintenance, and community events.
 * **Live Discord & In-Game Simulation**: Real-time mock preview rendering Discord embeds and in-game chat components before broadcasting.
 * **Granular Target Selection**: Route broadcasts to all fleet servers or specific realms with customizable ping roles (`@everyone`, `@here`, none).
 * **Audit History & Logs**: Persistent history of dispatched announcements with status verification.
 
-### 2. 🎮 Minecraft Server Operations (`/servers` & `/minecraft`)
+### 6. 🎮 Minecraft Server Operations & Fleet Management (`/servers` & `/minecraft`)
 * **Native Server Management**: Pure JavaScript SSH/Docker bridge to dedicated game nodes (`mcs-01`, `mcs-02`, `mcs-03`).
+* **In-Portal Telemetry Companion Installer & Fleet Batch Updater**:
+  - Pre-built companion release catalog for NeoForge 1.21.1, Fabric 1.20.1, Paper 1.21.4, and Velocity 4.2.1.
+  - 1-click update/install hero card in Server Dashboard with clean legacy JAR removal and post-install restart option.
+  - Interactive Companion Config Modal allowing live editing of Gateway WebSocket URL, API secret token, broadcast frequency, and feature flags.
+  - Fleet-wide telemetry status badges and 1-click batch update across all server nodes.
 * **Live Server List Ping (SLP)**: DNS SRV resolution with real-time latency tracking, player limits, and authentic in-game formatted MOTD rendering.
 * **Live Telemetry & Diagnostics**: Real-time TPS gauge, MSPT, JVM Heap & GC pause tracking, entity counts, loaded chunks per dimension, and mini-spark lag spike alerts.
 * **Server File Manager & Config Editor**: In-browser directory navigation, upload, deletion, and safe editing for configs and KubeJS scripts.
