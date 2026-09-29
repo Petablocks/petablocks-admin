@@ -73,9 +73,22 @@ async function ensureSchema() {
 
 function loadConfig() {
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      return { ...DEFAULT_CONFIG, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) };
+    let base = { ...DEFAULT_CONFIG };
+    // Check if maintenance-config.json has a configured webhook to inherit
+    const maintConfigFile = path.join(DATA_DIR, 'maintenance-config.json');
+    if (fs.existsSync(maintConfigFile)) {
+      try {
+        const maintData = JSON.parse(fs.readFileSync(maintConfigFile, 'utf8'));
+        if (maintData.announcementWebhookUrl) {
+          base.announcementWebhookUrl = maintData.announcementWebhookUrl;
+        }
+      } catch (_) {}
     }
+
+    if (fs.existsSync(CONFIG_FILE)) {
+      return { ...base, ...JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')) };
+    }
+    return base;
   } catch (err) {
     console.warn('[AnnouncementsEngine] Failed to read config:', err.message);
   }
@@ -295,13 +308,18 @@ async function broadcastAnnouncement(data) {
   const createdBy = data.createdBy || 'Staff';
 
   let discordSuccess = false;
+  let discordError = null;
   let ingameResults = {};
 
   if (sendDiscord) {
     try {
       const res = await dispatchDiscord({ title, description, category, pingRole, url, imageUrl, createdBy });
       discordSuccess = res.success;
+      if (!res.success) {
+        discordError = res.reason || 'Failed to dispatch via bot and webhook';
+      }
     } catch (e) {
+      discordError = e.message;
       console.error('[AnnouncementsEngine] Discord dispatch error:', e);
     }
   }
@@ -346,6 +364,7 @@ async function broadcastAnnouncement(data) {
     title,
     category,
     discordSent: discordSuccess,
+    discordError,
     ingameSent: Object.values(ingameResults).some(Boolean),
     ingameResults,
     createdAt: new Date().toISOString(),

@@ -162,14 +162,18 @@ export default function AnnouncementsPage() {
       }
       return res.json()
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['announcements-history'] })
       const res = data.announcement
-      const channels = []
-      if (res.discordSent) channels.push('Discord')
-      if (res.ingameSent) channels.push('Minecraft Fleet')
-      setNotice(`✅ Broadcasted successfully to: ${channels.join(' & ') || 'Configured targets'}`)
-      setTimeout(() => setNotice(null), 6000)
+      if (!res.discordSent && variables.sendDiscord) {
+        setNotice(`⚠️ Broadcast sent to in-game, but Discord failed: ${res.discordError || 'Check Discord Target Settings (webhook URL / channel ID)'}`)
+      } else {
+        const channels = []
+        if (res.discordSent) channels.push('Discord')
+        if (res.ingameSent) channels.push('Minecraft Fleet')
+        setNotice(`✅ Broadcasted successfully to: ${channels.join(' & ') || 'Configured targets'}`)
+      }
+      setTimeout(() => setNotice(null), 8000)
     },
     onError: (err: any) => {
       setNotice(`❌ Broadcast failed: ${err.message}`)
