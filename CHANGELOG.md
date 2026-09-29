@@ -2,6 +2,15 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.12.0] - 2026-09-29
+### Added
+- **🌍 Player Connection GeoIP Tracking & Analytics Pipeline**:
+  - Integrated zero-dependency asynchronous GeoIP resolution (`ip-api.com` with `ipwho.is` fallback and memory caching) for real client IPs intercepted during player connection sequences.
+  - Added `recordPlayerIp` and updated `recordPlayerJoin` to automatically capture country, country code, city, and anonymized IPv4 subnet (`/24`) in `analytics_players` and `analytics_sessions`.
+  - Added automatic schema migration (`ALTER TABLE analytics_players` and `analytics_sessions`) ensuring seamless backward compatibility without manual SQL execution.
+  - Intercepted Minecraft server connection log pattern `[minecraft/PlayerList]: <PlayerName>[/<IP>:<Port>] logged in` directly in `logWatcherService.js`.
+  - Added geographic player distribution metrics (`geoDistribution`) to `getNetworkOverview` and player profile views.
+
 ## [2.11.0] - 2026-09-29
 ### Added
 - **📢 Centralized Network Announcements & Fleet Dispatch Module (`/announcements`)**:

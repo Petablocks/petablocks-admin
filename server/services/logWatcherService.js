@@ -17,6 +17,7 @@ const { Client: SshClient } = require('ssh2');
 const mysql = require('mysql2/promise');
 const discordService = require('./discordWebhookService');
 const { executeCommandUnified } = require('../routes/minecraft');
+const playerAnalyticsService = require('./playerAnalyticsService');
 
 const rawDbUrl = process.env.MC_DATABASE_URL || process.env.DATABASE_URL || 'mysql://user:password@127.0.0.1:3306/petablocks';
 const DB_URL = rawDbUrl.includes(':3307')
@@ -268,11 +269,29 @@ async function processServerLogLine(serverId, line) {
     }
   }
 
+  // 1b. Intercept Player Network Connection & IP: "PlayerName[/1.2.3.4:5678] logged in with entity id" or "PlayerName (/1.2.3.4:5678) connected"
+  const loginIpMatch = cleanLine.match(/(?:\[minecraft\/PlayerList\]|\[Server thread\/INFO\](?: \[.*?\])?): ([a-zA-Z0-9_]{3,16})\s*\[?\/([0-9.]+):\d+\]?\s*(?:logged in|connected)/i);
+  if (loginIpMatch) {
+    const rawName = loginIpMatch[1];
+    const clientIp = loginIpMatch[2];
+    playerAnalyticsService.recordPlayerIp(rawName, clientIp).catch(err => {
+      console.warn(`[LOG-WATCHER] Failed to record player IP for ${rawName}:`, err.message);
+    });
+  }
+
   // 2. Player Joins: "PlayerName joined the game" or "[+] [Owner] PlayerName joined the server"
   const joinMatch = cleanLine.match(/\[Server thread\/INFO\](?: \[.*?\])?: (?:\[\+\]\s*(?:\[.*?\]\s*)*([a-zA-Z0-9_]{3,16})\s*joined the server|(?:\[.*?\]\s*)*([a-zA-Z0-9_]{3,16})(?: <.*?>)?\s*joined the game)/);
   if (joinMatch) {
     const playerName = (joinMatch[1] || joinMatch[2]).trim();
     const identity = await resolvePlayerIdentity(playerName);
+
+    // Record player join in native analytics engine if uuid is resolved
+    if (identity.uuid) {
+      playerAnalyticsService.recordPlayerJoin(serverId, { uuid: identity.uuid, name: playerName }).catch(err => {
+        console.warn(`[LOG-WATCHER] Error in recordPlayerJoin for ${playerName}:`, err.message);
+      });
+    }
+
     discordService.sendChatBroadcast(serverId, {
       username: playerName,
       message: `📥 **${playerName}** joined the game.`,
@@ -287,6 +306,14 @@ async function processServerLogLine(serverId, line) {
   if (leaveMatch) {
     const playerName = (leaveMatch[1] || leaveMatch[2]).trim();
     const identity = await resolvePlayerIdentity(playerName);
+
+    // Record player quit in native analytics engine if uuid is resolved
+    if (identity.uuid) {
+      playerAnalyticsService.recordPlayerQuit(serverId, { uuid: identity.uuid, name: playerName }).catch(err => {
+        console.warn(`[LOG-WATCHER] Error in recordPlayerQuit for ${playerName}:`, err.message);
+      });
+    }
+
     discordService.sendChatBroadcast(serverId, {
       username: playerName,
       message: `📤 **${playerName}** left the game.`,

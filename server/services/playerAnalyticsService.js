@@ -8,6 +8,72 @@ const DB_URL = rawDbUrl.includes(':3307')
 let pool = null;
 const activeSessionsCache = new Map(); // key: `${serverId}:${uuid}` -> { sessionId, startTime, lastHeartbeat, username }
 
+// GeoIP Resolution Cache (24-hour TTL)
+const geoCache = new Map();
+
+async function resolveGeoIp(ip) {
+  if (!ip || ip === '127.0.0.1' || ip === 'localhost' || ip === '::1' || ip === 'unknown') {
+    return { country: 'Local Network', countryCode: 'LAN', city: 'LAN' };
+  }
+  const cleanIp = ip.replace(/^.*:/, '').split(',')[0].trim();
+  if (geoCache.has(cleanIp)) {
+    return geoCache.get(cleanIp);
+  }
+
+  // Private network detection
+  if (/^(10\.|192\.168\.|172\.(1[6-9]|2[0-9]|3[0-1])\.)/.test(cleanIp)) {
+    const res = { country: 'Internal Network', countryCode: 'LAN', city: 'Cluster' };
+    geoCache.set(cleanIp, res);
+    return res;
+  }
+
+  try {
+    const response = await fetch(`http://ip-api.com/json/${cleanIp}?fields=status,country,countryCode,city`, {
+      signal: AbortSignal.timeout(3000)
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.status === 'success') {
+        const result = {
+          country: data.country || 'Unknown',
+          countryCode: data.countryCode || 'XX',
+          city: data.city || 'Unknown'
+        };
+        geoCache.set(cleanIp, result);
+        return result;
+      }
+    }
+  } catch (_) {}
+
+  try {
+    const resp2 = await fetch(`https://ipwho.is/${cleanIp}`, { signal: AbortSignal.timeout(3000) });
+    if (resp2.ok) {
+      const d2 = await resp2.json();
+      if (d2.success) {
+        const res2 = {
+          country: d2.country || 'Unknown',
+          countryCode: d2.country_code || 'XX',
+          city: d2.city || 'Unknown'
+        };
+        geoCache.set(cleanIp, res2);
+        return res2;
+      }
+    }
+  } catch (_) {}
+
+  return { country: 'Unknown', countryCode: 'XX', city: 'Unknown' };
+}
+
+function redactIp(ip) {
+  if (!ip) return 'unknown';
+  const ipv4 = ip.replace(/^.*:/, '').trim();
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(ipv4)) {
+    const parts = ipv4.split('.');
+    return `${parts[0]}.${parts[1]}.${parts[2]}.0/24`;
+  }
+  return 'anonymized';
+}
+
 async function getPool() {
   if (!pool) {
     pool = mysql.createPool({
@@ -42,11 +108,27 @@ async function init() {
         total_advancements INT DEFAULT 0,
         last_server_id VARCHAR(64),
         is_online TINYINT(1) DEFAULT 0,
+        country VARCHAR(64) DEFAULT 'Unknown',
+        country_code VARCHAR(8) DEFAULT 'XX',
+        city VARCHAR(64) DEFAULT 'Unknown',
+        last_ip VARCHAR(64) DEFAULT NULL,
         INDEX idx_username (username),
         INDEX idx_playtime (total_playtime_ms),
-        INDEX idx_last_seen (last_seen)
+        INDEX idx_last_seen (last_seen),
+        INDEX idx_country_code (country_code)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Ensure player columns exist if table was previously created
+    const playerCols = [
+      "ADD COLUMN IF NOT EXISTS country VARCHAR(64) DEFAULT 'Unknown'",
+      "ADD COLUMN IF NOT EXISTS country_code VARCHAR(8) DEFAULT 'XX'",
+      "ADD COLUMN IF NOT EXISTS city VARCHAR(64) DEFAULT 'Unknown'",
+      "ADD COLUMN IF NOT EXISTS last_ip VARCHAR(64) DEFAULT NULL"
+    ];
+    for (const col of playerCols) {
+      try { await p.query(`ALTER TABLE analytics_players ${col}`); } catch (_) {}
+    }
 
     // 2. Create analytics_sessions table
     await p.query(`
@@ -62,6 +144,10 @@ async function init() {
         last_x DOUBLE,
         last_y DOUBLE,
         last_z DOUBLE,
+        ip_address VARCHAR(64) DEFAULT NULL,
+        country VARCHAR(64) DEFAULT 'Unknown',
+        country_code VARCHAR(8) DEFAULT 'XX',
+        city VARCHAR(64) DEFAULT 'Unknown',
         is_active TINYINT(1) DEFAULT 1,
         INDEX idx_player_uuid (player_uuid),
         INDEX idx_server_id (server_id),
@@ -69,6 +155,17 @@ async function init() {
         INDEX idx_is_active (is_active)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
+
+    // Ensure session columns exist if table was previously created
+    const sessionCols = [
+      "ADD COLUMN IF NOT EXISTS ip_address VARCHAR(64) DEFAULT NULL",
+      "ADD COLUMN IF NOT EXISTS country VARCHAR(64) DEFAULT 'Unknown'",
+      "ADD COLUMN IF NOT EXISTS country_code VARCHAR(8) DEFAULT 'XX'",
+      "ADD COLUMN IF NOT EXISTS city VARCHAR(64) DEFAULT 'Unknown'"
+    ];
+    for (const col of sessionCols) {
+      try { await p.query(`ALTER TABLE analytics_sessions ${col}`); } catch (_) {}
+    }
 
     // 3. Create analytics_events table
     await p.query(`
@@ -174,9 +271,48 @@ async function importHistoricalPlanData(p) {
 }
 
 /**
+ * Record real player IP address and GeoIP metadata on login
+ */
+async function recordPlayerIp(playerName, ip, geoData = null) {
+  if (!playerName || !ip) return;
+  try {
+    const geo = geoData || await resolveGeoIp(ip);
+    const anonymizedIp = redactIp(ip);
+    const p = await getPool();
+
+    // Update analytics_players with latest country, city, and anonymized IP
+    await p.query(`
+      UPDATE analytics_players
+      SET 
+        country = COALESCE(?, country),
+        country_code = COALESCE(?, country_code),
+        city = COALESCE(?, city),
+        last_ip = ?
+      WHERE LOWER(username) = LOWER(?)
+    `, [geo.country, geo.countryCode, geo.city, anonymizedIp, playerName]);
+
+    // Also update any active sessions for this player that don't have GeoIP yet
+    await p.query(`
+      UPDATE analytics_sessions s
+      JOIN analytics_players p ON s.player_uuid = p.uuid
+      SET 
+        s.ip_address = COALESCE(s.ip_address, ?),
+        s.country = COALESCE(s.country, ?),
+        s.country_code = COALESCE(s.country_code, ?),
+        s.city = COALESCE(s.city, ?)
+      WHERE LOWER(p.username) = LOWER(?) AND s.is_active = 1
+    `, [anonymizedIp, geo.country, geo.countryCode, geo.city, playerName]);
+
+    console.log(`[ANALYTICS] Updated GeoIP for player ${playerName}: ${geo.city}, ${geo.country} (${geo.countryCode})`);
+  } catch (err) {
+    console.error('[ANALYTICS] Error recording player IP:', err.message);
+  }
+}
+
+/**
  * Handle Player Join Event
  */
-async function recordPlayerJoin(serverId, { uuid, name }) {
+async function recordPlayerJoin(serverId, { uuid, name, ip = null, geo = null }) {
   if (!uuid || !name) return;
   const now = Date.now();
   const sessionKey = `${serverId}:${uuid}`;
@@ -184,15 +320,26 @@ async function recordPlayerJoin(serverId, { uuid, name }) {
   try {
     const p = await getPool();
 
+    let resolvedGeo = geo;
+    let anonymizedIp = null;
+    if (ip) {
+      resolvedGeo = geo || await resolveGeoIp(ip);
+      anonymizedIp = redactIp(ip);
+    }
+
     await p.query(`
-      INSERT INTO analytics_players (uuid, username, first_seen, last_seen, last_server_id, is_online)
-      VALUES (?, ?, ?, ?, ?, 1)
+      INSERT INTO analytics_players (uuid, username, first_seen, last_seen, last_server_id, is_online, country, country_code, city, last_ip)
+      VALUES (?, ?, ?, ?, ?, 1, COALESCE(?, 'Unknown'), COALESCE(?, 'XX'), COALESCE(?, 'Unknown'), ?)
       ON DUPLICATE KEY UPDATE
         username = VALUES(username),
         last_seen = VALUES(last_seen),
         last_server_id = VALUES(last_server_id),
-        is_online = 1
-    `, [uuid, name, now, now, serverId]);
+        is_online = 1,
+        country = CASE WHEN VALUES(country) != 'Unknown' THEN VALUES(country) ELSE country END,
+        country_code = CASE WHEN VALUES(country_code) != 'XX' THEN VALUES(country_code) ELSE country_code END,
+        city = CASE WHEN VALUES(city) != 'Unknown' THEN VALUES(city) ELSE city END,
+        last_ip = COALESCE(VALUES(last_ip), last_ip)
+    `, [uuid, name, now, now, serverId, resolvedGeo?.country, resolvedGeo?.countryCode, resolvedGeo?.city, anonymizedIp]);
 
     await p.query(`
       UPDATE analytics_sessions 
@@ -201,9 +348,17 @@ async function recordPlayerJoin(serverId, { uuid, name }) {
     `, [now, now, uuid, serverId]);
 
     const [res] = await p.query(`
-      INSERT INTO analytics_sessions (player_uuid, server_id, session_start, is_active)
-      VALUES (?, ?, ?, 1)
-    `, [uuid, serverId, now]);
+      INSERT INTO analytics_sessions (player_uuid, server_id, session_start, ip_address, country, country_code, city, is_active)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+    `, [
+      uuid, 
+      serverId, 
+      now, 
+      anonymizedIp, 
+      resolvedGeo?.country || 'Unknown', 
+      resolvedGeo?.countryCode || 'XX', 
+      resolvedGeo?.city || 'Unknown'
+    ]);
 
     activeSessionsCache.set(sessionKey, {
       sessionId: res.insertId,
@@ -217,7 +372,7 @@ async function recordPlayerJoin(serverId, { uuid, name }) {
       VALUES (?, ?, 'join', 'Joined server', ?)
     `, [uuid, serverId, now]);
 
-    console.log(`[ANALYTICS] Session started for ${name} (${uuid}) on ${serverId}`);
+    console.log(`[ANALYTICS] Session started for ${name} (${uuid}) on ${serverId}${resolvedGeo?.country ? ` from ${resolvedGeo.country}` : ''}`);
   } catch (err) {
     console.error('[ANALYTICS] Error recording player join:', err.message);
   }
@@ -573,6 +728,10 @@ async function getPlayerProfile(uuidOrName) {
     totalSessions: Number(player.total_sessions),
     totalDeaths: Number(player.total_deaths),
     totalAdvancements: Number(player.total_advancements),
+    country: player.country || 'Unknown',
+    countryCode: player.country_code || 'XX',
+    city: player.city || 'Unknown',
+    lastIp: player.last_ip || null,
     servers: serverBreakdown.map(s => ({
       serverId: s.server_id,
       playtimeMs: Number(s.playtime_ms),
@@ -587,6 +746,10 @@ async function getPlayerProfile(uuidOrName) {
       durationMs: Number(s.duration_ms),
       durationFormatted: formatDuration(s.duration_ms),
       dimension: s.last_dimension,
+      ipAddress: s.ip_address || null,
+      country: s.country || 'Unknown',
+      countryCode: s.country_code || 'XX',
+      city: s.city || 'Unknown',
       isActive: Boolean(s.is_active)
     })),
     recentEvents: recentEvents.map(e => ({
@@ -626,6 +789,18 @@ async function getNetworkOverview() {
     GROUP BY server_id
   `);
 
+  const [geoStats] = await p.query(`
+    SELECT 
+      country,
+      country_code,
+      COUNT(uuid) as player_count
+    FROM analytics_players
+    WHERE country IS NOT NULL AND country != 'Unknown'
+    GROUP BY country, country_code
+    ORDER BY player_count DESC
+    LIMIT 10
+  `);
+
   const tot = totals[0] || {};
   return {
     totalPlayers: Number(tot.total_players || 0),
@@ -636,6 +811,11 @@ async function getNetworkOverview() {
     totalDeaths: Number(tot.network_deaths || 0),
     totalAdvancements: Number(tot.network_advancements || 0),
     currentlyOnline: Number(tot.currently_online || 0),
+    geoDistribution: geoStats.map(g => ({
+      country: g.country,
+      countryCode: g.country_code,
+      count: Number(g.player_count)
+    })),
     serverDistribution: serverStats.map(s => ({
       serverId: s.server_id,
       uniquePlayers: Number(s.unique_players),
@@ -686,6 +866,8 @@ function formatDuration(ms) {
 
 module.exports = {
   init,
+  resolveGeoIp,
+  recordPlayerIp,
   recordPlayerJoin,
   recordPlayerQuit,
   recordPlayerDeath,
