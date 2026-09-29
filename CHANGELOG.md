@@ -2,6 +2,22 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.13.0] - 2026-09-29
+### Added
+- **⚡ Frontend Route-Level Code Splitting & Manual Vendor Chunking**:
+  - Replaced eager route imports with `React.lazy()` and `<Suspense fallback={<PageLoader />}>` across all 21 administrative views in `App.tsx`.
+  - Configured manual vendor chunking in `vite.config.ts` separating `vendor-react` (92 kB), `vendor-ui` (58 kB), and `vendor-charts` (383 kB), slashing monolithic bundle overhead and optimizing first-contentful paint.
+- **🗺️ Player GeoIP Visualization & Modpack Download Telemetry**:
+  - Updated `playerAnalyticsService.js` and `PlayerAnalytics.tsx` with dynamic country flags (`flagcdn.com`), country names, and city badges in the Leaderboard table and Player Profile modals.
+  - Added "Top Player Geographic Regions" distribution widget in Network Overview.
+  - Added dedicated "Downloads & Files" tab in `PlayerAnalytics.tsx` querying `/api/player-stats/downloads` to track modpack client downloads, geographic spread, and device/OS telemetry.
+- **⚙️ Settings Modernization & Cluster Microservice Health Checks**:
+  - Connected `Settings.tsx` to dynamic `__APP_VERSION__` and updated release history.
+  - Implemented live ping health check cards for cluster microservices (`pb-admin`, `pb-api`, MariaDB, MinIO).
+- **📋 Fleet Logs Quick-Links & Backup Restore Drilldown**:
+  - Added automated player name pattern matching in `FleetLogs.tsx` with clickable interactive player badges opening an instant Player Analytics profile drawer.
+  - Added "Backup Archive Drilldown & Restore" inspection modal in `Backups.tsx` providing exact node Docker commands and extraction instructions.
+
 ## [2.12.0] - 2026-09-29
 ### Added
 - **🌍 Player Connection GeoIP Tracking & Analytics Pipeline**:

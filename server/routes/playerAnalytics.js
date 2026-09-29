@@ -47,15 +47,19 @@ router.get('/player/:uuidOrName', async (req, res) => {
   }
 });
 
-// GET /api/player-stats/search?q=...
-router.get('/search', async (req, res) => {
+// GET /api/player-stats/downloads - Proxies file download analytics from pb-api
+router.get('/downloads', async (req, res) => {
   try {
-    const { q = '' } = req.query;
-    const results = await analyticsService.searchPlayers(q);
-    res.json(results);
+    const apiUrl = process.env.PB_API_URL || 'http://pb-api:4000';
+    const response = await fetch(`${apiUrl}/api/files/analytics`);
+    if (!response.ok) {
+      throw new Error(`pb-api returned status ${response.status}`);
+    }
+    const data = await response.json();
+    res.json(data);
   } catch (err) {
-    console.error('[API-ANALYTICS] Search error:', err.message);
-    res.status(500).json({ error: 'Player search failed', message: err.message });
+    console.error('[API-ANALYTICS] File analytics proxy error:', err.message);
+    res.status(502).json({ error: 'Failed to fetch file analytics from pb-api', message: err.message });
   }
 });
 

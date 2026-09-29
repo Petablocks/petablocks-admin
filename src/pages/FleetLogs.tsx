@@ -11,6 +11,9 @@ import {
   Zap,
   Layers,
   ChevronDown,
+  User,
+  X,
+  ExternalLink,
 } from 'lucide-react'
 
 interface LogEntry {
@@ -64,6 +67,14 @@ export default function FleetLogsPage() {
   const [limit, setLimit] = useState<number>(150)
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [autoRefresh, setAutoRefresh] = useState(false)
+  const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
+
+  // Query player profile for quick preview modal
+  const { data: playerProfile, isLoading: loadingProfile } = useQuery({
+    queryKey: ['fleet-player-profile', selectedPlayer],
+    queryFn: () => fetch(`/api/player-stats/player/${selectedPlayer}`).then((r) => r.json()),
+    enabled: Boolean(selectedPlayer),
+  })
 
   // Query fleet logs
   const { data, isLoading, refetch, isFetching } = useQuery<FleetLogsResponse>({
@@ -482,17 +493,45 @@ export default function FleetLogsPage() {
                   {log.thread !== 'System' && (
                     <span className="text-gray-500 mr-2 select-none">[{log.thread}]</span>
                   )}
-                  <span
-                    className={
-                      log.level === 'ERROR' || log.level === 'FATAL'
-                        ? 'text-rose-300 font-semibold'
-                        : log.level === 'WARN'
-                        ? 'text-amber-200'
-                        : 'text-gray-200'
-                    }
-                  >
-                    {log.message}
-                  </span>
+                  {(() => {
+                    // Check for player name patterns (e.g. joined the game, left the game, died, issued server command)
+                    const playerMatch = log.message.match(
+                      /\b([a-zA-Z0-9_]{3,16})\s+(?:logged in|lost connection|joined the game|left the game|died|fell|drowned|blew up|was slain|issued server command)/i
+                    )
+                    const detectedPlayer = playerMatch ? playerMatch[1] : null
+
+                    return (
+                      <span
+                        className={
+                          log.level === 'ERROR' || log.level === 'FATAL'
+                            ? 'text-rose-300 font-semibold'
+                            : log.level === 'WARN'
+                            ? 'text-amber-200'
+                            : 'text-gray-200'
+                        }
+                      >
+                        {detectedPlayer ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedPlayer(detectedPlayer)
+                              }}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.2 mx-0.5 rounded bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 font-bold transition-colors cursor-pointer"
+                              title={`View ${detectedPlayer} analytics`}
+                            >
+                              <User size={10} />
+                              {detectedPlayer}
+                            </button>
+                            {log.message.slice(detectedPlayer.length)}
+                          </>
+                        ) : (
+                          log.message
+                        )}
+                      </span>
+                    )
+                  })()}
                 </div>
 
                 {/* Copy Button */}
@@ -513,6 +552,89 @@ export default function FleetLogsPage() {
           </div>
         )}
       </div>
+
+      {/* Quick Player Profile Drawer / Modal */}
+      {selectedPlayer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-md shadow-2xl overflow-hidden font-sans">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-muted/20">
+              <div className="flex items-center gap-3">
+                <img
+                  src={`https://mc-heads.net/avatar/${selectedPlayer}/48`}
+                  alt={selectedPlayer}
+                  className="w-8 h-8 rounded-lg border border-border"
+                />
+                <div>
+                  <h3 className="font-bold text-sm text-foreground flex items-center gap-2">
+                    {selectedPlayer}
+                    {playerProfile?.isOnline && (
+                      <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                        ONLINE
+                      </span>
+                    )}
+                  </h3>
+                  <p className="text-[11px] text-muted-foreground font-mono">
+                    {playerProfile?.uuid || 'Scanning profile...'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedPlayer(null)}
+                className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-4 space-y-3 text-xs">
+              {loadingProfile ? (
+                <p className="text-center py-6 text-muted-foreground">Loading player analytics telemetry...</p>
+              ) : playerProfile?.error ? (
+                <div className="py-4 text-center">
+                  <p className="text-amber-400 font-bold mb-1">Player Profile Not Yet Indexed</p>
+                  <p className="text-muted-foreground text-[11px]">
+                    {selectedPlayer} is active in live logs but has not registered a persistent session in MariaDB yet.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2.5 rounded-lg bg-muted/20 border border-border">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Playtime</span>
+                      <span className="font-mono font-bold text-emerald-400 text-sm mt-0.5 block">
+                        {playerProfile?.totalPlaytimeFormatted || '0m'}
+                      </span>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-muted/20 border border-border">
+                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Sessions</span>
+                      <span className="font-mono font-bold text-sky-400 text-sm mt-0.5 block">
+                        {playerProfile?.totalSessions || 0}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-lg bg-muted/20 border border-border">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">Location / GeoIP</span>
+                    <span className="font-medium text-foreground block mt-0.5">
+                      {playerProfile?.city && playerProfile.city !== 'Unknown' ? `${playerProfile.city}, ` : ''}
+                      {playerProfile?.country && playerProfile.country !== 'Unknown' ? playerProfile.country : 'Unknown Region'}
+                    </span>
+                  </div>
+
+                  <a
+                    href={`/analytics?player=${selectedPlayer}`}
+                    className="w-full mt-2 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-center block transition-colors flex items-center justify-center gap-1.5"
+                  >
+                    <span>Open Full Player Analytics</span>
+                    <ExternalLink size={12} />
+                  </a>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

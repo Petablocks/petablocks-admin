@@ -15,6 +15,10 @@ import {
   X,
   Globe,
   Package,
+  Eye,
+  Terminal,
+  Check,
+  Copy,
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
@@ -177,6 +181,8 @@ export default function BackupsPage() {
   const [selectedServer, setSelectedServer] = useState<string>('lobby-main')
   const [selectedType, setSelectedType] = useState<'world' | 'full'>('world')
   const [triggerError, setTriggerError] = useState<string | null>(null)
+  const [previewBackup, setPreviewBackup] = useState<BackupRecord | null>(null)
+  const [copiedCmd, setCopiedCmd] = useState(false)
 
   const { data, isLoading, refetch } = useQuery<{ backups: BackupRecord[]; storage?: StorageResponse }>({
     queryKey: ['backups'],
@@ -451,13 +457,22 @@ export default function BackupsPage() {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 justify-end">
                           {backup.status === 'completed' && backup.size_bytes > 0 && (
-                            <button
-                              onClick={() => handleDownload(backup.minio_key, backup.minio_key.split('/').pop()!)}
-                              className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors"
-                              title="Download archive (.tar.gz)"
-                            >
-                              <Download className="h-3.5 w-3.5" />
-                            </button>
+                            <>
+                              <button
+                                onClick={() => setPreviewBackup(backup)}
+                                className="p-1.5 rounded-lg bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 transition-colors"
+                                title="Inspect archive & restore instructions"
+                              >
+                                <Eye className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => handleDownload(backup.minio_key, backup.minio_key.split('/').pop()!)}
+                                className="p-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/30 transition-colors"
+                                title="Download archive (.tar.gz)"
+                              >
+                                <Download className="h-3.5 w-3.5" />
+                              </button>
+                            </>
                           )}
                           <button
                             onClick={() => {
@@ -604,6 +619,103 @@ export default function BackupsPage() {
                   <><Play className="h-3.5 w-3.5" /> Start {selectedType === 'full' ? 'Full' : 'World'} Backup</>
                 )}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Restore Preview & Extraction Modal */}
+      {previewBackup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-card border border-border rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between p-4 border-b border-border bg-muted/20">
+              <div className="flex items-center gap-2.5">
+                <ArchiveRestore className="h-5 w-5 text-sky-400" />
+                <div>
+                  <h3 className="font-bold text-sm text-foreground">Backup Archive Drilldown &amp; Restore</h3>
+                  <p className="text-[11px] text-muted-foreground font-mono">{previewBackup.minio_key.split('/').pop()}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setPreviewBackup(null)}
+                className="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-2.5 rounded-xl bg-muted/20 border border-border">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Server Target</span>
+                  <span className="font-bold text-foreground block mt-0.5">{previewBackup.server_name}</span>
+                  <span className="text-[10px] text-muted-foreground font-mono block">{previewBackup.server_id}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-muted/20 border border-border">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground block">Archive Size &amp; Type</span>
+                  <span className="font-mono font-bold text-emerald-400 block mt-0.5">{formatBytes(previewBackup.size_bytes)}</span>
+                  <span className="text-[10px] text-muted-foreground uppercase font-bold block">{previewBackup.backup_type} backup</span>
+                </div>
+              </div>
+
+              <div>
+                <span className="text-[10px] uppercase font-bold text-muted-foreground block mb-1.5 flex items-center gap-1.5">
+                  <Terminal className="h-3.5 w-3.5 text-primary" />
+                  CLI Node Extraction Command:
+                </span>
+                <div className="relative group">
+                  <pre className="p-3 rounded-xl bg-black/80 border border-border font-mono text-[11px] text-emerald-400 overflow-x-auto whitespace-pre-wrap select-all">
+                    {`# 1. Stop server container
+docker stop pb-${previewBackup.server_id}
+
+# 2. Extract backup archive into server root
+tar -xzvf ${previewBackup.minio_key.split('/').pop()} -C /opt/petablocks/servers/${previewBackup.server_id}/
+
+# 3. Start container
+docker start pb-${previewBackup.server_id}`}
+                  </pre>
+                  <button
+                    onClick={() => {
+                      const cmd = `docker stop pb-${previewBackup.server_id} && tar -xzvf ${previewBackup.minio_key.split('/').pop()} -C /opt/petablocks/servers/${previewBackup.server_id}/ && docker start pb-${previewBackup.server_id}`
+                      navigator.clipboard.writeText(cmd)
+                      setCopiedCmd(true)
+                      setTimeout(() => setCopiedCmd(false), 2000)
+                    }}
+                    className="absolute top-2 right-2 p-1.5 rounded-lg bg-card/80 hover:bg-card border border-border text-foreground transition-colors flex items-center gap-1 text-[10px] font-mono"
+                  >
+                    {copiedCmd ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                    <span>{copiedCmd ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-[11px] text-amber-300">
+                <p className="font-bold flex items-center gap-1.5 mb-1">
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  Pre-Restore Safety Check
+                </p>
+                <p className="leading-relaxed opacity-90">
+                  Always ensure a fresh snapshot is taken before restoring over an active world directory. Tar extractions overwrite existing dimension files in place.
+                </p>
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setPreviewBackup(null)}
+                  className="flex-1 py-2 bg-muted hover:bg-muted/80 text-foreground font-bold rounded-xl"
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => {
+                    handleDownload(previewBackup.minio_key, previewBackup.minio_key.split('/').pop()!)
+                  }}
+                  className="flex-1 py-2 bg-primary hover:bg-primary/90 text-primary-foreground font-bold rounded-xl flex items-center justify-center gap-1.5"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  Download Archive
+                </button>
+              </div>
             </div>
           </div>
         </div>

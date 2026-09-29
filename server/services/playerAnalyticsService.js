@@ -620,12 +620,15 @@ async function getLeaderboard({ serverId = 'all', sortBy = 'playtime', limit = 2
         p.first_seen,
         p.last_seen,
         p.is_online,
+        p.country,
+        p.country_code,
+        p.city,
         COALESCE(SUM(s.duration_ms), 0) as server_playtime_ms,
         COUNT(s.id) as server_sessions
       FROM analytics_players p
       JOIN analytics_sessions s ON p.uuid = s.player_uuid
       WHERE s.server_id = ?
-      GROUP BY p.uuid, p.username, p.first_seen, p.last_seen, p.is_online
+      GROUP BY p.uuid, p.username, p.first_seen, p.last_seen, p.is_online, p.country, p.country_code, p.city
       ORDER BY server_playtime_ms DESC
       LIMIT ?
     `, [serverId, lim]);
@@ -636,6 +639,9 @@ async function getLeaderboard({ serverId = 'all', sortBy = 'playtime', limit = 2
       username: r.username,
       avatarUrl: `https://mc-heads.net/avatar/${r.uuid}/64`,
       isOnline: Boolean(r.is_online),
+      country: r.country || 'Unknown',
+      countryCode: r.country_code || 'XX',
+      city: r.city || 'Unknown',
       playtimeMs: Number(r.server_playtime_ms || 0),
       playtimeFormatted: formatDuration(r.server_playtime_ms),
       sessions: Number(r.server_sessions || 0),
@@ -650,7 +656,7 @@ async function getLeaderboard({ serverId = 'all', sortBy = 'playtime', limit = 2
   else if (sortBy === 'sessions') orderCol = 'total_sessions';
 
   const [rows] = await p.query(`
-    SELECT uuid, username, first_seen, last_seen, total_playtime_ms, total_sessions, total_deaths, total_advancements, last_server_id, is_online
+    SELECT uuid, username, first_seen, last_seen, total_playtime_ms, total_sessions, total_deaths, total_advancements, last_server_id, is_online, country, country_code, city
     FROM analytics_players
     ORDER BY ${orderCol} DESC
     LIMIT ?
@@ -663,6 +669,9 @@ async function getLeaderboard({ serverId = 'all', sortBy = 'playtime', limit = 2
     avatarUrl: `https://mc-heads.net/avatar/${r.uuid}/64`,
     isOnline: Boolean(r.is_online),
     lastServerId: r.last_server_id,
+    country: r.country || 'Unknown',
+    countryCode: r.country_code || 'XX',
+    city: r.city || 'Unknown',
     playtimeMs: Number(r.total_playtime_ms || 0),
     playtimeFormatted: formatDuration(r.total_playtime_ms),
     sessions: Number(r.total_sessions || 0),

@@ -1,28 +1,32 @@
+import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Loader2 } from 'lucide-react'
 import Layout from './components/Layout'
-import DashboardPage from './pages/Dashboard'
-import MinecraftServersPage from './pages/MinecraftServers'
-import MinecraftServerDetailPage from './pages/MinecraftServerDetail'
-import ServerFleetPage from './pages/ServerFleet'
-import ServerDashboardPage from './pages/ServerDashboard'
-import NodesPage from './pages/Nodes'
-import ContainersPage from './pages/Containers'
-import MonitoringPage from './pages/Monitoring'
-import DatabasesPage from './pages/Databases'
-import FileManagerPage from './pages/FileManager'
-import BackupsPage from './pages/Backups'
-import SettingsPage from './pages/Settings'
-import PlayerAnalyticsPage from './pages/PlayerAnalytics'
-import MaintenanceManagerPage from './pages/MaintenanceManager'
-import RegisteredUsersPage from './pages/RegisteredUsers'
-import RoleMappingsPage from './pages/RoleMappings'
-import FleetLogsPage from './pages/FleetLogs'
-import CommunityEventsPage from './pages/CommunityEvents'
-import ModerationPage from './pages/Moderation'
-import RailwayDispatchPage from './pages/RailwayDispatch'
-import SupportDeskPage from './pages/SupportDesk'
-import AnnouncementsPage from './pages/Announcements'
+
+// Lazy-loaded routes for code splitting
+const DashboardPage = lazy(() => import('./pages/Dashboard'))
+const MinecraftServersPage = lazy(() => import('./pages/MinecraftServers'))
+const MinecraftServerDetailPage = lazy(() => import('./pages/MinecraftServerDetail'))
+const ServerFleetPage = lazy(() => import('./pages/ServerFleet'))
+const ServerDashboardPage = lazy(() => import('./pages/ServerDashboard'))
+const NodesPage = lazy(() => import('./pages/Nodes'))
+const ContainersPage = lazy(() => import('./pages/Containers'))
+const MonitoringPage = lazy(() => import('./pages/Monitoring'))
+const DatabasesPage = lazy(() => import('./pages/Databases'))
+const FileManagerPage = lazy(() => import('./pages/FileManager'))
+const BackupsPage = lazy(() => import('./pages/Backups'))
+const SettingsPage = lazy(() => import('./pages/Settings'))
+const PlayerAnalyticsPage = lazy(() => import('./pages/PlayerAnalytics'))
+const MaintenanceManagerPage = lazy(() => import('./pages/MaintenanceManager'))
+const RegisteredUsersPage = lazy(() => import('./pages/RegisteredUsers'))
+const RoleMappingsPage = lazy(() => import('./pages/RoleMappings'))
+const FleetLogsPage = lazy(() => import('./pages/FleetLogs'))
+const CommunityEventsPage = lazy(() => import('./pages/CommunityEvents'))
+const ModerationPage = lazy(() => import('./pages/Moderation'))
+const RailwayDispatchPage = lazy(() => import('./pages/RailwayDispatch'))
+const SupportDeskPage = lazy(() => import('./pages/SupportDesk'))
+const AnnouncementsPage = lazy(() => import('./pages/Announcements'))
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -33,36 +37,47 @@ const queryClient = new QueryClient({
   },
 })
 
+function PageLoader() {
+  return (
+    <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-3">
+      <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      <span className="text-xs text-muted-foreground font-mono animate-pulse">Loading module...</span>
+    </div>
+  )
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Routes>
-        <Route path="/" element={<Layout />}>
-          <Route index element={<Navigate to="/dashboard" replace />} />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="servers" element={<ServerFleetPage />} />
-          <Route path="servers/:nodeId/:serverId" element={<ServerDashboardPage />} />
-          <Route path="nodes" element={<NodesPage />} />
-          <Route path="minecraft" element={<MinecraftServersPage />} />
-          <Route path="minecraft/:id" element={<MinecraftServerDetailPage />} />
-          <Route path="fleet-logs" element={<FleetLogsPage />} />
-          <Route path="events" element={<CommunityEventsPage />} />
-          <Route path="analytics" element={<PlayerAnalyticsPage />} />
-          <Route path="moderation" element={<ModerationPage />} />
-          <Route path="railway" element={<RailwayDispatchPage />} />
-          <Route path="support" element={<SupportDeskPage />} />
-          <Route path="users" element={<RegisteredUsersPage />} />
-          <Route path="role-mappings" element={<RoleMappingsPage />} />
-          <Route path="maintenance" element={<MaintenanceManagerPage />} />
-          <Route path="announcements" element={<AnnouncementsPage />} />
-          <Route path="containers" element={<ContainersPage />} />
-          <Route path="monitoring" element={<MonitoringPage />} />
-          <Route path="databases" element={<DatabasesPage />} />
-          <Route path="files" element={<FileManagerPage />} />
-          <Route path="backups" element={<BackupsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
+      <Suspense fallback={<PageLoader />}>
+        <Routes>
+          <Route path="/" element={<Layout />}>
+            <Route index element={<Navigate to="/dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="servers" element={<ServerFleetPage />} />
+            <Route path="servers/:nodeId/:serverId" element={<ServerDashboardPage />} />
+            <Route path="nodes" element={<NodesPage />} />
+            <Route path="minecraft" element={<MinecraftServersPage />} />
+            <Route path="minecraft/:id" element={<MinecraftServerDetailPage />} />
+            <Route path="fleet-logs" element={<FleetLogsPage />} />
+            <Route path="events" element={<CommunityEventsPage />} />
+            <Route path="analytics" element={<PlayerAnalyticsPage />} />
+            <Route path="moderation" element={<ModerationPage />} />
+            <Route path="railway" element={<RailwayDispatchPage />} />
+            <Route path="support" element={<SupportDeskPage />} />
+            <Route path="users" element={<RegisteredUsersPage />} />
+            <Route path="role-mappings" element={<RoleMappingsPage />} />
+            <Route path="maintenance" element={<MaintenanceManagerPage />} />
+            <Route path="announcements" element={<AnnouncementsPage />} />
+            <Route path="containers" element={<ContainersPage />} />
+            <Route path="monitoring" element={<MonitoringPage />} />
+            <Route path="databases" element={<DatabasesPage />} />
+            <Route path="files" element={<FileManagerPage />} />
+            <Route path="backups" element={<BackupsPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </QueryClientProvider>
   )
 }
