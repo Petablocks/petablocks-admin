@@ -11,6 +11,7 @@ const backupsRouter = require('./routes/backups');
 const serverManagerRouter = require('./routes/serverManager');
 const playerAnalyticsRouter = require('./routes/playerAnalytics');
 const maintenanceRouter = require('./routes/maintenance');
+const announcementsRouter = require('./routes/announcements');
 const usersRouter = require('./routes/users');
 const supportRouter = require('./routes/supportRouter');
 const moderationRouter = require('./routes/moderation');
@@ -85,6 +86,7 @@ app.use('/api/server-manager', requireStaffAuth, requireAdminAuth, serverManager
 app.use('/api/minecraft', requireStaffAuth, minecraftRouter);
 app.use('/api/player-stats', requireStaffAuth, playerAnalyticsRouter);
 app.use('/api/maintenance', requireStaffAuth, maintenanceRouter);
+app.use('/api/announcements', requireStaffAuth, announcementsRouter);
 app.use('/api/users', requireStaffAuth, requireAdminAuth, usersRouter);
 app.use('/api/support', requireStaffAuth, supportRouter);
 app.use('/api/moderation', requireStaffAuth, moderationRouter);

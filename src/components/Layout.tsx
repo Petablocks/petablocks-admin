@@ -28,6 +28,7 @@ import {
   TrainTrack,
   ChevronDown,
   LifeBuoy,
+  Megaphone,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -177,6 +178,7 @@ export default function Layout() {
     if (pathname === '/users') return 'Registered Users'
     if (pathname === '/role-mappings') return 'Role Mappings'
     if (pathname === '/maintenance') return 'Maintenance Hub'
+    if (pathname === '/announcements') return 'Announcements & Fleet Dispatch'
     if (pathname === '/backups') return 'World Backups'
     if (pathname === '/nodes') return 'VM Nodes'
     if (pathname === '/containers') return 'Containers'
@@ -240,6 +242,7 @@ export default function Layout() {
             ) : null,
         },
         { to: '/events', icon: Calendar, label: 'Events & Tips' },
+        { to: '/announcements', icon: Megaphone, label: 'Announcements' },
         { to: '/analytics', icon: Users, label: 'Player Analytics' },
       ],
     },

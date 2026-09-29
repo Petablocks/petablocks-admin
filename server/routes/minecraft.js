@@ -10,8 +10,13 @@ const playerAnalyticsService = require('../services/playerAnalyticsService');
 
 const router = Router();
 
-// SSH private key loaded from environment variable or file
-const DEFAULT_SSH_KEY = process.env.MC_SSH_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
+// Cluster SSH private key loaded from environment variable or file
+function getClusterSshKey() {
+  const raw = process.env.MC_SSH_KEY || process.env.MC_SSH_PRIVATE_KEY || (process.env.MC_SSH_KEY_FILE && fs.existsSync(process.env.MC_SSH_KEY_FILE) ? fs.readFileSync(process.env.MC_SSH_KEY_FILE, 'utf8') : '');
+  if (!raw) return '';
+  return raw.includes('\\n') ? raw.replace(/\\n/g, '\n') : raw;
+}
+const DEFAULT_SSH_KEY = getClusterSshKey();
 
 const ROTATED_SECRET_TOKEN = '07f01fcbb74c9a64af468294770302ad2ce8f68fc1ddcc21b363505adac1a162';
 const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN || ROTATED_SECRET_TOKEN;
@@ -26,6 +31,7 @@ const SERVERS = [
     id: 'velocity-proxy',
     modServerId: 'velocity-proxy',
     name: 'PETABLOCKS Network Proxy',
+    nodeHost: process.env.MC_PROXY_NODE_HOST || '10.20.110.118',
     host: process.env.MC_PROXY_HOST || '10.20.110.118',
     port: parseInt(process.env.MC_PROXY_PORT || '11601', 10),
     displayHost: 'play.petablocks.com',
@@ -41,6 +47,7 @@ const SERVERS = [
     id: 'lobby-main',
     modServerId: 'lobby-main',
     name: 'PETABLOCKS Lobby Hub',
+    nodeHost: process.env.MC_LOBBY_NODE_HOST || '10.20.110.118',
     host: process.env.MC_LOBBY_HOST || '10.20.110.118',
     port: parseInt(process.env.MC_LOBBY_PORT || '11602', 10),
     displayHost: '10.20.110.118:11602',
@@ -56,6 +63,7 @@ const SERVERS = [
     id: 'create-2',
     modServerId: 'create2-smp',
     name: 'PETABLOCKS Create 2',
+    nodeHost: process.env.MC_CREATE2_NODE_HOST || '10.20.110.119',
     host: process.env.MC_CREATE2_HOST || 'create2.petablocks.com',
     port: parseInt(process.env.MC_CREATE2_PORT || '11681', 10),
     displayHost: 'create2.petablocks.com',
@@ -72,6 +80,7 @@ const SERVERS = [
     id: 'create-patreon',
     modServerId: 'patreon-creative',
     name: 'PETABLOCKS Patreon Server',
+    nodeHost: process.env.MC_PATREON_NODE_HOST || '10.20.110.120',
     host: process.env.MC_PATREON_HOST || 'createcreative.petablocks.com',
     port: parseInt(process.env.MC_PATREON_PORT || '11651', 10),
     displayHost: 'createcreative.petablocks.com',
@@ -356,7 +365,9 @@ function initWebSocket(httpServer) {
 }
 
 async function executeCommandOverSsh(srv, command, timeout = 6000) {
-  const host = srv.rconHost || srv.host;
+  const host = srv.nodeHost
+    || (srv.rconHost && /^\d+\.\d+\.\d+\.\d+$/.test(srv.rconHost) ? srv.rconHost : null)
+    || (srv.id === 'create-2' ? '10.20.110.119' : srv.id === 'create-patreon' ? '10.20.110.120' : '10.20.110.118');
   const privateKey = process.env.MC_SSH_PRIVATE_KEY || DEFAULT_SSH_KEY;
   if (!host || !privateKey || !srv.containerName) {
     return { success: false, output: 'SSH execution not configured for this server' };

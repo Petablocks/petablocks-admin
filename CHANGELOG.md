@@ -2,6 +2,16 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.11.0] - 2026-09-29
+### Added
+- **📢 Centralized Network Announcements & Fleet Dispatch Module (`/announcements`)**:
+  - Built dedicated `Announcements.tsx` management hub with quick-start templates for Modrinth releases, emergency downtime/outages, scheduled maintenance, and community events.
+  - Implemented interactive live Discord embed preview and Minecraft in-game chat/title simulator.
+  - Added multi-target dispatch with configurable ping roles (`@everyone`, `@here`, none) and target realms (`all`, `create-2`, `lobby-main`, `patreon-creative`).
+  - Added in-game audio cues and title broadcasts via unified RCON.
+  - Implemented backend announcements service (`announcementService.js`) and REST API (`routes/announcements.js`) with MariaDB/MySQL audit logging.
+  - Connected direct dispatch to `pb-bot` on port `3001` with fallback to dedicated Discord webhooks.
+
 ## [2.10.0] - 2026-09-23
 ### Added
 - **🌐 Network Phase 1 Infrastructure Integration**:

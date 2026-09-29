@@ -2,7 +2,7 @@
 
 > Comprehensive administration, container operations, object storage, live console streaming, autonomous maintenance pipelines, and Minecraft server telemetry platform for the PETABLOCKS ecosystem.
 >
-> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.10.0` • **Endpoint**: `https://admin.petablocks.com`
+> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.11.0` • **Endpoint**: `https://admin.petablocks.com`
 
 ---
 
@@ -30,6 +30,13 @@
 * **Advance In-Game Warnings**: Automated countdown warnings ($T-15\text{m}$, $T-5\text{m}$, $T-1\text{m}$) broadcasted via `/tellraw`.
 * **Zero-Downtime Pipeline**: Automated world save (`/save-all flush`), container restart via SSH, TCP port & WebSocket health verification, and gateway unlock.
 * **Multi-Channel Synchronous Broadcasts**: Real-time Discord announcements with status transitions and live website banner updates.
+
+### 3. 📢 Announcements & Fleet Dispatch (`/announcements`)
+* **Multi-Channel Broadcast Engine**: Instant dispatch to Discord announcements channel and in-game Minecraft servers (`tellraw`, `title`, and audio chimes).
+* **Presets & Quick Templates**: Ready-made templates for Modrinth releases, emergency downtime/outages, scheduled maintenance, and community events.
+* **Live Discord & In-Game Simulation**: Real-time mock preview rendering Discord embeds and in-game chat components before broadcasting.
+* **Granular Target Selection**: Route broadcasts to all fleet servers or specific realms with customizable ping roles (`@everyone`, `@here`, none).
+* **Audit History & Logs**: Persistent history of dispatched announcements with status verification.
 
 ### 2. 🎮 Minecraft Server Operations (`/servers` & `/minecraft`)
 * **Native Server Management**: Pure JavaScript SSH/Docker bridge to dedicated game nodes (`mcs-01`, `mcs-02`, `mcs-03`).

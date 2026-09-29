@@ -113,7 +113,6 @@ async function requireStaffAuth(req, res, next) {
   const validSecrets = new Set([
     API_SECRET_TOKEN,
     ROTATED_SECRET_TOKEN,
-    '845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728',
   ]);
 
   if ((apiSecretHeader && validSecrets.has(apiSecretHeader)) || (token && validSecrets.has(token))) {

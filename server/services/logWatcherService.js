@@ -144,15 +144,107 @@ function startWatchingServer(srv) {
   }
 }
 
-function processServerLogLine(serverId, line) {
+// Known player aliases (nickname/display name -> real IGN and UUID)
+const PLAYER_IDENTITY_ALIASES = {
+  'petabyte': { username: 'PetabyteYT', uuid: '35af2537-4e10-457f-96a0-2a49830a3ed8' },
+  'petabyteyt': { username: 'PetabyteYT', uuid: '35af2537-4e10-457f-96a0-2a49830a3ed8' },
+};
+
+// In-memory cache for resolved player identities: lowercaseName -> { username, uuid, avatarUrl }
+const identityCache = new Map();
+
+async function resolvePlayerIdentity(nameOrNickname) {
+  if (!nameOrNickname) {
+    return { username: 'Player', uuid: null, avatarUrl: 'https://mc-heads.net/avatar/Steve/128' };
+  }
+  const key = nameOrNickname.toLowerCase().trim();
+
+  if (identityCache.has(key)) {
+    return identityCache.get(key);
+  }
+
+  // 1. Check known static aliases
+  if (PLAYER_IDENTITY_ALIASES[key]) {
+    const found = PLAYER_IDENTITY_ALIASES[key];
+    const resolved = {
+      username: found.username,
+      uuid: found.uuid,
+      avatarUrl: `https://mc-heads.net/avatar/${found.uuid}/128`,
+    };
+    identityCache.set(key, resolved);
+    return resolved;
+  }
+
+  // 2. Query Network DB (analytics_players or plan_users)
+  try {
+    const pool = getDbPool();
+    // Exact match
+    const [exact] = await pool.query(
+      `SELECT username, uuid FROM analytics_players WHERE LOWER(username) = ? LIMIT 1`,
+      [key]
+    );
+    if (exact && exact.length > 0) {
+      const resolved = {
+        username: exact[0].username,
+        uuid: exact[0].uuid,
+        avatarUrl: `https://mc-heads.net/avatar/${exact[0].uuid}/128`,
+      };
+      identityCache.set(key, resolved);
+      return resolved;
+    }
+
+    // Fuzzy / prefix match (e.g. "petabyte" matching "PetabyteYT")
+    const [fuzzy] = await pool.query(
+      `SELECT username, uuid FROM analytics_players WHERE LOWER(username) LIKE ? OR ? LIKE CONCAT('%', LOWER(username), '%') ORDER BY last_seen DESC LIMIT 1`,
+      [`%${key}%`, key]
+    );
+    if (fuzzy && fuzzy.length > 0) {
+      const resolved = {
+        username: fuzzy[0].username,
+        uuid: fuzzy[0].uuid,
+        avatarUrl: `https://mc-heads.net/avatar/${fuzzy[0].uuid}/128`,
+      };
+      identityCache.set(key, resolved);
+      return resolved;
+    }
+
+    // Fallback: check plan_users table
+    const [planRows] = await pool.query(
+      `SELECT name as username, uuid FROM plan_users WHERE LOWER(name) = ? OR LOWER(name) LIKE ? LIMIT 1`,
+      [key, `%${key}%`]
+    );
+    if (planRows && planRows.length > 0) {
+      const resolved = {
+        username: planRows[0].username,
+        uuid: planRows[0].uuid,
+        avatarUrl: `https://mc-heads.net/avatar/${planRows[0].uuid}/128`,
+      };
+      identityCache.set(key, resolved);
+      return resolved;
+    }
+  } catch (err) {
+    console.warn('[LOG-WATCHER] Error querying player identity DB:', err.message);
+  }
+
+  // 3. Fallback
+  const fallback = {
+    username: nameOrNickname,
+    uuid: null,
+    avatarUrl: `https://mc-heads.net/avatar/${encodeURIComponent(nameOrNickname)}/128`,
+  };
+  identityCache.set(key, fallback);
+  return fallback;
+}
+
+async function processServerLogLine(serverId, line) {
   // Strip ANSI color codes if present
   const cleanLine = line.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, '');
 
-  // 1. In-game player chat (Standard: <PlayerName> Message OR NeoForge/Fabric with dimension tags: <PlayerName <Overworld>> Message)
-  const chatMatch = cleanLine.match(/\[Server thread\/INFO\](?: \[.*?\])?: <(?:\w+ )*([a-zA-Z0-9_]{3,16})(?: <.*?>)?> (.*)$/);
+  // 1. In-game player chat (Standard: <PlayerName> Message OR Styled Chat: [Owner] PlayerName » Message)
+  const chatMatch = cleanLine.match(/\[Server thread\/INFO\](?: \[.*?\])?: (?:<(?:\w+ )*([a-zA-Z0-9_]{3,16})(?: <.*?>)?>|(?:\[.*?\]\s*)*([a-zA-Z0-9_]{3,16})\s*[»>])\s*(.*)$/);
   if (chatMatch) {
-    const rawPlayer = chatMatch[1].trim();
-    const chatMsg = chatMatch[2].trim();
+    const rawPlayer = (chatMatch[1] || chatMatch[2]).trim();
+    const chatMsg = chatMatch[3].trim();
 
     // 1a. Intercept In-Game Report, Bug, or Suggestion Commands: /report, /bug, /suggest
     const reportCmdMatch = chatMsg.match(/^!(?:report|bug|suggest)\b|^\/(?:report|bug|suggest)\b/i);
@@ -165,34 +257,40 @@ function processServerLogLine(serverId, line) {
 
     // Ignore discord bot loopback messages if prefixed
     if (!chatMsg.startsWith('[Discord]')) {
+      const identity = await resolvePlayerIdentity(rawPlayer);
       discordService.sendChatBroadcast(serverId, {
         username: rawPlayer,
         message: chatMsg,
+        avatarUrl: identity.avatarUrl,
         eventType: 'chat',
       });
       return;
     }
   }
 
-  // 2. Player Joins: "PlayerName joined the game" or "[Rank] PlayerName joined the game" or "PlayerName <Overworld> joined the game"
-  const joinMatch = cleanLine.match(/\[Server thread\/INFO\](?: \[.*?\])?: (?:\[.*?\] )?([a-zA-Z0-9_]{3,16})(?: <.*?>)? joined the game/);
+  // 2. Player Joins: "PlayerName joined the game" or "[+] [Owner] PlayerName joined the server"
+  const joinMatch = cleanLine.match(/\[Server thread\/INFO\](?: \[.*?\])?: (?:\[\+\]\s*(?:\[.*?\]\s*)*([a-zA-Z0-9_]{3,16})\s*joined the server|(?:\[.*?\]\s*)*([a-zA-Z0-9_]{3,16})(?: <.*?>)?\s*joined the game)/);
   if (joinMatch) {
-    const playerName = joinMatch[1].trim();
+    const playerName = (joinMatch[1] || joinMatch[2]).trim();
+    const identity = await resolvePlayerIdentity(playerName);
     discordService.sendChatBroadcast(serverId, {
       username: playerName,
       message: `📥 **${playerName}** joined the game.`,
+      avatarUrl: identity.avatarUrl,
       eventType: 'join',
     });
     return;
   }
 
-  // 3. Player Leaves: "PlayerName left the game"
-  const leaveMatch = cleanLine.match(/\[Server thread\/INFO\](?: \[.*?\])?: (?:\[.*?\] )?([a-zA-Z0-9_]{3,16})(?: <.*?>)? left the game/);
+  // 3. Player Leaves: "PlayerName left the game" or "[-] [Owner] PlayerName left the server"
+  const leaveMatch = cleanLine.match(/\[Server thread\/INFO\](?: \[.*?\])?: (?:\[\-\]\s*(?:\[.*?\]\s*)*([a-zA-Z0-9_]{3,16})\s*left the server|(?:\[.*?\]\s*)*([a-zA-Z0-9_]{3,16})(?: <.*?>)?\s*left the game)/);
   if (leaveMatch) {
-    const playerName = leaveMatch[1].trim();
+    const playerName = (leaveMatch[1] || leaveMatch[2]).trim();
+    const identity = await resolvePlayerIdentity(playerName);
     discordService.sendChatBroadcast(serverId, {
       username: playerName,
       message: `📤 **${playerName}** left the game.`,
+      avatarUrl: identity.avatarUrl,
       eventType: 'leave',
     });
     return;
