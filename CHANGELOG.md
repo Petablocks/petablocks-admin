@@ -2,6 +2,15 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.15.1] - 2026-10-04
+### Added
+- **💎 Official 3D Stacked "PETABLOCKS" Favicon & App Touch Icons**:
+  - Precision-cropped top border line artifact (`y=0..12`) and bottom frame line (`y=464..479`) from brand asset to ensure clean alpha transparency without any black box outlines.
+  - Generated multi-resolution `favicon.ico` (16x16, 32x32, 48x48, 64x64), high-density `favicon.png`, square canvas `favicon-square.png`, and iOS `apple-touch-icon.png` (180x180).
+  - Linked all favicon and apple touch assets in `index.html`.
+
+---
+
 ## [2.15.0] - 2026-10-04
 ### Added
 - **💎 Official 3D Isometric "PETABLOCKS Admin & Operations" Brand Identity**:
