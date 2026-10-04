@@ -2,6 +2,15 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.15.0] - 2026-10-04
+### Added
+- **💎 Official 3D Isometric "PETABLOCKS Admin & Operations" Brand Identity**:
+  - Integrated the dedicated 3D Minecraft isometric title logo (`petablocks-admin-logo.png`) featuring vibrant cyan-to-mint gradient lettering, stone-etched "ADMIN & OPERATIONS" subtitle, and clean transparent alpha boundaries.
+  - Replaced the generic icon header with the official 3D logo in the Desktop Sidebar navigation.
+  - Embedded the responsive logo in the Mobile Navigation Slide-Over Drawer and the Mobile Top Navigation Bar.
+
+---
+
 ## [2.14.0] - 2026-09-29
 ### Added
 - **⚡ In-Portal Telemetry Companion Installer & Fleet Batch Updater**:

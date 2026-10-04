@@ -7,7 +7,6 @@ import {
   Database,
   FolderOpen,
   Settings,
-  Zap,
   Server,
   ExternalLink,
   Menu,
@@ -466,21 +465,21 @@ export default function Layout() {
   return (
     <div className="flex flex-col lg:flex-row h-screen h-[100dvh] bg-background text-foreground overflow-hidden">
       {/* ──────────────── MOBILE TOP APP BAR ──────────────── */}
-      <header className="lg:hidden flex items-center justify-between px-4 py-3 border-b border-border bg-card/95 backdrop-blur-md shrink-0 z-30 shadow-xs">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary shrink-0">
-            <Zap className="h-4 w-4" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="font-bold text-xs tracking-tight text-foreground">PETABLOCKS</span>
-              <span className="text-muted-foreground/40 text-xs">/</span>
-              <span className="text-xs font-semibold text-primary truncate max-w-[150px] sm:max-w-[220px]">
-                {currentTitle}
-              </span>
-            </div>
-            <p className="text-[10px] text-muted-foreground/80 leading-none mt-0.5">Admin &amp; Operations</p>
-          </div>
+      <header className="lg:hidden flex items-center justify-between px-3 py-2 border-b border-border bg-card/95 backdrop-blur-md shrink-0 z-30 shadow-xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <NavLink to="/" className="group block shrink-0 focus:outline-none" title="PETABLOCKS Admin & Operations">
+            <img
+              src="/assets/images/petablocks-admin-logo.png"
+              alt="PETABLOCKS Admin & Operations"
+              width="1024"
+              height="180"
+              className="h-7 w-auto object-contain drop-shadow-[0_2px_6px_rgba(0,255,255,0.2)]"
+            />
+          </NavLink>
+          <span className="text-muted-foreground/30 text-xs hidden sm:inline">/</span>
+          <span className="text-xs font-semibold text-primary truncate max-w-[120px] sm:max-w-[200px] hidden sm:inline">
+            {currentTitle}
+          </span>
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
@@ -521,16 +520,16 @@ export default function Layout() {
           <div className="relative w-[85%] max-w-sm bg-card border-r border-border h-full flex flex-col justify-between shadow-2xl z-10 animate-in slide-in-from-left duration-200">
             <div className="flex flex-col h-full min-h-0">
               {/* Drawer Header */}
-              <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-card/80 backdrop-blur-md shrink-0">
-                <div className="flex items-center gap-2.5">
-                  <div className="p-2 rounded-xl bg-primary/10 border border-primary/20 text-primary">
-                    <Zap className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h2 className="font-bold text-sm text-foreground leading-none">PETABLOCKS Suite</h2>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">Control Center Navigation</p>
-                  </div>
-                </div>
+              <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-card/80 backdrop-blur-md shrink-0">
+                <NavLink to="/" onClick={() => setMobileMenuOpen(false)} className="group block focus:outline-none" title="PETABLOCKS Admin & Operations">
+                  <img
+                    src="/assets/images/petablocks-admin-logo.png"
+                    alt="PETABLOCKS Admin & Operations"
+                    width="1024"
+                    height="180"
+                    className="h-9 w-auto object-contain drop-shadow-[0_2px_8px_rgba(0,255,255,0.2)]"
+                  />
+                </NavLink>
                 <button
                   onClick={() => setMobileMenuOpen(false)}
                   className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
@@ -611,14 +610,16 @@ export default function Layout() {
       {/* ──────────────── DESKTOP SIDEBAR ──────────────── */}
       <aside className="hidden lg:flex w-64 border-r border-border flex-col shrink-0 bg-card/40">
         {/* Logo */}
-        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-border bg-card/60">
-          <div className="p-1.5 rounded-lg bg-primary/10 border border-primary/20 text-primary">
-            <Zap className="h-5 w-5" />
-          </div>
-          <div>
-            <p className="font-bold text-sm leading-none tracking-tight">PETABLOCKS</p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Admin &amp; Operations</p>
-          </div>
+        <div className="px-5 py-4 border-b border-border bg-card/60">
+          <NavLink to="/" className="group block focus:outline-none" title="PETABLOCKS Admin & Operations">
+            <img
+              src="/assets/images/petablocks-admin-logo.png"
+              alt="PETABLOCKS Admin & Operations"
+              width="1024"
+              height="180"
+              className="w-full h-auto max-h-11 object-contain drop-shadow-[0_2px_10px_rgba(0,255,255,0.2)] group-hover:scale-105 transition-transform duration-200"
+            />
+          </NavLink>
         </div>
 
         {/* Desktop Staff Identity Card (Central SSO) */}
