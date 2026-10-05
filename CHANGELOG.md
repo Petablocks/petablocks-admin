@@ -2,6 +2,16 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.15.2] - 2026-10-05
+### Fixed
+- **📊 Unified Player Analytics & Lifetime Network Stats Reconciliation**:
+  - Reconciled and merged historical Plan Season 1 player telemetry (2,833 sessions, 2,569 hours across 19 players) with real-time Create 2 / NeoForge analytics.
+  - Resolved stat discrepancy where the website homepage and Admin Player Analytics showed only recent Create 2 telemetry (30 hours) instead of the full network lifetime total (~2,600 hours and 2,900+ sessions).
+  - Enhanced `importHistoricalPlanData` in `playerAnalyticsService.js` to dynamically merge non-fabric sessions and update player aggregates on server initialization without duplication.
+  - Backfilled 2,833 historical `fabric-main` sessions into `analytics_sessions` for comprehensive historical session graphs and server filtering in the Admin Portal.
+
+---
+
 ## [2.15.1] - 2026-10-04
 ### Added
 - **💎 Official 3D Stacked "PETABLOCKS" Favicon & App Touch Icons**:

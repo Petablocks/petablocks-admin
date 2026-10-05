@@ -234,12 +234,26 @@ export default function SettingsPage() {
           </span>
         </div>
         <div className="space-y-2.5 text-xs">
-          {/* v2.15.1 */}
+          {/* v2.15.2 */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/30">
             <div className="flex items-center gap-2.5">
               <GitBranch className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <span className="font-mono font-bold text-foreground">v2.15.1 (Current)</span>
+                <span className="font-mono font-bold text-foreground">v2.15.2 (Current)</span>
+                <p className="text-muted-foreground text-[11px]">
+                  Unified Player Analytics &amp; Lifetime Network Stats Reconciliation (reconciled Plan Season 1 + Create 2 historical playtime and sessions)
+                </p>
+              </div>
+            </div>
+            <span className="text-muted-foreground font-mono text-[11px] shrink-0">October 2026</span>
+          </div>
+
+          {/* v2.15.1 */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border">
+            <div className="flex items-center gap-2.5">
+              <GitBranch className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <span className="font-mono font-bold text-foreground">v2.15.1</span>
                 <p className="text-muted-foreground text-[11px]">
                   Official 3D Stacked "PETABLOCKS" favicon and app touch icon integration with multi-resolution `.ico`, `.png`, and apple-touch-icon support
                 </p>

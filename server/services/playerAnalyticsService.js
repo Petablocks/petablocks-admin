@@ -184,11 +184,8 @@ async function init() {
 
     console.log('[ANALYTICS] MariaDB Analytics tables verified.');
 
-    // 4. Check if migration from Plan tables is needed
-    const [existingCount] = await p.query('SELECT COUNT(*) as count FROM analytics_players');
-    if (existingCount[0].count === 0) {
-      await importHistoricalPlanData(p);
-    }
+    // 4. Migrate and reconcile historical Plan data if plan tables exist
+    await importHistoricalPlanData(p);
 
     // 5. Clean up any stranded active sessions from previous restarts
     await reconcileOrphanedSessions();
@@ -212,7 +209,7 @@ async function importHistoricalPlanData(p) {
       return;
     }
 
-    console.log('[ANALYTICS] Migrating historical Plan data into native analytics tables...');
+    console.log('[ANALYTICS] Checking and reconciling historical Plan data with native analytics tables...');
 
     const [planUsers] = await p.query(`
       SELECT u.id as plan_user_id, u.uuid, u.name, u.registered
@@ -225,46 +222,70 @@ async function importHistoricalPlanData(p) {
           COUNT(*) as total_sessions,
           COALESCE(SUM(CASE WHEN session_end > session_start THEN (session_end - session_start) ELSE 0 END), 0) as total_playtime_ms,
           COALESCE(SUM(deaths), 0) as total_deaths,
-          COALESCE(MAX(session_end), u.registered) as last_seen
+          MAX(session_end) as last_seen
         FROM plan_sessions s
         WHERE s.user_id = ?
       `, [u.plan_user_id]);
 
       const stat = stats[0] || {};
-      const totalPlaytime = Number(stat.total_playtime_ms || 0);
-      const totalSessions = Number(stat.total_sessions || 0);
-      const totalDeaths = Number(stat.total_deaths || 0);
-      const lastSeen = Number(stat.last_seen || u.registered);
+      const planPlaytime = Number(stat.total_playtime_ms || 0);
+      const planSessions = Number(stat.total_sessions || 0);
+      const planDeaths = Number(stat.total_deaths || 0);
+      const planLastSeen = Number(stat.last_seen || u.registered);
 
-      await p.query(`
-        INSERT INTO analytics_players 
-          (uuid, username, first_seen, last_seen, total_playtime_ms, total_sessions, total_deaths, last_server_id, is_online)
-        VALUES (?, ?, ?, ?, ?, ?, ?, 'fabric-main', 0)
-        ON DUPLICATE KEY UPDATE 
-          username = VALUES(username),
-          total_playtime_ms = VALUES(total_playtime_ms),
-          total_sessions = VALUES(total_sessions),
-          total_deaths = VALUES(total_deaths)
-      `, [u.uuid, u.name, u.registered, lastSeen, totalPlaytime, totalSessions, totalDeaths]);
+      const [existing] = await p.query('SELECT * FROM analytics_players WHERE uuid = ?', [u.uuid]);
+
+      if (existing.length === 0) {
+        await p.query(`
+          INSERT INTO analytics_players 
+            (uuid, username, first_seen, last_seen, total_playtime_ms, total_sessions, total_deaths, last_server_id, is_online)
+          VALUES (?, ?, ?, ?, ?, ?, ?, 'fabric-main', 0)
+        `, [u.uuid, u.name, u.registered, planLastSeen, planPlaytime, planSessions, planDeaths]);
+      } else {
+        // Player already exists - check if already merged by comparing with session sum
+        const [anSess] = await p.query(
+          "SELECT COUNT(*) as cnt, COALESCE(SUM(duration_ms), 0) as ms FROM analytics_sessions WHERE player_uuid = ? AND server_id != 'fabric-main'",
+          [u.uuid]
+        );
+        const nonFabricPlaytime = Number(anSess[0].ms || 0);
+        const nonFabricSessions = Number(anSess[0].cnt || 0);
+
+        const expectedTotalPlaytime = planPlaytime + nonFabricPlaytime;
+        const expectedTotalSessions = planSessions + nonFabricSessions;
+
+        if (Number(existing[0].total_playtime_ms || 0) < expectedTotalPlaytime) {
+          const combinedLastSeen = Math.max(Number(existing[0].last_seen || 0), planLastSeen);
+          const combinedFirstSeen = Math.min(Number(existing[0].first_seen || planLastSeen), Number(u.registered));
+          const combinedDeaths = Math.max(Number(existing[0].total_deaths || 0), planDeaths);
+
+          await p.query(`
+            UPDATE analytics_players
+            SET username = ?, first_seen = ?, last_seen = ?, total_playtime_ms = ?, total_sessions = ?, total_deaths = ?
+            WHERE uuid = ?
+          `, [u.name, combinedFirstSeen, combinedLastSeen, expectedTotalPlaytime, expectedTotalSessions, combinedDeaths, u.uuid]);
+        }
+      }
     }
 
     console.log(`[ANALYTICS] Successfully migrated ${planUsers.length} players from Plan history!`);
 
-    await p.query(`
-      INSERT INTO analytics_sessions (player_uuid, server_id, session_start, session_end, duration_ms, is_active)
-      SELECT 
-        u.uuid,
-        'fabric-main',
-        s.session_start,
-        s.session_end,
-        CASE WHEN s.session_end > s.session_start THEN (s.session_end - s.session_start) ELSE 0 END,
-        0
-      FROM plan_sessions s
-      JOIN plan_users u ON s.user_id = u.id
-      WHERE s.session_start IS NOT NULL AND s.session_end IS NOT NULL
-    `);
-
-    console.log('[ANALYTICS] Historical sessions successfully imported.');
+    const [existingFabricSessions] = await p.query("SELECT COUNT(*) as cnt FROM analytics_sessions WHERE server_id = 'fabric-main'");
+    if (existingFabricSessions[0].cnt === 0) {
+      await p.query(`
+        INSERT INTO analytics_sessions (player_uuid, server_id, session_start, session_end, duration_ms, is_active)
+        SELECT 
+          u.uuid,
+          'fabric-main',
+          s.session_start,
+          s.session_end,
+          CASE WHEN s.session_end > s.session_start THEN (s.session_end - s.session_start) ELSE 0 END,
+          0
+        FROM plan_sessions s
+        JOIN plan_users u ON s.user_id = u.id
+        WHERE s.session_start IS NOT NULL AND s.session_end IS NOT NULL
+      `);
+      console.log('[ANALYTICS] Historical sessions successfully imported.');
+    }
   } catch (err) {
     console.error('[ANALYTICS] Plan migration warning:', err.message);
   }
