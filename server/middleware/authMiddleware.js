@@ -4,6 +4,40 @@
 
 const sessionCache = new Map();
 
+const crypto = require('crypto');
+
+/**
+ * Valid internal service secrets, read from the environment only (never from source):
+ *   API_SECRET_TOKEN            primary token
+ *   API_SECRET_TOKEN_PREVIOUS   optional comma-separated overlap tokens during a rotation
+ */
+function getInternalSecrets() {
+  const list = [];
+  if (process.env.API_SECRET_TOKEN) list.push(process.env.API_SECRET_TOKEN.trim());
+  if (process.env.API_SECRET_TOKEN_PREVIOUS) {
+    for (const t of process.env.API_SECRET_TOKEN_PREVIOUS.split(',')) {
+      if (t.trim()) list.push(t.trim());
+    }
+  }
+  return list;
+}
+
+function sha256(v) {
+  return crypto.createHash('sha256').update(String(v)).digest();
+}
+
+/** Constant-time check that `candidate` matches a configured internal secret. */
+function isInternalSecret(candidate) {
+  if (!candidate || typeof candidate !== 'string') return false;
+  const clean = candidate.replace(/^Bearer\s+/i, '').trim();
+  if (!clean) return false;
+  let ok = false;
+  for (const secret of getInternalSecrets()) {
+    if (crypto.timingSafeEqual(sha256(clean), sha256(secret))) ok = true;
+  }
+  return ok;
+}
+
 // Helper to extract cookies from request headers
 function parseCookies(req) {
   const list = {};
@@ -107,15 +141,8 @@ async function requireStaffAuth(req, res, next) {
   const apiSecretHeader = req.headers['x-api-secret'] || req.headers['x-api-key'];
   const token = cookies.pb_session || req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
-  // Allow internal services (e.g. pb-bot, background daemons) using API_SECRET_TOKEN
-  const ROTATED_SECRET_TOKEN = '07f01fcbb74c9a64af468294770302ad2ce8f68fc1ddcc21b363505adac1a162';
-  const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN || ROTATED_SECRET_TOKEN;
-  const validSecrets = new Set([
-    API_SECRET_TOKEN,
-    ROTATED_SECRET_TOKEN,
-  ]);
-
-  if ((apiSecretHeader && validSecrets.has(apiSecretHeader)) || (token && validSecrets.has(token))) {
+  // Allow internal services (e.g. pb-bot, background daemons) using API_SECRET_TOKEN (env only)
+  if (isInternalSecret(apiSecretHeader) || isInternalSecret(token)) {
     req.user = {
       username: 'internal-service',
       role: 'owner',
@@ -188,6 +215,7 @@ function requireRoleLevel(minLevel) {
 }
 
 module.exports = {
+  isInternalSecret,
   parseCookies,
   validateSession,
   requireStaffAuth,

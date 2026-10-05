@@ -15,7 +15,6 @@ interface ServiceHealth {
 export default function SettingsPage() {
   const [copiedUrl, setCopiedUrl] = useState(false)
   const [copiedLan, setCopiedLan] = useState(false)
-  const [copiedToken, setCopiedToken] = useState(false)
   const [discordWebhook, setDiscordWebhook] = useState('')
   const [discordPlayerWebhook, setDiscordPlayerWebhook] = useState('')
   const [testPingStatus, setTestPingStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle')
@@ -234,12 +233,26 @@ export default function SettingsPage() {
           </span>
         </div>
         <div className="space-y-2.5 text-xs">
-          {/* v2.15.2 */}
+          {/* v2.15.3 */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/30">
             <div className="flex items-center gap-2.5">
               <GitBranch className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <span className="font-mono font-bold text-foreground">v2.15.2 (Current)</span>
+                <span className="font-mono font-bold text-foreground">v2.15.3 (Current)</span>
+                <p className="text-muted-foreground text-[11px]">
+                  Security hardening: removed hardcoded service secrets from source and the browser bundle, env-only constant-time token checks, and credential-free deploy workflow
+                </p>
+              </div>
+            </div>
+            <span className="text-muted-foreground font-mono text-[11px] shrink-0">October 2026</span>
+          </div>
+
+          {/* v2.15.2 */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border">
+            <div className="flex items-center gap-2.5">
+              <GitBranch className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <span className="font-mono font-bold text-foreground">v2.15.2</span>
                 <p className="text-muted-foreground text-[11px]">
                   Unified Player Analytics &amp; Lifetime Network Stats Reconciliation (reconciled Plan Season 1 + Create 2 historical playtime and sessions)
                 </p>
@@ -521,25 +534,10 @@ export default function SettingsPage() {
             <label className="text-muted-foreground block text-[10px] uppercase font-bold mb-1">
               API Secret Token (Bearer Auth Key)
             </label>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="password"
-                readOnly
-                value="07f01fcbb74c9a64af468294770302ad2ce8f68fc1ddcc21b363505adac1a162"
-                className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-xs font-mono text-emerald-400 focus:outline-none select-all"
-              />
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText('07f01fcbb74c9a64af468294770302ad2ce8f68fc1ddcc21b363505adac1a162')
-                  setCopiedToken(true)
-                  setTimeout(() => setCopiedToken(false), 2000)
-                }}
-                className="px-3 py-2 bg-emerald-500 hover:bg-emerald-600 text-black font-bold text-xs rounded-lg transition-colors flex items-center justify-center gap-1.5 shrink-0"
-              >
-                {copiedToken ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                {copiedToken ? 'Copied Key' : 'Copy API Secret Key'}
-              </button>
-            </div>
+            <p className="text-xs text-muted-foreground bg-background border border-border rounded-lg px-3 py-2">
+              Secrets are no longer shown in the admin UI. Set <code className="font-mono">API_SECRET_TOKEN</code> in the
+              server environment and copy it from your secret manager when configuring a game server.
+            </p>
           </div>
         </div>
       </div>

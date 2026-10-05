@@ -2,6 +2,16 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.15.3] - 2026-10-05
+### Fixed
+- Removed the hardcoded owner-level `API_SECRET_TOKEN` (and a legacy telemetry token) from `authMiddleware.js`, `routes/minecraft.js` and `telemetryInstallerService.js`. Tokens are now read from the environment only and compared in constant time. `API_SECRET_TOKEN_PREVIOUS` (comma-separated) allows an overlap window during rotation.
+- Removed the master token from the admin UI (`Settings.tsx`, `MinecraftServers.tsx`); it was shipped inside the publicly served JS bundle.
+- Removed a hardcoded MariaDB password from `merge_plan_stats.js` and `sync_sessions.js`; they now require `MC_DATABASE_URL`.
+- `telemetryInstallerService` refuses to write a mod config when `API_SECRET_TOKEN` is unset instead of embedding a default.
+
+### Infrastructure
+- `.github/workflows/deploy.yml` no longer writes an SSH private key, DB password or API token into `/opt/petablocks/.env` on each deploy. It now verifies the required variables exist on the server and fails fast without printing values.
+
 ## [2.15.2] - 2026-10-05
 ### Fixed
 - **📊 Unified Player Analytics & Lifetime Network Stats Reconciliation**:

@@ -1,7 +1,15 @@
 const mysql = require('mysql2/promise');
 
+/** DB credentials come from the environment only, e.g. MC_DATABASE_URL=mysql://user:pass@host:3307/petablocks */
+function requireDatabaseUrl() {
+  const url = process.env.MC_DATABASE_URL;
+  if (!url) throw new Error('MC_DATABASE_URL is not set');
+  return url;
+}
+
+
 async function migrate() {
-  const conn = await mysql.createConnection('mysql://petablocks:mOgsrNJ6lEQQXx77YnPcVd0jxAmQDRud@10.20.110.117:3307/petablocks');
+  const conn = await mysql.createConnection(requireDatabaseUrl());
   console.log('[MIGRATION] Connected to MariaDB on 10.20.110.117:3307');
 
   // 1. Calculate Plan metrics per user
@@ -61,15 +69,8 @@ async function migrate() {
     console.log('fabric-main sessions already present in analytics_sessions, skipping insert.');
   }
 
-  // 3. Sync player_stats table as well for backwards compatibility!
-  const [allPlayers] = await conn.query('SELECT uuid, username, total_playtime_ms, total_deaths, first_seen, last_seen FROM analytics_players');
-  for (const pl of allPlayers) {
-    const sec = Math.floor(Number(pl.total_playtime_ms || 0) / 1000);
-    await conn.query(
-      'INSERT INTO player_stats (uuid, username, playtime_seconds, kills, deaths, first_seen, last_seen) VALUES (?, ?, ?, 0, ?, ?, ?) ON DUPLICATE KEY UPDATE username = VALUES(username), playtime_seconds = VALUES(playtime_seconds), deaths = VALUES(deaths), last_seen = VALUES(last_seen)',
-      [pl.uuid, pl.username, sec, pl.total_deaths, pl.first_seen, pl.last_seen]
-    );
-  }
+  // 3. Note: player_stats is a SQL VIEW over analytics_players, so it automatically reflects all migrated data!
+  console.log('[MIGRATION] player_stats view automatically reflects analytics_players.');
 
   console.log('[MIGRATION] Complete!');
 

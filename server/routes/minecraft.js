@@ -18,13 +18,10 @@ function getClusterSshKey() {
 }
 const DEFAULT_SSH_KEY = getClusterSshKey();
 
-const ROTATED_SECRET_TOKEN = '07f01fcbb74c9a64af468294770302ad2ce8f68fc1ddcc21b363505adac1a162';
-const API_SECRET_TOKEN = process.env.API_SECRET_TOKEN || ROTATED_SECRET_TOKEN;
-const VALID_SECRET_TOKENS = new Set([
-  API_SECRET_TOKEN,
-  ROTATED_SECRET_TOKEN,
-  '845e2b760f51a817c654b03e44c77428bac53c6059129049388d8017f2abf728', // legacy token accepted during transition
-]);
+const { isInternalSecret } = require('../middleware/authMiddleware');
+if (!process.env.API_SECRET_TOKEN) {
+  console.warn('[SECURITY] API_SECRET_TOKEN is not set: internal services and telemetry servers cannot authenticate.');
+}
 
 const SERVERS = [
   {
@@ -235,7 +232,7 @@ function initWebSocket(httpServer) {
       const rawServerId = request.headers['x-server-id'];
 
       const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
-      if (!token || !VALID_SECRET_TOKENS.has(token)) {
+      if (!token || !isInternalSecret(token)) {
         console.warn(`[TELEMETRY-BRIDGE] Rejected unauthorized connection from ${request.socket.remoteAddress}`);
         socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
         socket.destroy();

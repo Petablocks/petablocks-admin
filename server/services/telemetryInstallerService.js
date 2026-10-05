@@ -5,7 +5,11 @@ const path = require('path');
 const RELEASES_DIR = path.join(__dirname, '../data/telemetry-releases');
 const MANIFEST_PATH = path.join(RELEASES_DIR, 'manifest.json');
 
-const DEFAULT_SECRET_TOKEN = '07f01fcbb74c9a64af468294770302ad2ce8f68fc1ddcc21b363505adac1a162';
+function getInstallerSecretToken() {
+  const token = process.env.API_SECRET_TOKEN;
+  if (!token) throw new Error('API_SECRET_TOKEN is not configured; refusing to install telemetry without a secret');
+  return token;
+}
 
 function getManifest() {
   try {
@@ -156,7 +160,7 @@ async function installOrUpdateTelemetry(server, node, options = {}, runSshComman
   const defaultConf = {
     gatewayUrl: process.env.TELEMETRY_INTERNAL_WS_URL || 'ws://10.20.110.116:3000/ws/servers/bridge',
     serverId: server.id,
-    apiSecretToken: process.env.API_SECRET_TOKEN || DEFAULT_SECRET_TOKEN,
+    apiSecretToken: getInstallerSecretToken(),
     telemetryIntervalSeconds: 5,
     idleIntervalSeconds: 15,
     enableChatLogging: true,
