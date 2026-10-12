@@ -187,7 +187,7 @@ async function requireStaffAuth(req, res, next) {
     if (url.startsWith('/api/')) {
       return res.status(403).json({ error: 'forbidden', message: 'Access denied: Staff clearance required.' });
     }
-    return res.redirect('https://petablocks.com/login?denied=admin_clearance_required&service=Admin+Portal');
+    return res.redirect('https://my.petablocks.com/login?denied=admin_clearance_required&service=Admin+Portal');
   }
 
   // Attach user + role level to request for downstream handlers
