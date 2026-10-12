@@ -2,6 +2,13 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.18.0] - 2026-10-12
+### Added
+- **⚡ Telemetry Companion Mod v1.6.0 Fleet Packaging & Manifest Synchronization**:
+  - Bundled compiled `v1.6.0` companion artifacts (`PetablocksTelemetry-NeoForge-1.21.1-1.6.0.jar`, `PetablocksTelemetry-Fabric-1.20.1-1.6.0.jar`, `PetablocksTelemetry-Paper-1.21.4-1.6.0.jar`, `PetablocksTelemetry-Velocity-1.6.0.jar`) in `server/data/telemetry-releases/v1.6.0/`.
+  - Updated fleet catalog manifest (`manifest.json`) and fallback manifest in `telemetryInstallerService.js` to target `1.6.0`.
+  - Enables one-click updates to Create Mod Display Links & Display Boards telemetry streaming across all connected nodes via the Server Fleet manager.
+
 ## [2.17.0] - 2026-10-12
 ### Added
 - **🔐 Central Accounts (Better Auth) SSO Integration (`authMiddleware.js`, `Layout.tsx`)**:

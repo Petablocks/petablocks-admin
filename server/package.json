@@ -1,6 +1,6 @@
 {
   "name": "petablocks-admin-server",
-  "version": "1.10.3",
+  "version": "1.11.0",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
