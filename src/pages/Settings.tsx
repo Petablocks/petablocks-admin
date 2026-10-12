@@ -109,7 +109,7 @@ export default function SettingsPage() {
     }
   }
 
-  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.14.0'
+  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.18.0'
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-4xl mx-auto">
@@ -233,12 +233,54 @@ export default function SettingsPage() {
           </span>
         </div>
         <div className="space-y-2.5 text-xs">
-          {/* v2.15.5 */}
+          {/* v2.18.0 */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/30">
             <div className="flex items-center gap-2.5">
               <GitBranch className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <span className="font-mono font-bold text-foreground">v2.15.5 (Current)</span>
+                <span className="font-mono font-bold text-foreground">v2.18.0 (Current)</span>
+                <p className="text-muted-foreground text-[11px]">
+                  Telemetry Companion Mod v1.6.0 fleet packaging: live Create Mod Display Links & Display Boards support, server-side board bindings, and updated fleet catalog manifest
+                </p>
+              </div>
+            </div>
+            <span className="text-muted-foreground font-mono text-[11px] shrink-0">October 2026</span>
+          </div>
+
+          {/* v2.17.0 */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border">
+            <div className="flex items-center gap-2.5">
+              <GitBranch className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <span className="font-mono font-bold text-foreground">v2.17.0</span>
+                <p className="text-muted-foreground text-[11px]">
+                  Central Accounts (Better Auth) SSO integration: native session validation, multi-candidate upstream endpoints, and unified navigation
+                </p>
+              </div>
+            </div>
+            <span className="text-muted-foreground font-mono text-[11px] shrink-0">October 2026</span>
+          </div>
+
+          {/* v2.16.0 */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border">
+            <div className="flex items-center gap-2.5">
+              <GitBranch className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <span className="font-mono font-bold text-foreground">v2.16.0</span>
+                <p className="text-muted-foreground text-[11px]">
+                  Bento Grid design system overhaul across Mission Control Dashboard, Server Fleet, and Player Analytics
+                </p>
+              </div>
+            </div>
+            <span className="text-muted-foreground font-mono text-[11px] shrink-0">October 2026</span>
+          </div>
+
+          {/* v2.15.5 */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border">
+            <div className="flex items-center gap-2.5">
+              <GitBranch className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <span className="font-mono font-bold text-foreground">v2.15.5</span>
                 <p className="text-muted-foreground text-[11px]">
                   Central SSO authentication resilience: multi-endpoint candidate fallbacks (internal Docker aliases and petablocks.com), 3.5s timeout, and session validation error isolation
                 </p>
