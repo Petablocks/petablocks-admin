@@ -69,9 +69,9 @@ if os.path.exists(target_dir):
         if 'telemetry' in f.name.lower() and (f.name.endswith('.jar') or f.name.endswith('.jar.disabled')):
             installed_jar = f.name
             enabled = f.name.endswith('.jar')
-            m = re.search(r'([0-9]+\\.[0-9]+\\.[0-9]+)', f.name)
+            m = re.findall(r'([0-9]+\.[0-9]+\.[0-9]+)', f.name)
             if m:
-                version = m.group(1)
+                version = m[-1]
             break
 
 config_exists = os.path.exists(config_path)

@@ -2,6 +2,12 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.18.1] - 2026-10-12
+### Fixed
+- **🔍 Fleet Manager Telemetry Version Scanner (`telemetryInstallerService.js`)**:
+  - Fixed version detection regex on remote nodes to extract trailing mod semver (`re.findall(...)[-1]`) rather than leading Minecraft version (`re.search(...)`) from platform JAR names (e.g. `PetablocksTelemetry-NeoForge-1.21.1-1.6.0.jar`).
+  - Resolves false "Outdated / Update Available" status display for servers running `v1.6.0`.
+
 ## [2.18.0] - 2026-10-12
 ### Added
 - **⚡ Telemetry Companion Mod v1.6.0 Fleet Packaging & Manifest Synchronization**:
