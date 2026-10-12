@@ -109,7 +109,7 @@ export default function SettingsPage() {
     }
   }
 
-  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.18.1'
+  const appVersion = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '2.18.2'
 
   return (
     <div className="p-4 sm:p-6 space-y-4 sm:space-y-6 max-w-4xl mx-auto">
@@ -233,12 +233,26 @@ export default function SettingsPage() {
           </span>
         </div>
         <div className="space-y-2.5 text-xs">
-          {/* v2.18.1 */}
+          {/* v2.18.2 */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/30">
             <div className="flex items-center gap-2.5">
               <GitBranch className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <span className="font-mono font-bold text-foreground">v2.18.1 (Current)</span>
+                <span className="font-mono font-bold text-foreground">v2.18.2 (Current)</span>
+                <p className="text-muted-foreground text-[11px]">
+                  Telemetry Companion Mod v1.6.1 packaging: fixed Create Mod 6.0+ railway &amp; kinetic reflection hook for private fields (resolves Create display board "No Data" issue)
+                </p>
+              </div>
+            </div>
+            <span className="text-muted-foreground font-mono text-[11px] shrink-0">October 2026</span>
+          </div>
+
+          {/* v2.18.1 */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border">
+            <div className="flex items-center gap-2.5">
+              <GitBranch className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <span className="font-mono font-bold text-foreground">v2.18.1</span>
                 <p className="text-muted-foreground text-[11px]">
                   Fleet Manager Telemetry installer fix: accurate version resolution for multi-version JAR naming conventions
                 </p>

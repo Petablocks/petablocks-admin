@@ -2,6 +2,13 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.18.2] - 2026-10-12
+### Added
+- **⚡ Telemetry Companion Mod v1.6.1 Fleet Packaging & Manifest Synchronization**:
+  - Bundled compiled `v1.6.1` companion artifacts (`PetablocksTelemetry-NeoForge-1.21.1-1.6.1.jar`, `PetablocksTelemetry-Fabric-1.20.1-1.6.1.jar`, `PetablocksTelemetry-Paper-1.21.4-1.6.1.jar`, `PetablocksTelemetry-Velocity-1.6.1.jar`) in `server/data/telemetry-releases/v1.6.1/`.
+  - Updated fleet catalog manifest (`manifest.json`) and fallback manifest in `telemetryInstallerService.js` to target `1.6.1`.
+  - Fixes Create Mod 6.0+ railway & kinetic reflection hook for private fields (`movingTrains`, `waitingTrains`, `networks`), resolving Create display board "No Data" issue across all connected nodes.
+
 ## [2.18.1] - 2026-10-12
 ### Fixed
 - **🔍 Fleet Manager Telemetry Version Scanner (`telemetryInstallerService.js`)**:

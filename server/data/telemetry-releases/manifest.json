@@ -1,29 +1,29 @@
 {
-  "latestVersion": "1.6.0",
+  "latestVersion": "1.6.1",
   "releaseDate": "2026-10-12",
-  "changelog": "Create Mod Display Links & Display Boards telemetry streaming (Option A native Display Link sources on Lodestone & Option B /petablocks board bind/unbind/list commands for Flap Boards & Nixie Tubes). Client/Singleplayer safe lifecycle.",
+  "changelog": "Fix Create Mod 6.0+ railway & kinetic reflection hook for private fields (movingTrains, waitingTrains, networks) to enable full railway metrics on Create display boards.",
   "artifacts": {
     "neoforge": {
       "platform": "NeoForge 1.21.1",
-      "filename": "PetablocksTelemetry-NeoForge-1.21.1-1.6.0.jar",
+      "filename": "PetablocksTelemetry-NeoForge-1.21.1-1.6.1.jar",
       "targetDir": "mods",
       "configPath": "config/petablocks-telemetry.json"
     },
     "fabric": {
       "platform": "Fabric 1.20.1",
-      "filename": "PetablocksTelemetry-Fabric-1.20.1-1.6.0.jar",
+      "filename": "PetablocksTelemetry-Fabric-1.20.1-1.6.1.jar",
       "targetDir": "mods",
       "configPath": "config/petablocks-telemetry.json"
     },
     "paper": {
       "platform": "Paper 1.21.4",
-      "filename": "PetablocksTelemetry-Paper-1.21.4-1.6.0.jar",
+      "filename": "PetablocksTelemetry-Paper-1.21.4-1.6.1.jar",
       "targetDir": "plugins",
       "configPath": "plugins/PetablocksTelemetry/config.json"
     },
     "velocity": {
       "platform": "Velocity 4.2.1",
-      "filename": "PetablocksTelemetry-Velocity-1.6.0.jar",
+      "filename": "PetablocksTelemetry-Velocity-1.6.1.jar",
       "targetDir": "plugins",
       "configPath": "plugins/petablocks_telemetry/config.json"
     }
