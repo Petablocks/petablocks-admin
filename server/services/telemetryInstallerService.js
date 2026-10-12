@@ -20,13 +20,13 @@ function getManifest() {
     console.warn('[TELEMETRY-INSTALLER] Failed to read manifest:', err.message);
   }
   return {
-    latestVersion: '1.4.0',
-    releaseDate: '2026-09-29',
+    latestVersion: '1.5.0',
+    releaseDate: '2026-10-05',
     artifacts: {
-      neoforge: { filename: 'PetablocksTelemetry-NeoForge-1.21.1-1.4.0.jar', targetDir: 'mods', configPath: 'config/petablocks-telemetry.json' },
-      fabric: { filename: 'PetablocksTelemetry-Fabric-1.20.1-1.4.0.jar', targetDir: 'mods', configPath: 'config/petablocks-telemetry.json' },
-      paper: { filename: 'PetablocksTelemetry-Paper-1.21.4-1.4.0.jar', targetDir: 'plugins', configPath: 'plugins/PetablocksTelemetry/config.json' },
-      velocity: { filename: 'PetablocksTelemetry-Velocity-1.4.0.jar', targetDir: 'plugins', configPath: 'plugins/petablocks_telemetry/config.json' }
+      neoforge: { filename: 'PetablocksTelemetry-NeoForge-1.21.1-1.5.0.jar', targetDir: 'mods', configPath: 'config/petablocks-telemetry.json' },
+      fabric: { filename: 'PetablocksTelemetry-Fabric-1.20.1-1.5.0.jar', targetDir: 'mods', configPath: 'config/petablocks-telemetry.json' },
+      paper: { filename: 'PetablocksTelemetry-Paper-1.21.4-1.5.0.jar', targetDir: 'plugins', configPath: 'plugins/PetablocksTelemetry/config.json' },
+      velocity: { filename: 'PetablocksTelemetry-Velocity-1.5.0.jar', targetDir: 'plugins', configPath: 'plugins/petablocks_telemetry/config.json' }
     }
   };
 }

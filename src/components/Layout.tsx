@@ -560,9 +560,10 @@ export default function Layout() {
                   <button
                     onClick={async () => {
                       try {
+                        await fetch('https://my.petablocks.com/api/auth/sign-out', { method: 'POST', credentials: 'include' });
                         await fetch('https://petablocks.com/api/auth/logout', { method: 'POST', credentials: 'include' });
                       } catch (_) {}
-                      window.location.href = 'https://petablocks.com';
+                      window.location.href = 'https://my.petablocks.com';
                     }}
                     title="Sign Out (Central SSO)"
                     className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"
@@ -643,9 +644,10 @@ export default function Layout() {
             <button
               onClick={async () => {
                 try {
+                  await fetch('https://my.petablocks.com/api/auth/sign-out', { method: 'POST', credentials: 'include' });
                   await fetch('https://petablocks.com/api/auth/logout', { method: 'POST', credentials: 'include' });
                 } catch (_) {}
-                window.location.href = 'https://petablocks.com';
+                window.location.href = 'https://my.petablocks.com';
               }}
               title="Sign Out (Central SSO)"
               className="p-1 rounded text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors shrink-0"

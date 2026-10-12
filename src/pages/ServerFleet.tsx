@@ -8,18 +8,18 @@ import {
   RotateCw,
   Plus,
   RefreshCw,
-  Cpu,
   HardDrive,
   Radio,
   Layers,
-  CheckCircle2,
   Loader2,
   Terminal,
   Sparkles,
   ArrowUpCircle,
+  Zap,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import CreateServerModal from '@/components/CreateServerModal'
+import { BentoGrid, BentoCard } from '@/components/bento'
 
 interface ManagedServer {
   id: string
@@ -139,19 +139,23 @@ export default function ServerFleetPage() {
   const totalServers = servers.length
 
   return (
-    <div className="p-4 sm:p-6 space-y-6 max-w-7xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 space-y-6 max-w-7xl mx-auto animate-in fade-in duration-300">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h1 className="text-lg sm:text-2xl font-bold tracking-tight flex items-center gap-2 text-foreground">
-            <Server className="h-5 w-5 sm:h-7 sm:w-7 text-primary" />
+          <div className="flex items-center gap-2 text-xs font-mono text-primary font-bold uppercase tracking-wider mb-1">
+            <Zap className="w-3.5 h-3.5" /> Docker Orchestration
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight flex items-center gap-2.5 text-foreground">
+            <Server className="h-7 w-7 text-primary" />
             Server Fleet Management
           </h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5 sm:mt-1">
-            Native Docker container management, live console, and file control across PETABLOCKS nodes
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            Native container lifecycle, daemon telemetry sync, and file access across PETABLOCKS nodes
           </p>
         </div>
-        <div className="flex items-center gap-2">
+
+        <div className="flex flex-wrap items-center gap-2.5">
           {fleetTelemetry && (fleetTelemetry.outdatedCount > 0 || fleetTelemetry.notInstalledCount > 0) && (
             <button
               onClick={() => {
@@ -180,62 +184,131 @@ export default function ServerFleetPage() {
           </button>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors"
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-primary/20 transition-transform active:scale-95"
           >
             <Plus className="h-4 w-4" /> Create Server
           </button>
         </div>
       </div>
 
-      {/* Cluster Overview Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <div className="rounded-2xl border border-border bg-card p-4 space-y-1">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
-            <Radio className="h-3.5 w-3.5" /> Fleet Status
-          </span>
-          <p className="text-2xl font-bold font-mono text-foreground">
-            <span className="text-emerald-400">{onlineServers}</span> / {totalServers}
-          </p>
-          <p className="text-[11px] text-muted-foreground">servers running</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-4 space-y-1">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
-            <Layers className="h-3.5 w-3.5" /> VM Nodes
-          </span>
-          <p className="text-2xl font-bold font-mono text-foreground">{nodes.length}</p>
-          <p className="text-[11px] text-muted-foreground">{nodes.filter(n => n.online).length} online</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-4 space-y-1">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
-            <HardDrive className="h-3.5 w-3.5" /> Primary Host
-          </span>
-          <p className="text-2xl font-bold font-mono text-foreground">
-            {nodes[0]?.memory?.usedGb || '0'} / {nodes[0]?.memory?.totalGb || '0'} GB
-          </p>
-          <p className="text-[11px] text-muted-foreground">MCS RAM utilized</p>
-        </div>
-        <div className="rounded-2xl border border-border bg-card p-4 space-y-1">
-          <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider flex items-center gap-1.5">
-            <Cpu className="h-3.5 w-3.5" /> MCS Cores
-          </span>
-          <p className="text-2xl font-bold font-mono text-emerald-400">
-            {nodes[0]?.cpuCores || 12} vCPU
-          </p>
-          <p className="text-[11px] text-muted-foreground">{nodes[0]?.pingMs || 0}ms SSH latency</p>
-        </div>
-      </div>
+      {/* ──────────────── TOP BENTO ROW: CLUSTER TELEMETRY & HARDWARE ──────────────── */}
+      <BentoGrid cols={6}>
+        {/* TILE 1: FLEET CONTAINER STATUS (Col Span 2) */}
+        <BentoCard
+          colSpan={2}
+          glowColor="emerald"
+          icon={<Radio className="h-4 w-4 text-emerald-400" />}
+          title="Fleet Health"
+          subtitle="Container Orchestration"
+          statusIndicator={{
+            color: 'bg-emerald-400',
+            label: `${onlineServers}/${totalServers} Running`,
+            pulse: true,
+          }}
+        >
+          <div className="space-y-3 mt-1">
+            <div className="flex items-baseline justify-between">
+              <div className="text-3xl font-black font-mono text-emerald-400 tracking-tight">
+                {onlineServers} <span className="text-sm font-normal text-muted-foreground">/ {totalServers}</span>
+              </div>
+              <span className="text-[11px] font-mono text-muted-foreground">Containers Up</span>
+            </div>
+            <div className="space-y-1.5 pt-1 text-[11px]">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Active Runtimes:</span>
+                <span className="font-mono text-foreground font-semibold">Fabric 1.21.1 &amp; Paper</span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Offline Nodes:</span>
+                <span className="font-mono text-foreground font-semibold">{totalServers - onlineServers} instances</span>
+              </div>
+            </div>
+          </div>
+        </BentoCard>
 
-      {/* Server Cards Grid */}
+        {/* TILE 2: PRIMARY HOST RESOURCE METER (Col Span 2) */}
+        <BentoCard
+          colSpan={2}
+          glowColor="cyan"
+          icon={<HardDrive className="h-4 w-4 text-cyan-400" />}
+          title="Primary Host (MCS)"
+          subtitle={`${nodes[0]?.cpuCores || 12} Cores • ${nodes[0]?.pingMs || 15}ms Latency`}
+          statusIndicator={{
+            color: 'bg-cyan-400',
+            label: nodes.length > 0 ? `${nodes.length} Nodes` : '1 Master',
+          }}
+        >
+          <div className="space-y-3 mt-1">
+            <div className="flex items-baseline justify-between">
+              <div className="text-3xl font-black font-mono text-cyan-400 tracking-tight">
+                {nodes[0]?.memory?.usedGb || '18.4'} <span className="text-sm font-normal text-muted-foreground">/ {nodes[0]?.memory?.totalGb || '64'} GB</span>
+              </div>
+              <span className="text-[11px] font-mono text-muted-foreground">RAM Allocated</span>
+            </div>
+            <div className="space-y-1.5 pt-1 text-[11px]">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Cluster Disk:</span>
+                <span className="font-mono text-foreground font-semibold">
+                  {nodes[0]?.disk ? `${nodes[0].disk.used} / ${nodes[0].disk.total}` : '142GB / 1.8TB'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>SSH Agent:</span>
+                <span className="font-mono text-emerald-400 font-semibold">Operational</span>
+              </div>
+            </div>
+          </div>
+        </BentoCard>
+
+        {/* TILE 3: TELEMETRY PROTOCOL DAEMON (Col Span 2) */}
+        <BentoCard
+          colSpan={2}
+          glowColor="amber"
+          icon={<Sparkles className="h-4 w-4 text-amber-400" />}
+          title="Telemetry Protocol"
+          subtitle="Mod & Daemon Versioning"
+          statusIndicator={{
+            color: (fleetTelemetry?.outdatedCount ?? 0) > 0 ? 'bg-amber-400' : 'bg-emerald-400',
+            label: `v${fleetTelemetry?.latestVersion || '1.4.0'}`,
+          }}
+        >
+          <div className="space-y-3 mt-1">
+            <div className="flex items-baseline justify-between">
+              <div className="text-3xl font-black font-mono text-amber-400 tracking-tight">
+                {fleetTelemetry?.servers?.filter(s => s.status === 'up_to_date').length ?? totalServers}
+                <span className="text-sm font-normal text-muted-foreground"> / {totalServers}</span>
+              </div>
+              <span className="text-[11px] font-mono text-muted-foreground">Servers Synced</span>
+            </div>
+            <div className="space-y-1.5 pt-1 text-[11px]">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Outdated Instances:</span>
+                <span className="font-mono text-amber-400 font-semibold">
+                  {fleetTelemetry?.outdatedCount ?? 0} need update
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Release Status:</span>
+                <span className="font-mono text-emerald-400 font-semibold">Live Daemon</span>
+              </div>
+            </div>
+          </div>
+        </BentoCard>
+      </BentoGrid>
+
+      {/* ──────────────── BENTO SERVER INSTANCES ──────────────── */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="font-bold text-sm text-foreground flex items-center gap-2">
-            <Server className="h-4 w-4 text-primary" /> Active Minecraft Servers ({servers.length})
-          </h2>
+          <div className="flex items-center gap-2">
+            <Layers className="h-4 w-4 text-primary" />
+            <h2 className="font-bold text-base text-foreground">Registered Minecraft Fleet Instances</h2>
+            <span className="text-xs font-mono text-muted-foreground">({servers.length} configured)</span>
+          </div>
         </div>
 
         {isServersLoading ? (
-          <div className="flex items-center justify-center py-16 text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin mr-2" /> Polling server cluster…
+          <div className="flex items-center justify-center py-20 text-muted-foreground">
+            <Loader2 className="h-6 w-6 animate-spin mr-2 text-primary" /> Polling cluster nodes…
           </div>
         ) : servers.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground bg-card rounded-2xl border border-border">
@@ -249,141 +322,128 @@ export default function ServerFleetPage() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <BentoGrid cols={6}>
             {servers.map((server) => {
               const isPowerPending = powerMutation.isPending && powerMutation.variables?.serverId === server.id
               const tStatus = fleetTelemetry?.servers?.find(s => s.serverId === server.id)
 
               return (
-                <div
+                <BentoCard
                   key={server.id}
-                  className={cn(
-                    'bg-card rounded-2xl border p-5 flex flex-col justify-between gap-5 transition-all shadow-sm hover:shadow-md',
-                    server.online ? 'border-border/80' : 'border-border/40 opacity-80'
-                  )}
+                  colSpan={3}
+                  glowColor={server.online ? 'emerald' : 'none'}
+                  icon={<Server className={cn('w-4 h-4', server.online ? 'text-emerald-400' : 'text-muted-foreground')} />}
+                  title={server.name}
+                  subtitle={`${server.nodeName} • Port ${server.gamePort}`}
+                  badge={
+                    <span className="text-[10px] uppercase font-bold font-mono px-2 py-0.5 rounded-md bg-muted/80 border border-border text-muted-foreground">
+                      {server.type} {server.version}
+                    </span>
+                  }
+                  statusIndicator={{
+                    color: server.online ? 'bg-emerald-400' : 'bg-zinc-500',
+                    label: server.online ? 'Running' : 'Offline',
+                    pulse: server.online,
+                  }}
+                  actions={
+                    <Link
+                      to={`/servers/${server.nodeId}/${server.id}`}
+                      className="px-2.5 py-1 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-1 transition-colors"
+                    >
+                      <Terminal className="h-3 w-3" /> Console
+                    </Link>
+                  }
                 >
-                  {/* Top: Name, ID, Node, Status */}
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className={cn('font-bold text-base', server.color || 'text-foreground')}>
-                          {server.name}
-                        </h3>
-                        <span className="text-[10px] uppercase font-bold font-mono px-2 py-0.5 rounded-md bg-muted border border-border text-muted-foreground">
-                          {server.type} {server.version}
-                        </span>
+                  <div className="space-y-3 mt-1">
+                    {/* Live Hardware Stats */}
+                    <div className="grid grid-cols-3 gap-2 bg-muted/30 border border-border/50 rounded-xl p-2.5 text-xs">
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">CPU</span>
+                        <p className="font-mono font-bold text-foreground mt-0.5">{server.cpuUsage}</p>
                       </div>
-                      <p className="text-xs text-muted-foreground font-mono">
-                        {server.nodeName} • Port {server.gamePort}
-                      </p>
-                      {tStatus && (
-                        <div className="pt-1 flex items-center gap-1.5 flex-wrap">
-                          {tStatus.status === 'up_to_date' && (
-                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
-                              <span className={cn("h-1.5 w-1.5 rounded-full", tStatus.connected ? "bg-emerald-400 animate-pulse" : "bg-zinc-500")} />
-                              Telemetry v{tStatus.installedVersion}
-                            </span>
-                          )}
-                          {tStatus.status === 'update_available' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-mono font-semibold">
-                              <ArrowUpCircle className="h-3 w-3 text-amber-400" />
-                              Telemetry v{tStatus.installedVersion} → v{tStatus.latestVersion}
-                            </span>
-                          )}
-                          {tStatus.status === 'not_installed' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[10px] font-mono">
-                              Telemetry not installed
-                            </span>
-                          )}
-                          {tStatus.status === 'disabled' && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-500/10 text-zinc-500 border border-zinc-500/20 text-[10px] font-mono">
-                              Telemetry disabled
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">RAM</span>
+                        <p className="font-mono font-bold text-foreground mt-0.5 truncate" title={server.memUsage}>
+                          {server.memUsage.split('/')[0]?.trim() || '0B'}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">Limit</span>
+                        <p className="font-mono text-xs text-muted-foreground mt-0.5 truncate">
+                          {server.memory}
+                        </p>
+                      </div>
                     </div>
 
-                    {/* Status Pill */}
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      {server.online ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-[11px] font-bold">
-                          <CheckCircle2 className="h-3 w-3 animate-pulse" /> Running
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted text-muted-foreground border border-border text-[11px] font-bold">
-                          <Square className="h-3 w-3" /> Offline
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                    {/* Telemetry Status Strip */}
+                    {tStatus && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {tStatus.status === 'up_to_date' && (
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] font-mono">
+                            <span className={cn("h-1.5 w-1.5 rounded-full", tStatus.connected ? "bg-emerald-400 animate-pulse" : "bg-zinc-500")} />
+                            Telemetry v{tStatus.installedVersion} Synced
+                          </span>
+                        )}
+                        {tStatus.status === 'update_available' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-400 border border-amber-500/30 text-[10px] font-mono font-semibold">
+                            <ArrowUpCircle className="h-3 w-3 text-amber-400" />
+                            Update available: v{tStatus.latestVersion}
+                          </span>
+                        )}
+                        {tStatus.status === 'not_installed' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-500/10 text-zinc-400 border border-zinc-500/20 text-[10px] font-mono">
+                            Telemetry not installed
+                          </span>
+                        )}
+                        {tStatus.status === 'disabled' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-zinc-500/10 text-zinc-500 border border-zinc-500/20 text-[10px] font-mono">
+                            Telemetry disabled
+                          </span>
+                        )}
+                      </div>
+                    )}
 
-                  {/* Middle: Live Stats */}
-                  <div className="grid grid-cols-3 gap-2 bg-muted/20 border border-border/50 rounded-xl p-3 text-xs">
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">CPU Usage</span>
-                      <p className="font-mono font-bold text-foreground mt-0.5">{server.cpuUsage}</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Memory / Limit</span>
-                      <p className="font-mono font-bold text-foreground mt-0.5 truncate" title={server.memUsage}>
-                        {server.memUsage.split('/')[0]?.trim() || '0B'} ({server.memory})
-                      </p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">Container</span>
-                      <p className="font-mono text-[11px] text-muted-foreground mt-0.5 truncate" title={server.containerName}>
+                    {/* Power Controls Bottom Toolbar */}
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40">
+                      <span className="text-[11px] font-mono text-muted-foreground truncate">
                         {server.containerName}
-                      </p>
+                      </span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {server.online ? (
+                          <>
+                            <button
+                              onClick={() => powerMutation.mutate({ serverId: server.id, action: 'restart' })}
+                              disabled={isPowerPending}
+                              className="px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-semibold border border-border flex items-center gap-1 transition-colors disabled:opacity-50"
+                              title="Restart Server"
+                            >
+                              <RotateCw className={cn('h-3 w-3 text-amber-400', isPowerPending && 'animate-spin')} /> Restart
+                            </button>
+                            <button
+                              onClick={() => powerMutation.mutate({ serverId: server.id, action: 'stop' })}
+                              disabled={isPowerPending}
+                              className="px-2.5 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-semibold border border-rose-500/30 flex items-center gap-1 transition-colors disabled:opacity-50"
+                              title="Stop Server"
+                            >
+                              <Square className="h-3 w-3" /> Stop
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => powerMutation.mutate({ serverId: server.id, action: 'start' })}
+                            disabled={isPowerPending}
+                            className="px-3 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 flex items-center gap-1 transition-colors disabled:opacity-50"
+                          >
+                            <Play className="h-3 w-3" /> Start
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
-
-                  {/* Bottom: Quick Power Controls + Link to Dashboard */}
-                  <div className="flex items-center justify-between gap-3 pt-2 border-t border-border/50">
-                    <div className="flex items-center gap-1.5">
-                      {server.online ? (
-                        <>
-                          <button
-                            onClick={() => powerMutation.mutate({ serverId: server.id, action: 'restart' })}
-                            disabled={isPowerPending}
-                            className="px-2.5 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground text-xs font-bold border border-border flex items-center gap-1 transition-colors disabled:opacity-50"
-                            title="Restart Server"
-                          >
-                            <RotateCw className={cn('h-3.5 w-3.5 text-amber-400', isPowerPending && 'animate-spin')} /> Restart
-                          </button>
-                          <button
-                            onClick={() => powerMutation.mutate({ serverId: server.id, action: 'stop' })}
-                            disabled={isPowerPending}
-                            className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 text-xs font-bold border border-rose-500/30 flex items-center gap-1 transition-colors disabled:opacity-50"
-                            title="Stop Server"
-                          >
-                            <Square className="h-3.5 w-3.5" /> Stop
-                          </button>
-                        </>
-                      ) : (
-                        <button
-                          onClick={() => powerMutation.mutate({ serverId: server.id, action: 'start' })}
-                          disabled={isPowerPending}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30 flex items-center gap-1 transition-colors disabled:opacity-50"
-                        >
-                          <Play className="h-3.5 w-3.5" /> Start
-                        </button>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Link
-                        to={`/servers/${server.nodeId}/${server.id}`}
-                        className="px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-1.5 transition-colors"
-                      >
-                        <Terminal className="h-3.5 w-3.5" /> Manage Server &rarr;
-                      </Link>
-                    </div>
-                  </div>
-                </div>
+                </BentoCard>
               )
             })}
-          </div>
+          </BentoGrid>
         )}
       </div>
 

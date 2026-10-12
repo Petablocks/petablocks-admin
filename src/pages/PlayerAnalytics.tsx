@@ -16,6 +16,7 @@ import {
   MapPin,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { BentoGrid, BentoCard } from '@/components/bento'
 
 interface OverviewData {
   totalPlayers: number
@@ -315,52 +316,77 @@ export default function PlayerAnalyticsPage() {
         </div>
       )}
 
-      {/* ──────────────── KPI CARDS ──────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground font-medium">Total Playtime</p>
-            <Clock className="h-4 w-4 text-emerald-400" />
+      {/* ──────────────── BENTO ROW: NETWORK KPIs (Col Span 6) ──────────────── */}
+      <BentoGrid cols={6}>
+        <BentoCard
+          colSpan={2}
+          glowColor="emerald"
+          icon={<Clock className="h-4 w-4 text-emerald-400" />}
+          title="Total Playtime"
+          subtitle="All realms & modpacks"
+          statusIndicator={{
+            color: 'bg-emerald-400',
+            label: 'Accumulated',
+          }}
+        >
+          <div className="space-y-1 mt-1">
+            <p className="text-3xl font-black font-mono text-emerald-400 tracking-tight">
+              {overview && !apiError ? `${totalPlaytimeHours.toLocaleString()}h` : '—'}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {overview?.totalPlaytimeFormatted || 'Continuous server hours logged'}
+            </p>
           </div>
-          <p className="text-xl sm:text-2xl font-bold mt-2 font-mono text-emerald-400">
-            {overview && !apiError ? `${totalPlaytimeHours.toLocaleString()}h` : '—'}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-1">Across all servers &amp; modpacks</p>
-        </div>
+        </BentoCard>
 
-        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground font-medium">Total Players</p>
-            <Users className="h-4 w-4 text-sky-400" />
+        <BentoCard
+          colSpan={2}
+          glowColor="cyan"
+          icon={<Users className="h-4 w-4 text-sky-400" />}
+          title="Unique Players"
+          subtitle="Community Roster"
+          statusIndicator={{
+            color: 'bg-sky-400',
+            label: `${currentlyOnline} in-game now`,
+            pulse: currentlyOnline > 0,
+          }}
+        >
+          <div className="space-y-1 mt-1">
+            <p className="text-3xl font-black font-mono text-sky-400 tracking-tight">
+              {overview && !apiError ? totalPlayers.toLocaleString() : '—'}
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Unique authenticated player profiles
+            </p>
           </div>
-          <p className="text-xl sm:text-2xl font-bold mt-2 font-mono text-sky-400">
-            {overview && !apiError ? totalPlayers.toLocaleString() : '—'}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-1">{currentlyOnline} currently online</p>
-        </div>
+        </BentoCard>
 
-        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground font-medium">Recorded Sessions</p>
-            <Activity className="h-4 w-4 text-amber-400" />
+        <BentoCard
+          colSpan={2}
+          glowColor="amber"
+          icon={<Activity className="h-4 w-4 text-amber-400" />}
+          title="Sessions & Milestones"
+          subtitle="Player Progression"
+          statusIndicator={{
+            color: 'bg-amber-400',
+            label: `${totalDeaths.toLocaleString()} Deaths`,
+          }}
+        >
+          <div className="space-y-1 mt-1">
+            <div className="flex items-baseline justify-between">
+              <p className="text-3xl font-black font-mono text-amber-400 tracking-tight">
+                {overview && !apiError ? totalSessions.toLocaleString() : '—'}
+              </p>
+              <span className="text-[11px] font-mono text-purple-400 font-bold">
+                {totalAdvancements.toLocaleString()} Advancements
+              </span>
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Individual telemetry sessions tracked
+            </p>
           </div>
-          <p className="text-xl sm:text-2xl font-bold mt-2 font-mono text-amber-400">
-            {overview && !apiError ? totalSessions.toLocaleString() : '—'}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-1">Individual game sessions</p>
-        </div>
-
-        <div className="rounded-xl border border-border bg-card p-4 sm:p-5">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-muted-foreground font-medium">Advancements &amp; Deaths</p>
-            <Trophy className="h-4 w-4 text-purple-400" />
-          </div>
-          <p className="text-xl sm:text-2xl font-bold mt-2 font-mono text-purple-400">
-            {overview && !apiError ? totalAdvancements.toLocaleString() : '—'}
-          </p>
-          <p className="text-[11px] text-muted-foreground mt-1">{totalDeaths.toLocaleString()} total deaths</p>
-        </div>
-      </div>
+        </BentoCard>
+      </BentoGrid>
 
       {/* ──────────────── GEOGRAPHIC PLAYER DISTRIBUTION ──────────────── */}
       {overview?.geoDistribution && overview.geoDistribution.length > 0 && (
@@ -611,41 +637,53 @@ export default function PlayerAnalyticsPage() {
       {/* ──────────────── TAB 2: DOWNLOADS & FILE TELEMETRY ──────────────── */}
       {activeTab === 'downloads' && (
         <div className="space-y-6">
-          {/* File Downloads Summary Header */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 rounded-xl border border-border bg-card">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium uppercase">Total Modpack Downloads</span>
-                <Download className="h-4 w-4 text-primary" />
+          {/* File Downloads Summary Bento Grid */}
+          <BentoGrid cols={6}>
+            <BentoCard
+              colSpan={2}
+              glowColor="primary"
+              icon={<Download className="h-4 w-4 text-primary" />}
+              title="Modpack Downloads"
+              subtitle="ZIP gateway redirection"
+            >
+              <div className="space-y-1 mt-1">
+                <p className="text-3xl font-black font-mono text-foreground">
+                  {downloadAnalytics?.totalDownloads ? downloadAnalytics.totalDownloads.toLocaleString() : 0}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Unique client package distributions</p>
               </div>
-              <p className="text-2xl font-bold font-mono text-foreground mt-2">
-                {downloadAnalytics?.totalDownloads ? downloadAnalytics.totalDownloads.toLocaleString() : 0}
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-1">Tracked via client ZIP redirect gateway</p>
-            </div>
+            </BentoCard>
 
-            <div className="p-4 rounded-xl border border-border bg-card">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium uppercase">Active File Targets</span>
-                <Server className="h-4 w-4 text-sky-400" />
+            <BentoCard
+              colSpan={2}
+              glowColor="cyan"
+              icon={<Server className="h-4 w-4 text-sky-400" />}
+              title="Active File Targets"
+              subtitle="Distributed archives"
+            >
+              <div className="space-y-1 mt-1">
+                <p className="text-3xl font-black font-mono text-sky-400">
+                  {downloadAnalytics?.byFile?.length || 0}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Create 2 SMP &amp; Creative Sandbox</p>
               </div>
-              <p className="text-2xl font-bold font-mono text-sky-400 mt-2">
-                {downloadAnalytics?.byFile?.length || 0}
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-1">Create 2 SMP &amp; Creative Sandbox</p>
-            </div>
+            </BentoCard>
 
-            <div className="p-4 rounded-xl border border-border bg-card">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-muted-foreground font-medium uppercase">Countries Reached</span>
-                <Globe className="h-4 w-4 text-emerald-400" />
+            <BentoCard
+              colSpan={2}
+              glowColor="emerald"
+              icon={<Globe className="h-4 w-4 text-emerald-400" />}
+              title="Countries Reached"
+              subtitle="Global distribution"
+            >
+              <div className="space-y-1 mt-1">
+                <p className="text-3xl font-black font-mono text-emerald-400">
+                  {downloadAnalytics?.byCountry?.length || 0}
+                </p>
+                <p className="text-[11px] text-muted-foreground">Global player modpack footprint</p>
               </div>
-              <p className="text-2xl font-bold font-mono text-emerald-400 mt-2">
-                {downloadAnalytics?.byCountry?.length || 0}
-              </p>
-              <p className="text-[11px] text-muted-foreground mt-1">Global player modpack distribution</p>
-            </div>
-          </div>
+            </BentoCard>
+          </BentoGrid>
 
           {/* Breakdown Grids */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

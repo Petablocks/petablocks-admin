@@ -78,7 +78,7 @@ const ADMIN_MIN_LEVEL = ROLE_LEVEL['admin'];  // 90
 const STAFF_ROLES = new Set(Object.keys(ROLE_LEVEL).filter(r => ROLE_LEVEL[r] >= STAFF_MIN_LEVEL));
 
 /**
- * Validates session token against central pb-api
+ * Validates session token against central accounts (Better Auth) and legacy pb-api
  */
 async function validateSession(token) {
   if (!token) return null;
@@ -89,28 +89,43 @@ async function validateSession(token) {
     return cached.user;
   }
 
-  try {
-    const apiUrl = process.env.AUTH_API_URL || 'http://api:4000';
-    const res = await fetch(apiUrl + '/api/auth/me', {
-      headers: {
-        'Cookie': 'pb_session=' + token,
-        'Authorization': 'Bearer ' + token
-      },
-      signal: AbortSignal.timeout(4000)
-    });
+  const candidateUrls = [
+    process.env.AUTH_API_URL,
+    'http://accounts:3001',
+    'https://my.petablocks.com',
+    'http://api:4000',
+    'http://pb-api:4000',
+    'https://petablocks.com',
+  ].filter(Boolean);
 
-    if (res.ok) {
-      const data = await res.json();
-      if (data.authenticated && data.user) {
-        sessionCache.set(token, {
-          user: data.user,
-          expiresAt: Date.now() + 60000
-        });
-        return data.user;
+  for (const apiUrl of candidateUrls) {
+    try {
+      const res = await fetch(apiUrl.replace(/\/+$/, '') + '/api/auth/me', {
+        headers: {
+          'Cookie': `pb_session=${token}; better-auth.session_token=${token}`,
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'application/json',
+        },
+        signal: AbortSignal.timeout(3500),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.authenticated && data.user) {
+          sessionCache.set(token, {
+            user: data.user,
+            expiresAt: Date.now() + 60000,
+          });
+          return data.user;
+        }
+        // If the API specifically returned 200 with authenticated: false, the session is invalid
+        if (data.authenticated === false) {
+          return null;
+        }
       }
+    } catch (err) {
+      console.warn(`[ADMIN-AUTH] Failed to reach auth endpoint (${apiUrl}):`, err.message);
     }
-  } catch (err) {
-    console.error('[ADMIN-AUTH] Failed to validate session against central API:', err.message);
   }
 
   return null;
@@ -139,7 +154,7 @@ async function requireStaffAuth(req, res, next) {
 
   const cookies = parseCookies(req);
   const apiSecretHeader = req.headers['x-api-secret'] || req.headers['x-api-key'];
-  const token = cookies.pb_session || req.headers.authorization?.replace(/^Bearer\s+/i, '');
+  const token = cookies['better-auth.session_token'] || cookies.pb_session || req.headers.authorization?.replace(/^Bearer\s+/i, '');
 
   // Allow internal services (e.g. pb-bot, background daemons) using API_SECRET_TOKEN (env only)
   if (isInternalSecret(apiSecretHeader) || isInternalSecret(token)) {
@@ -153,10 +168,10 @@ async function requireStaffAuth(req, res, next) {
 
   if (!token) {
     if (url.startsWith('/api/')) {
-      return res.status(401).json({ error: 'unauthorized', message: 'Authentication required. Please log in at petablocks.com.' });
+      return res.status(401).json({ error: 'unauthorized', message: 'Authentication required. Please log in at my.petablocks.com.' });
     }
     const returnTo = encodeURIComponent('https://admin.petablocks.com' + url);
-    return res.redirect('https://petablocks.com/login?returnTo=' + returnTo + '&service=Admin+Portal&requiredRole=staff');
+    return res.redirect('https://my.petablocks.com/login?returnTo=' + returnTo + '&service=Admin+Portal&requiredRole=staff');
   }
 
   const user = await validateSession(token);
@@ -165,7 +180,7 @@ async function requireStaffAuth(req, res, next) {
       return res.status(401).json({ error: 'unauthorized', message: 'Session expired or invalid.' });
     }
     const returnTo = encodeURIComponent('https://admin.petablocks.com' + url);
-    return res.redirect('https://petablocks.com/login?returnTo=' + returnTo + '&service=Admin+Portal&requiredRole=staff');
+    return res.redirect('https://my.petablocks.com/login?returnTo=' + returnTo + '&service=Admin+Portal&requiredRole=staff');
   }
 
   if (getUserRoleLevel(user) < STAFF_MIN_LEVEL) {

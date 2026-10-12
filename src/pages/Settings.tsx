@@ -233,12 +233,40 @@ export default function SettingsPage() {
           </span>
         </div>
         <div className="space-y-2.5 text-xs">
-          {/* v2.15.3 */}
+          {/* v2.15.5 */}
           <div className="flex items-center justify-between p-3 rounded-xl bg-primary/10 border border-primary/30">
             <div className="flex items-center gap-2.5">
               <GitBranch className="h-4 w-4 text-primary shrink-0" />
               <div>
-                <span className="font-mono font-bold text-foreground">v2.15.3 (Current)</span>
+                <span className="font-mono font-bold text-foreground">v2.15.5 (Current)</span>
+                <p className="text-muted-foreground text-[11px]">
+                  Central SSO authentication resilience: multi-endpoint candidate fallbacks (internal Docker aliases and petablocks.com), 3.5s timeout, and session validation error isolation
+                </p>
+              </div>
+            </div>
+            <span className="text-muted-foreground font-mono text-[11px] shrink-0">October 2026</span>
+          </div>
+
+          {/* v2.15.4 */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border">
+            <div className="flex items-center gap-2.5">
+              <GitBranch className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <span className="font-mono font-bold text-foreground">v2.15.4</span>
+                <p className="text-muted-foreground text-[11px]">
+                  Telemetry Companion Mod v1.5.0 fleet packaging: multi-loader release artifacts (Fabric, NeoForge, Paper, Velocity) with Central Accounts (my.petablocks.com) /link integration
+                </p>
+              </div>
+            </div>
+            <span className="text-muted-foreground font-mono text-[11px] shrink-0">October 2026</span>
+          </div>
+
+          {/* v2.15.3 */}
+          <div className="flex items-center justify-between p-3 rounded-xl bg-muted/20 border border-border">
+            <div className="flex items-center gap-2.5">
+              <GitBranch className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <span className="font-mono font-bold text-foreground">v2.15.3</span>
                 <p className="text-muted-foreground text-[11px]">
                   Security hardening: removed hardcoded service secrets from source and the browser bundle, env-only constant-time token checks, and credential-free deploy workflow
                 </p>

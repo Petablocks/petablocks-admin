@@ -2,6 +2,44 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.17.0] - 2026-10-12
+### Added
+- **🔐 Central Accounts (Better Auth) SSO Integration (`authMiddleware.js`, `Layout.tsx`)**:
+  - Integrated native Better Auth session validation into Admin Portal middleware (`validateSession`), supporting `better-auth.session_token` alongside legacy `pb_session`.
+  - Added direct upstream endpoints `http://accounts:3001` and `https://my.petablocks.com/api/auth/me` with automatic session caching.
+  - Updated unauthenticated redirects to point to `https://my.petablocks.com/login` with deep return links.
+  - Updated sidebar desktop and mobile Sign Out buttons to invoke `https://my.petablocks.com/api/auth/sign-out`.
+
+## [2.16.0] - 2026-10-08
+### Added
+- **🍱 Bento Grid Design System & Primitives (`src/components/bento/`)**:
+  - Implemented modular, responsive Bento layout primitives (`BentoGrid` and `BentoCard`) with variable spans (`colSpan` 1–6, `rowSpan` 1–3), micro-glow highlight borders, and unified header slots.
+  - Added built-in status chips, pulsing indicators, and subtle ambient hover gradients matching the PETABLOCKS aesthetic.
+
+### Changed
+- **🚀 Mission Control Redesign (`Dashboard.tsx`)**:
+  - Transformed operations control into a high-density, multi-row Bento Grid.
+  - Upgraded Online Players telemetry, Moderation Risk, Transit & Fleet Cluster, Live Player Radar, and Recent Sanctions into modular content-weighted tiles.
+- **🖥️ Server Fleet Redesign (`ServerFleet.tsx`)**:
+  - Replaced linear metric cards with Bento health tiles (Fleet Status, Host RAM allocation, Telemetry sync).
+  - Modernized server instance cards with compact 3-column Bento tiles featuring CPU/RAM gauges, telemetry status chips, and quick power controls.
+- **📊 Player Analytics Redesign (`PlayerAnalytics.tsx`)**:
+  - Upgraded global KPI metrics (Playtime, Unique Players, Sessions & Milestones) and Modpack Client Downloads into structured Bento tiles for higher data density without visual clutter.
+
+## [2.15.5] - 2026-10-07
+### Fixed
+- **🔐 Central SSO Validation Resilience & Endpoint Fallbacks (`authMiddleware.js`)**:
+  - Enhanced session token validator (`validateSession`) with candidate fallbacks (`process.env.AUTH_API_URL`, `http://api:4000`, `http://pb-api:4000`, `https://petablocks.com`).
+  - Added fast 3.5s timeout with `AbortSignal` to prevent hanging authentication checks.
+  - Set explicit `AUTH_API_URL` environment configuration in `docker-compose.yml` for containerized deployments.
+
+## [2.15.4] - 2026-10-07
+### Added
+- **⚡ Telemetry Companion Mod v1.5.0 Fleet Packaging & Manifest Synchronization**:
+  - Bundled compiled `v1.5.0` companion artifacts (`PetablocksTelemetry-Fabric-1.20.1-1.5.0.jar`, `PetablocksTelemetry-NeoForge-1.21.1-1.5.0.jar`, `PetablocksTelemetry-Paper-1.21.4-1.5.0.jar`, `PetablocksTelemetry-Velocity-1.5.0.jar`) in `server/data/telemetry-releases/v1.5.0/`.
+  - Updated fleet catalog manifest (`manifest.json`) and fallback manifest in `telemetryInstallerService.js` to target `1.5.0`.
+  - Enables 1-click upgrade and automatic fleet reconciliation across all game nodes (`mcs-01`, `mcs-02`, `mcs-03`) with Central Accounts (`my.petablocks.com`) `/link` command integration.
+
 ## [2.15.3] - 2026-10-05
 ### Fixed
 - Removed the hardcoded owner-level `API_SECRET_TOKEN` (and a legacy telemetry token) from `authMiddleware.js`, `routes/minecraft.js` and `telemetryInstallerService.js`. Tokens are now read from the environment only and compared in constant time. `API_SECRET_TOKEN_PREVIOUS` (comma-separated) allows an overlap window during rotation.
