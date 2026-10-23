@@ -131,7 +131,38 @@ const SERVER_CONFIG = {
     worldDirs: ['world-PETABLOCKS-M1'],
     worldName: 'world-PETABLOCKS-M1',
   },
+  'modpack-s2-test': {
+    name: 'PETABLOCKS Modpack Season 2 (Test Server)',
+    sshHost: process.env.MC_MCS1_SSH_HOST || '10.20.110.118',
+    sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
+    sshUser: process.env.MC_SSH_USER || 'root',
+    serverDataPath: process.env.MC_S2_TEST_DATA_PATH || '/home/user/data/servers/petablocks-modpack-s2-test',
+    worldDirs: ['world'],
+    worldName: 'world',
+  },
+  'paper-duo-smp': {
+    name: 'Paper 26.3 Duo SMP',
+    sshHost: process.env.MC_MCS1_SSH_HOST || '10.20.110.118',
+    sshPort: parseInt(process.env.MC_SSH_PORT || '22', 10),
+    sshUser: process.env.MC_SSH_USER || 'root',
+    serverDataPath: '/opt/petablocks/paper-smp/data',
+    worldDirs: ['world', 'world_nether', 'world_the_end'],
+    worldName: 'world',
+  },
 };
+
+function registerDynamicBackupServer(serverId, config) {
+  if (!serverId || !config) return;
+  SERVER_CONFIG[serverId] = {
+    name: config.name || serverId,
+    sshHost: config.sshHost || '10.20.110.118',
+    sshPort: config.sshPort || 22,
+    sshUser: config.sshUser || 'root',
+    serverDataPath: config.serverDataPath || `/home/user/data/servers/${serverId}`,
+    worldDirs: config.worldDirs || ['world'],
+    worldName: config.worldName || 'world',
+  };
+}
 
 // In-Memory Active/Recent Backup Tracking Map (backupId -> record)
 const inMemoryBackups = new Map();
@@ -475,4 +506,115 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+// ── Programmatic Backup Helper (used by Safe Modpack Update Pipeline) ──
+async function runBackupJob({ serverId, backupType = 'full', createdBy = 'discopanel-updater', customConfig = null }) {
+  if (customConfig && !SERVER_CONFIG[serverId]) {
+    registerDynamicBackupServer(serverId, customConfig);
+  }
+  const srvConfig = SERVER_CONFIG[serverId];
+  if (!srvConfig) {
+    throw new Error(`Unknown serverId for backup: ${serverId}`);
+  }
+
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  const archiveName = `${serverId}_${backupType}_${timestamp}.tar.gz`;
+  const minioKey = `${serverId}/${backupType}/${archiveName}`;
+  const backupId = `bk_${Date.now()}`;
+
+  const backupRecord = {
+    id: backupId,
+    server_id: serverId,
+    server_name: srvConfig.name,
+    world_name: srvConfig.worldName,
+    backup_type: backupType,
+    size_bytes: 0,
+    minio_key: minioKey,
+    status: 'running',
+    error_message: null,
+    started_at: new Date().toISOString(),
+    completed_at: null,
+    created_by: createdBy,
+  };
+  inMemoryBackups.set(backupId, backupRecord);
+
+  const conn = new SshClient();
+  const passThrough = new PassThrough();
+  let totalBytes = 0;
+
+  passThrough.on('data', (chunk) => {
+    totalBytes += chunk.length;
+    backupRecord.size_bytes = totalBytes;
+  });
+
+  try {
+    await ensureBucket();
+    const s3 = getS3Client();
+    const privateKey = process.env.MC_SSH_PRIVATE_KEY || DEFAULT_SSH_KEY;
+    const tarCmd = buildTarCommand(srvConfig, backupType);
+
+    const upload = new Upload({
+      client: s3,
+      params: {
+        Bucket: BACKUP_BUCKET,
+        Key: minioKey,
+        Body: passThrough,
+        ContentType: 'application/gzip',
+        Metadata: {
+          'server-id': serverId,
+          'server-name': srvConfig.name,
+          'backup-type': backupType,
+          'backup-timestamp': timestamp,
+        },
+      },
+      queueSize: 4,
+      partSize: 1024 * 1024 * 10,
+    });
+
+    const sshPromise = new Promise((resolve, reject) => {
+      conn.on('ready', () => {
+        conn.exec(tarCmd, (err, stream) => {
+          if (err) {
+            conn.end();
+            passThrough.destroy(err);
+            return reject(err);
+          }
+          stream.pipe(passThrough);
+          stream.on('close', () => {
+            conn.end();
+            resolve();
+          });
+          stream.on('error', (streamErr) => {
+            passThrough.destroy(streamErr);
+            reject(streamErr);
+          });
+        });
+      });
+      conn.on('error', (err) => {
+        passThrough.destroy(err);
+        reject(new Error(`SSH2 connection error to ${srvConfig.sshHost}: ${err.message}`));
+      });
+      conn.connect({
+        host: srvConfig.sshHost,
+        port: srvConfig.sshPort,
+        username: srvConfig.sshUser,
+        privateKey: privateKey,
+        readyTimeout: 15000,
+      });
+    });
+
+    await Promise.all([upload.done(), sshPromise]);
+    backupRecord.status = 'completed';
+    backupRecord.completed_at = new Date().toISOString();
+    backupRecord.size_bytes = totalBytes;
+    return backupRecord;
+  } catch (err) {
+    backupRecord.status = 'failed';
+    backupRecord.error_message = err.message;
+    backupRecord.completed_at = new Date().toISOString();
+    throw err;
+  }
+}
+
 module.exports = router;
+module.exports.runBackupJob = runBackupJob;
+module.exports.registerDynamicBackupServer = registerDynamicBackupServer;

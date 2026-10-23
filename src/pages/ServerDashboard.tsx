@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, Link, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import {
   Terminal,
@@ -31,6 +31,13 @@ import {
   Sparkles,
   Settings,
   ArrowUpCircle,
+  ExternalLink,
+  FolderPlus,
+  Archive,
+  Sliders,
+  Box,
+  Layers,
+  Plus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -48,6 +55,20 @@ interface ModItem {
   modified: number
 }
 
+interface ModpackSearchResult {
+  id: string
+  indexerId: string
+  indexer: string
+  name: string
+  slug: string
+  summary: string
+  logoUrl: string
+  downloads: number
+  gameVersions?: string[]
+  modLoaders?: string[]
+  websiteUrl?: string
+}
+
 function formatBytes(bytes: number): string {
   if (!bytes || bytes === 0) return '0 B'
   const kb = bytes / 1024
@@ -59,11 +80,14 @@ function formatBytes(bytes: number): string {
 
 export default function ServerDashboardPage() {
   const { nodeId = 'mcs-01', serverId } = useParams<{ nodeId: string; serverId: string }>()
-  const [activeTab, setActiveTab] = useState<'console' | 'files' | 'mods' | 'players' | 'discord' | 'backups'>('console')
+  const [searchParams] = useSearchParams()
+  const initialTab = (searchParams.get('tab') as any) || 'console'
+  const [activeTab, setActiveTab] = useState<'console' | 'files' | 'mods' | 'modpacks' | 'config' | 'modules' | 'players' | 'discord' | 'backups'>(initialTab)
 
   // Console state
   const [commandInput, setCommandInput] = useState('')
   const [autoScroll, setAutoScroll] = useState(true)
+  const [mclogsUrl, setMclogsUrl] = useState<string | null>(null)
   const consoleBottomRef = useRef<HTMLDivElement>(null)
 
   // Files state
@@ -71,11 +95,33 @@ export default function ServerDashboardPage() {
   const [editingFile, setEditingFile] = useState<string | null>(null)
   const [fileContent, setFileContent] = useState('')
   const [fileSaveSuccess, setFileSaveSuccess] = useState(false)
+  const [newFolderName, setNewFolderName] = useState('')
+  const [showNewFolderInput, setShowNewFolderInput] = useState(false)
   const fileUploadInputRef = useRef<HTMLInputElement>(null)
 
   // Mods state
   const [modSearch, setModSearch] = useState('')
   const modUploadInputRef = useRef<HTMLInputElement>(null)
+
+  // DiscoPanel Modpack & Safe Update state
+  const [modpackQuery, setModpackQuery] = useState('')
+  const [modpackIndexer, setModpackIndexer] = useState<'modrinth' | 'curseforge'>('modrinth')
+  const [selectedModpack, setSelectedModpack] = useState<ModpackSearchResult | null>(null)
+  const [selectedVersionId, setSelectedVersionId] = useState('')
+  const [targetMcVersion, setTargetMcVersion] = useState('1.21.1')
+  const [targetModLoader, setTargetModLoader] = useState('FABRIC')
+  const [createBackupFirst, setCreateBackupFirst] = useState(true)
+  const [announceInGame, setAnnounceInGame] = useState(true)
+  const [recreateContainer, setRecreateContainer] = useState(true)
+  const [updateStepsLog, setUpdateStepsLog] = useState<string[]>([])
+
+  // DiscoPanel Config state
+  const [configEdits, setConfigEdits] = useState<Record<string, Record<string, any>>>({})
+  const [recreateOnSave, setRecreateOnSave] = useState(true)
+
+  // DiscoPanel Sidecar Modules state
+  const [newModuleName, setNewModuleName] = useState('')
+  const [selectedTemplateId, setSelectedTemplateId] = useState('')
 
   // Telemetry installer state
   const [restartAfterInstall, setRestartAfterInstall] = useState(true)
@@ -144,6 +190,57 @@ export default function ServerDashboardPage() {
     refetchInterval: 10000,
   })
 
+  // 7. Fetch Modpacks when on modpacks tab
+  const { data: modpacksData, isFetching: isSearchingModpacks, refetch: searchModpacks } = useQuery<{ modpacks: ModpackSearchResult[] }>({
+    queryKey: ['server-modpacks-search', nodeId, modpackQuery, modpackIndexer],
+    queryFn: () =>
+      fetch(`/api/server-manager/modpacks/search?nodeId=${encodeURIComponent(nodeId)}&query=${encodeURIComponent(modpackQuery)}&indexer=${modpackIndexer}`)
+        .then(r => r.json()),
+    enabled: activeTab === 'modpacks',
+  })
+
+  const { data: modpackVersionsData, isFetching: isLoadingVersions } = useQuery<{
+    versions: Array<{ id: string; displayName: string; versionNumber: string; gameVersions: string[]; modLoader: string; releaseType: string }>
+  }>({
+    queryKey: ['server-modpack-versions', nodeId, selectedModpack?.id, modpackIndexer],
+    queryFn: () =>
+      fetch(`/api/server-manager/modpacks/${encodeURIComponent(selectedModpack!.id)}/versions?nodeId=${encodeURIComponent(nodeId)}&indexer=${modpackIndexer}`)
+        .then(r => r.json()),
+    enabled: Boolean(activeTab === 'modpacks' && selectedModpack?.id),
+  })
+
+  // 8. Fetch Server Config (itzg / DiscoPanel ConfigService) when on config tab
+  const { data: serverConfigData, isLoading: isConfigLoading, refetch: refetchServerConfig } = useQuery<{
+    engine: string
+    categories: Array<{
+      name: string
+      fields: Array<{ key: string; label?: string; value: any; defaultValue?: any; description?: string; type?: string }>
+    }>
+  }>({
+    queryKey: ['server-disco-config', serverId],
+    queryFn: () => fetch(`/api/server-manager/servers/${serverId}/config`).then(r => r.json()),
+    enabled: activeTab === 'config',
+  })
+
+  // 9. Fetch Sidecar Modules when on modules tab
+  const { data: modulesData, isLoading: isModulesLoading, refetch: refetchModules } = useQuery<{
+    engine: string
+    modules: Array<{ id: string; name: string; status: string; templateName?: string; port?: number }>
+    templates: Array<{ id: string; name: string; description?: string; image?: string }>
+  }>({
+    queryKey: ['server-disco-modules', serverId],
+    queryFn: () => fetch(`/api/server-manager/servers/${serverId}/modules`).then(r => r.json()),
+    enabled: activeTab === 'modules',
+  })
+
+  // Sync server defaults into Modpack updater fields
+  useEffect(() => {
+    if (serverData?.server) {
+      setTargetMcVersion(serverData.server.version || '1.21.1')
+      setTargetModLoader(serverData.server.type || 'FABRIC')
+    }
+  }, [serverData?.server])
+
   // Sync config form state when telemetry data arrives
   useEffect(() => {
     if (telemetryData?.config) {
@@ -197,6 +294,23 @@ export default function ServerDashboardPage() {
     },
   })
 
+  const uploadLogsMclogsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/server-manager/servers/${serverId}/logs/upload`, {
+        method: 'POST',
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to upload logs to mclo.gs')
+      return data
+    },
+    onSuccess: (data) => {
+      if (data.url) setMclogsUrl(data.url)
+    },
+    onError: (err: any) => {
+      alert(`mclo.gs upload failed: ${err.message}`)
+    },
+  })
+
   const saveFileMutation = useMutation({
     mutationFn: async () => {
       const res = await fetch(`/api/server-manager/servers/${serverId}/files/save`, {
@@ -209,6 +323,43 @@ export default function ServerDashboardPage() {
     onSuccess: () => {
       setFileSaveSuccess(true)
       setTimeout(() => setFileSaveSuccess(false), 2000)
+    },
+  })
+
+  const createFolderMutation = useMutation({
+    mutationFn: async (folderName: string) => {
+      const targetPath = currentPath ? `${currentPath}/${folderName}` : folderName
+      const res = await fetch(`/api/server-manager/servers/${serverId}/files/mkdir`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: targetPath }),
+      })
+      return res.json()
+    },
+    onSuccess: () => {
+      setNewFolderName('')
+      setShowNewFolderInput(false)
+      refetchFiles()
+    },
+  })
+
+  const extractArchiveMutation = useMutation({
+    mutationFn: async (archivePath: string) => {
+      const res = await fetch(`/api/server-manager/servers/${serverId}/files/extract`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: archivePath }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Extraction failed')
+      return data
+    },
+    onSuccess: () => {
+      refetchFiles()
+      alert('Archive extracted successfully!')
+    },
+    onError: (err: any) => {
+      alert(`Extraction failed: ${err.message}`)
     },
   })
 
@@ -260,6 +411,101 @@ export default function ServerDashboardPage() {
       return res.json()
     },
     onSuccess: () => refetchMods(),
+  })
+
+  // Safe Modpack & Version Update Mutation
+  const safeModpackUpdateMutation = useMutation({
+    mutationFn: async () => {
+      setUpdateStepsLog(['Initiating PETABLOCKS Safe Modpack Update pipeline...'])
+      const res = await fetch(`/api/server-manager/servers/${serverId}/modpack-update`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          modpackId: selectedModpack?.id,
+          versionId: selectedVersionId,
+          indexer: modpackIndexer,
+          mcVersion: targetMcVersion,
+          modLoader: targetModLoader,
+          createBackupFirst,
+          announceInGame,
+          recreateContainer,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Safe Modpack Update failed')
+      return data
+    },
+    onSuccess: (data) => {
+      setUpdateStepsLog(data.steps || ['Update completed!'])
+      refetchServer()
+      refetchTelemetry()
+    },
+    onError: (err: any) => {
+      setUpdateStepsLog(prev => [...prev, `ERROR: ${err.message}`])
+    },
+  })
+
+  // Save Server Config Mutation
+  const saveServerConfigMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/server-manager/servers/${serverId}/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          updates: configEdits,
+          recreate: recreateOnSave,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to update server configuration')
+      return data
+    },
+    onSuccess: () => {
+      refetchServerConfig()
+      refetchServer()
+      alert('Server configuration updated!')
+    },
+    onError: (err: any) => {
+      alert(`Config update error: ${err.message}`)
+    },
+  })
+
+  // Sidecar Module Mutations
+  const createModuleMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`/api/server-manager/servers/${serverId}/modules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newModuleName,
+          templateId: selectedTemplateId,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Failed to create sidecar module')
+      return data
+    },
+    onSuccess: () => {
+      setNewModuleName('')
+      refetchModules()
+    },
+    onError: (err: any) => {
+      alert(`Module error: ${err.message}`)
+    },
+  })
+
+  const modulePowerMutation = useMutation({
+    mutationFn: async ({ moduleId, action }: { moduleId: string; action: 'start' | 'stop' | 'restart' | 'delete' }) => {
+      const res = await fetch(`/api/server-manager/servers/${serverId}/modules/${moduleId}/power`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      })
+      const data = await res.json()
+      if (!res.ok || data.error) throw new Error(data.error || 'Module action failed')
+      return data
+    },
+    onSuccess: () => refetchModules(),
   })
 
   const installTelemetryMutation = useMutation({
@@ -434,13 +680,18 @@ export default function ServerDashboardPage() {
           <Link to="/servers" className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
             <ArrowLeft className="h-3.5 w-3.5" /> Back to Fleet Overview
           </Link>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <h1 className={cn('text-xl sm:text-2xl font-bold tracking-tight', server.color || 'text-foreground')}>
               {server.name}
             </h1>
             <span className="text-xs font-mono px-2 py-0.5 rounded-md bg-muted border border-border text-muted-foreground">
               {server.type} {server.version}
             </span>
+            {serverData?.engine === 'discopanel' && (
+              <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-md bg-primary/15 text-primary border border-primary/30">
+                DiscoPanel RPC
+              </span>
+            )}
             {isOnline ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 text-xs font-bold">
                 <CheckCircle2 className="h-3.5 w-3.5 animate-pulse" /> Running
@@ -452,7 +703,7 @@ export default function ServerDashboardPage() {
             )}
           </div>
           <p className="text-xs text-muted-foreground font-mono">
-            Node: {node?.name} • Game Port: {server.gamePort} • RCON: {server.rconHostPort}
+            Node: {node?.name} ({node?.host}) • Game Port: {server.gamePort} • Container: {server.containerName}
           </p>
         </div>
 
@@ -492,62 +743,103 @@ export default function ServerDashboardPage() {
         <button
           onClick={() => { setActiveTab('console'); setEditingFile(null) }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all',
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all shrink-0',
             activeTab === 'console' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
           )}
         >
-          <Terminal className="h-4 w-4" /> Live Console
+          <Terminal className="h-4 w-4" /> Console
         </button>
         <button
-          onClick={() => { setActiveTab('files'); refetchFiles() }}
+          onClick={() => { setActiveTab('modpacks'); setEditingFile(null) }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all',
-            activeTab === 'files' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all shrink-0',
+            activeTab === 'modpacks' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
           )}
         >
-          <FolderOpen className="h-4 w-4" /> File Manager
+          <Layers className="h-4 w-4 text-amber-400" /> Modpacks &amp; Updates
         </button>
         <button
           onClick={() => { setActiveTab('mods'); refetchMods(); refetchTelemetry(); setEditingFile(null) }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all relative',
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all relative shrink-0',
             activeTab === 'mods' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
           )}
         >
-          <Package className="h-4 w-4" /> Mods & Plugins ({modsData?.mods?.length || 0})
+          <Package className="h-4 w-4" /> Mods &amp; Plugins ({modsData?.mods?.length || 0})
           {telemetryData?.status === 'update_available' && (
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse ml-0.5" title="Telemetry update available" />
           )}
         </button>
         <button
+          onClick={() => { setActiveTab('files'); refetchFiles() }}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all shrink-0',
+            activeTab === 'files' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+          )}
+        >
+          <FolderOpen className="h-4 w-4" /> Files &amp; Archives
+        </button>
+        <button
+          onClick={() => { setActiveTab('config'); refetchServerConfig(); setEditingFile(null) }}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all shrink-0',
+            activeTab === 'config' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+          )}
+        >
+          <Sliders className="h-4 w-4 text-cyan-400" /> Server Config
+        </button>
+        <button
+          onClick={() => { setActiveTab('modules'); refetchModules(); setEditingFile(null) }}
+          className={cn(
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all shrink-0',
+            activeTab === 'modules' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
+          )}
+        >
+          <Box className="h-4 w-4 text-emerald-400" /> Sidecar Modules
+        </button>
+        <button
           onClick={() => { setActiveTab('players'); refetchPlayers(); setEditingFile(null) }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all',
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all shrink-0',
             activeTab === 'players' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
           )}
         >
-          <Users className="h-4 w-4" /> Players & Access
+          <Users className="h-4 w-4" /> Players
         </button>
         <button
           onClick={() => { setActiveTab('discord'); setEditingFile(null) }}
           className={cn(
-            'flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all',
+            'flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold transition-all shrink-0',
             activeTab === 'discord' ? 'bg-primary/10 text-primary border border-primary/30' : 'text-muted-foreground hover:bg-muted/40 hover:text-foreground'
           )}
         >
-          <MessageSquare className="h-4 w-4 text-indigo-400" /> Discord Webhooks
+          <MessageSquare className="h-4 w-4 text-indigo-400" /> Discord
         </button>
         <Link
           to="/backups"
-          className="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-all ml-auto"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl font-bold text-muted-foreground hover:bg-muted/40 hover:text-foreground transition-all ml-auto shrink-0"
         >
-          <ArchiveRestore className="h-4 w-4 text-sky-400" /> Server Backups &rarr;
+          <ArchiveRestore className="h-4 w-4 text-sky-400" /> Backups &rarr;
         </Link>
       </div>
 
       {/* TAB 1: LIVE CONSOLE */}
       {activeTab === 'console' && (
         <div className="space-y-3">
+          {mclogsUrl && (
+            <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs text-emerald-400">
+              <span>Logs uploaded to mclo.gs for crash analysis: <strong className="font-mono">{mclogsUrl}</strong></span>
+              <a
+                href={mclogsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="px-3 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 font-bold flex items-center gap-1"
+              >
+                Open Link <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+          )}
+
           <div className="bg-[#0c1017] rounded-2xl border border-border/80 overflow-hidden font-mono text-xs flex flex-col h-[520px] shadow-2xl">
             {/* Terminal Header */}
             <div className="bg-muted/30 px-4 py-2.5 border-b border-border/60 flex items-center justify-between text-[11px] text-muted-foreground">
@@ -561,6 +853,15 @@ export default function ServerDashboardPage() {
                 <span>({server.containerName})</span>
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => uploadLogsMclogsMutation.mutate()}
+                  disabled={uploadLogsMclogsMutation.isPending}
+                  className="px-2 py-0.5 rounded bg-primary/15 hover:bg-primary/25 text-primary border border-primary/30 text-[10px] font-bold flex items-center gap-1"
+                  title="Share sanitized console log via mclo.gs"
+                >
+                  {uploadLogsMclogsMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <ExternalLink className="h-3 w-3" />}
+                  Share to mclo.gs
+                </button>
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input
                     type="checkbox"
@@ -627,7 +928,268 @@ export default function ServerDashboardPage() {
         </div>
       )}
 
-      {/* TAB 2: FILE MANAGER & CODE EDITOR */}
+      {/* TAB 2: DISCOPANEL MODPACKS & SAFE VERSION UPDATER */}
+      {activeTab === 'modpacks' && (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          {/* Left Column: Modpack Browser (7 cols) */}
+          <div className="lg:col-span-7 bg-card rounded-2xl border border-border p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+              <div>
+                <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                  <Layers className="h-5 w-5 text-amber-400" /> Modpack Browser (Modrinth &amp; CurseForge)
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Browse modpacks or select a new version to deploy onto <strong className="text-foreground">{server.name}</strong>
+                </p>
+              </div>
+              <div className="flex rounded-xl bg-muted/50 border border-border p-0.5 self-start">
+                <button
+                  type="button"
+                  onClick={() => { setModpackIndexer('modrinth'); setSelectedModpack(null) }}
+                  className={cn(
+                    'px-3 py-1 rounded-lg text-xs font-bold transition-colors',
+                    modpackIndexer === 'modrinth' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'text-muted-foreground'
+                  )}
+                >
+                  Modrinth
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setModpackIndexer('curseforge'); setSelectedModpack(null) }}
+                  className={cn(
+                    'px-3 py-1 rounded-lg text-xs font-bold transition-colors',
+                    modpackIndexer === 'curseforge' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' : 'text-muted-foreground'
+                  )}
+                >
+                  CurseForge
+                </button>
+              </div>
+            </div>
+
+            {/* Search Bar */}
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  placeholder={`Search ${modpackIndexer === 'modrinth' ? 'Modrinth' : 'CurseForge'} modpacks (e.g. Create, Cobblemon, Prominence)...`}
+                  value={modpackQuery}
+                  onChange={(e) => setModpackQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && searchModpacks()}
+                  className="w-full bg-muted/40 border border-border rounded-xl pl-9 pr-3 py-2 text-xs text-foreground focus:outline-none focus:border-primary"
+                />
+              </div>
+              <button
+                onClick={() => searchModpacks()}
+                className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold"
+              >
+                Search
+              </button>
+            </div>
+
+            {/* Results List */}
+            {isSearchingModpacks ? (
+              <div className="py-12 text-center text-muted-foreground flex items-center justify-center gap-2 text-xs">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" /> Querying {modpackIndexer} indexer…
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-[420px] overflow-y-auto pr-1">
+                {(modpacksData?.modpacks || []).map((mp) => {
+                  const isSelected = selectedModpack?.id === mp.id
+                  return (
+                    <div
+                      key={mp.id}
+                      onClick={() => {
+                        setSelectedModpack(mp)
+                        setSelectedVersionId('')
+                        if (mp.gameVersions?.[0]) setTargetMcVersion(mp.gameVersions[0])
+                        if (mp.modLoaders?.[0]) setTargetModLoader(mp.modLoaders[0].toUpperCase())
+                      }}
+                      className={cn(
+                        'p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-all text-xs',
+                        isSelected ? 'border-primary bg-primary/10 shadow-sm' : 'border-border bg-muted/15 hover:bg-muted/30'
+                      )}
+                    >
+                      {mp.logoUrl ? (
+                        <img src={mp.logoUrl} alt={mp.name} className="w-11 h-11 rounded-xl object-cover shrink-0 bg-muted" />
+                      ) : (
+                        <div className="w-11 h-11 rounded-xl bg-muted flex items-center justify-center shrink-0">
+                          <Package className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold text-sm text-foreground truncate">{mp.name}</span>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+                            {(mp.downloads || 0).toLocaleString()} downloads
+                          </span>
+                        </div>
+                        <p className="text-muted-foreground line-clamp-2 leading-relaxed">{mp.summary}</p>
+                        <div className="flex items-center gap-1.5 flex-wrap pt-0.5">
+                          {(mp.modLoaders || []).slice(0, 3).map(l => (
+                            <span key={l} className="text-[10px] font-mono uppercase px-1.5 py-0.2 rounded bg-primary/10 text-primary border border-primary/20">
+                              {l}
+                            </span>
+                          ))}
+                          {(mp.gameVersions || []).slice(0, 3).map(v => (
+                            <span key={v} className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+                              {v}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Right Column: Safe Modpack & Version Update Pipeline (5 cols) */}
+          <div className="lg:col-span-5 bg-card rounded-2xl border border-border p-5 space-y-4 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="border-b border-border pb-3">
+                <div className="flex items-center gap-2 text-amber-400 text-xs font-mono font-bold uppercase">
+                  <Shield className="h-4 w-4" /> Safe Update Pipeline
+                </div>
+                <h3 className="font-bold text-base text-foreground mt-0.5">
+                  Modpack &amp; Runtime Version Updater
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Performs a pre-update MinIO S3 world snapshot, flushes chunks, updates the DiscoPanel container spec, and verifies the PETABLOCKS Telemetry Companion.
+                </p>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                {selectedModpack ? (
+                  <div className="p-3 rounded-xl bg-primary/10 border border-primary/30 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-primary">Target Modpack: {selectedModpack.name}</span>
+                      <button
+                        onClick={() => setSelectedModpack(null)}
+                        className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    <div>
+                      <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Modpack Release Version</label>
+                      <select
+                        value={selectedVersionId}
+                        onChange={(e) => setSelectedVersionId(e.target.value)}
+                        className="w-full bg-background border border-border rounded-xl px-3 py-2 text-xs font-mono text-foreground"
+                      >
+                        <option value="">Latest Recommended Release</option>
+                        {isLoadingVersions ? (
+                          <option disabled>Loading versions...</option>
+                        ) : (
+                          (modpackVersionsData?.versions || []).map(v => (
+                            <option key={v.id} value={v.id}>
+                              {v.displayName || v.versionNumber} ({(v.gameVersions || []).slice(0, 2).join(', ')})
+                            </option>
+                          ))
+                        )}
+                      </select>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-muted/30 border border-border text-muted-foreground text-xs">
+                    Select a modpack on the left to switch/upgrade modpack releases, or update the Minecraft version &amp; mod loader directly below.
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Minecraft Version</label>
+                    <input
+                      type="text"
+                      value={targetMcVersion}
+                      onChange={(e) => setTargetMcVersion(e.target.value)}
+                      className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-xs font-mono text-foreground"
+                      placeholder="1.21.1"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase font-bold text-muted-foreground block mb-1">Mod Loader</label>
+                    <select
+                      value={targetModLoader}
+                      onChange={(e) => setTargetModLoader(e.target.value)}
+                      className="w-full bg-muted/40 border border-border rounded-xl px-3 py-2 text-xs font-mono text-foreground"
+                    >
+                      <option value="FABRIC">FABRIC</option>
+                      <option value="NEOFORGE">NEOFORGE</option>
+                      <option value="FORGE">FORGE</option>
+                      <option value="PAPER">PAPER</option>
+                      <option value="VANILLA">VANILLA</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Safety Checkboxes */}
+                <div className="space-y-2 pt-2 border-t border-border/60">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={createBackupFirst}
+                      onChange={(e) => setCreateBackupFirst(e.target.checked)}
+                      className="rounded border-border text-primary"
+                    />
+                    <span className="text-foreground font-medium">Take pre-update MinIO S3 world backup first (Recommended)</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={announceInGame}
+                      onChange={(e) => setAnnounceInGame(e.target.checked)}
+                      className="rounded border-border text-primary"
+                    />
+                    <span className="text-foreground font-medium">Broadcast in-game `/tellraw` notice &amp; `/save-all flush`</span>
+                  </label>
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={recreateContainer}
+                      onChange={(e) => setRecreateContainer(e.target.checked)}
+                      className="rounded border-border text-primary"
+                    />
+                    <span className="text-foreground font-medium">Recreate &amp; restart Docker container immediately</span>
+                  </label>
+                </div>
+
+                {/* Execution Step Log */}
+                {updateStepsLog.length > 0 && (
+                  <div className="p-3 rounded-xl bg-[#0c1017] border border-border font-mono text-[11px] space-y-1 text-emerald-400">
+                    {updateStepsLog.map((step, i) => (
+                      <div key={i} className="flex items-start gap-1.5">
+                        <span>&rarr;</span>
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button
+              onClick={() => {
+                if (confirm(`Run Safe Update on ${server.name}? ${createBackupFirst ? 'A full MinIO S3 backup will be created before applying changes.' : ''}`)) {
+                  safeModpackUpdateMutation.mutate()
+                }
+              }}
+              disabled={safeModpackUpdateMutation.isPending}
+              className="w-full py-2.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all disabled:opacity-50"
+            >
+              {safeModpackUpdateMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Running Safe Update Pipeline…</>
+              ) : (
+                <><ArrowUpCircle className="h-4 w-4" /> Execute Safe Modpack &amp; Version Update</>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: FILE MANAGER & ARCHIVES */}
       {activeTab === 'files' && (
         <div className="space-y-4">
           {editingFile ? (
@@ -675,7 +1237,7 @@ export default function ServerDashboardPage() {
             /* File Directory Browser */
             <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-sm">
               {/* Path Breadcrumbs & Actions */}
-              <div className="p-3.5 bg-muted/20 border-b border-border flex items-center justify-between gap-3 text-xs">
+              <div className="p-3.5 bg-muted/20 border-b border-border flex flex-wrap items-center justify-between gap-3 text-xs">
                 <div className="flex items-center gap-1.5 font-mono text-xs overflow-x-auto">
                   <button
                     onClick={() => setCurrentPath('')}
@@ -700,6 +1262,37 @@ export default function ServerDashboardPage() {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  {showNewFolderInput ? (
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Folder name..."
+                        value={newFolderName}
+                        onChange={(e) => setNewFolderName(e.target.value)}
+                        className="bg-background border border-border rounded-lg px-2.5 py-1 text-xs font-mono"
+                      />
+                      <button
+                        onClick={() => newFolderName.trim() && createFolderMutation.mutate(newFolderName.trim())}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-500 text-black font-bold text-xs"
+                      >
+                        Create
+                      </button>
+                      <button
+                        onClick={() => setShowNewFolderInput(false)}
+                        className="px-2 py-1 rounded-lg bg-muted text-muted-foreground text-xs"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowNewFolderInput(true)}
+                      className="px-3 py-1.5 rounded-lg bg-muted hover:bg-muted/80 text-foreground border border-border text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    >
+                      <FolderPlus className="h-3.5 w-3.5 text-amber-400" /> New Folder
+                    </button>
+                  )}
+
                   <button
                     onClick={() => fileUploadInputRef.current?.click()}
                     disabled={uploadFileMutation.isPending}
@@ -742,6 +1335,7 @@ export default function ServerDashboardPage() {
                     <tbody className="divide-y divide-border/40">
                       {filesData?.items.map((item) => {
                         const itemPath = currentPath ? `${currentPath}/${item.name}` : item.name
+                        const isArchive = !item.isDir && (item.name.endsWith('.zip') || item.name.endsWith('.tar.gz') || item.name.endsWith('.tgz'))
 
                         return (
                           <tr key={item.name} className="hover:bg-muted/20 transition-colors">
@@ -772,6 +1366,16 @@ export default function ServerDashboardPage() {
                             </td>
                             <td className="px-4 py-2.5">
                               <div className="flex items-center justify-end gap-1.5">
+                                {isArchive && (
+                                  <button
+                                    onClick={() => extractArchiveMutation.mutate(itemPath)}
+                                    disabled={extractArchiveMutation.isPending}
+                                    className="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 text-amber-400 border border-amber-500/30 text-[10px] font-bold flex items-center gap-1"
+                                    title="Extract Archive Here"
+                                  >
+                                    <Archive className="h-3 w-3" /> Extract
+                                  </button>
+                                )}
                                 {!item.isDir && (
                                   <button
                                     onClick={() => openFileForEdit(itemPath)}
@@ -806,7 +1410,7 @@ export default function ServerDashboardPage() {
         </div>
       )}
 
-      {/* TAB 3: MODS & PLUGINS MANAGER */}
+      {/* TAB 4: MODS & PLUGINS MANAGER */}
       {activeTab === 'mods' && (
         <div className="space-y-4">
           {/* PETABLOCKS Telemetry Companion Hero Card */}
@@ -826,13 +1430,12 @@ export default function ServerDashboardPage() {
                       </span>
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      High-throughput live metrics bridge (TPS, MSPT, RAM, Entities, Create Trains & Discord Chat)
+                      High-throughput live metrics bridge (TPS, MSPT, RAM, Entities, Create Trains &amp; Discord Chat)
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-3 pt-1 flex-wrap text-xs">
-                  {/* Status pill */}
                   {telemetryData?.status === 'up_to_date' && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 font-bold font-mono">
                       <CheckCircle2 className="h-3.5 w-3.5" /> v{telemetryData.installedVersion} (Latest)
@@ -845,7 +1448,7 @@ export default function ServerDashboardPage() {
                   )}
                   {telemetryData?.status === 'not_installed' && (
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-500/10 text-zinc-400 border border-zinc-500/30 font-bold font-mono">
-                      Not Installed (Latest: v{telemetryData?.latestVersion || '1.4.0'})
+                      Not Installed (Latest: v{telemetryData?.latestVersion || '1.6.1'})
                     </span>
                   )}
                   {telemetryData?.status === 'disabled' && (
@@ -854,7 +1457,6 @@ export default function ServerDashboardPage() {
                     </span>
                   )}
 
-                  {/* WebSocket connection status */}
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted/60 text-muted-foreground border border-border font-mono text-[11px]">
                     <span className={cn("h-2 w-2 rounded-full", telemetryData?.connected ? "bg-emerald-400 animate-pulse" : "bg-zinc-500")} />
                     Bridge: {telemetryData?.connected ? <span className="text-emerald-400 font-bold">Connected</span> : 'Disconnected'}
@@ -911,12 +1513,12 @@ export default function ServerDashboardPage() {
                   ) : telemetryData?.status === 'not_installed' ? (
                     <>
                       <Sparkles className="h-4 w-4" />
-                      Install Companion v{telemetryData?.latestVersion || '1.4.0'}
+                      Install Companion v{telemetryData?.latestVersion || '1.6.1'}
                     </>
                   ) : (
                     <>
                       <RotateCw className="h-3.5 w-3.5" />
-                      Re-deploy v{telemetryData?.latestVersion || '1.4.0'}
+                      Re-deploy v{telemetryData?.latestVersion || '1.6.1'}
                     </>
                   )}
                 </button>
@@ -926,103 +1528,264 @@ export default function ServerDashboardPage() {
 
           {/* Regular Installed Mods List */}
           <div className="bg-card rounded-2xl border border-border p-5 space-y-4 shadow-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+              <div>
+                <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                  <Package className="h-5 w-5 text-primary" /> Installed Mods ({modsData?.mods?.length || 0})
+                </h3>
+                <p className="text-xs text-muted-foreground">Enable, disable, or upload mod JAR files to the server</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    placeholder="Search mods..."
+                    value={modSearch}
+                    onChange={(e) => setModSearch(e.target.value)}
+                    className="bg-muted/40 border border-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary"
+                  />
+                </div>
+                <button
+                  onClick={() => modUploadInputRef.current?.click()}
+                  disabled={uploadModMutation.isPending}
+                  className="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-1.5 transition-colors"
+                >
+                  <Upload className="h-3.5 w-3.5" /> Upload Mod (.jar)
+                </button>
+                <input
+                  ref={modUploadInputRef}
+                  type="file"
+                  accept=".jar"
+                  className="hidden"
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) uploadModMutation.mutate(e.target.files[0])
+                  }}
+                />
+              </div>
+            </div>
+
+            {isModsLoading ? (
+              <div className="p-12 text-center text-muted-foreground flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin mr-2" /> Scanning mods folder…
+              </div>
+            ) : filteredMods.length === 0 ? (
+              <div className="p-12 text-center text-muted-foreground">No matching mods found.</div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {filteredMods.map((mod) => (
+                  <div
+                    key={mod.filename}
+                    className={cn(
+                      'p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all',
+                      mod.enabled ? 'bg-muted/20 border-border' : 'bg-muted/5 border-border/40 opacity-60'
+                    )}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold text-foreground font-mono truncate" title={mod.filename}>
+                        {mod.filename.replace('.disabled', '')}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground font-mono">
+                        {formatBytes(mod.size)} • {mod.enabled ? <span className="text-emerald-400 font-bold">Enabled</span> : <span className="text-amber-400 font-bold">Disabled (.disabled)</span>}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        onClick={() => toggleModMutation.mutate(mod.filename)}
+                        disabled={toggleModMutation.isPending}
+                        className={cn(
+                          'px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1',
+                          mod.enabled
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-400'
+                            : 'bg-muted border-border text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400'
+                        )}
+                        title={mod.enabled ? "Click to disable mod" : "Click to enable mod"}
+                      >
+                        {mod.enabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
+                        {mod.enabled ? 'Enabled' : 'Disabled'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (confirm(`Delete mod ${mod.filename}?`)) {
+                            deleteFileMutation.mutate(`mods/${mod.filename}`)
+                          }
+                        }}
+                        className="p-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 5: SERVER CONFIG (ITZG / DISCOPANEL CONFIGSERVICE) */}
+      {activeTab === 'config' && (
+        <div className="bg-card rounded-2xl border border-border p-5 space-y-5">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
             <div>
               <h3 className="font-bold text-base text-foreground flex items-center gap-2">
-                <Package className="h-5 w-5 text-primary" /> Installed Mods ({modsData?.mods?.length || 0})
+                <Sliders className="h-5 w-5 text-cyan-400" /> Container &amp; `itzg/minecraft-server` Configuration
               </h3>
-              <p className="text-xs text-muted-foreground">Enable, disable, or upload mod JAR files to the server</p>
+              <p className="text-xs text-muted-foreground">
+                Inspect and edit Docker environment variables and server runtime properties managed by DiscoPanel
+              </p>
             </div>
-            <div className="flex items-center gap-2">
-              <div className="relative">
-                <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <div className="flex items-center gap-3">
+              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
                 <input
-                  type="text"
-                  placeholder="Search mods..."
-                  value={modSearch}
-                  onChange={(e) => setModSearch(e.target.value)}
-                  className="bg-muted/40 border border-border rounded-xl pl-8 pr-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-primary"
+                  type="checkbox"
+                  checked={recreateOnSave}
+                  onChange={(e) => setRecreateOnSave(e.target.checked)}
+                  className="rounded border-border text-primary"
                 />
-              </div>
+                <span>Recreate container on save</span>
+              </label>
               <button
-                onClick={() => modUploadInputRef.current?.click()}
-                disabled={uploadModMutation.isPending}
-                className="px-3 py-1.5 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-1.5 transition-colors"
+                onClick={() => saveServerConfigMutation.mutate()}
+                disabled={saveServerConfigMutation.isPending}
+                className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold flex items-center gap-1.5"
               >
-                <Upload className="h-3.5 w-3.5" /> Upload Mod (.jar)
+                {saveServerConfigMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Save &amp; Apply Config
               </button>
-              <input
-                ref={modUploadInputRef}
-                type="file"
-                accept=".jar"
-                className="hidden"
-                onChange={(e) => {
-                  if (e.target.files?.[0]) uploadModMutation.mutate(e.target.files[0])
-                }}
-              />
             </div>
           </div>
 
-          {isModsLoading ? (
+          {isConfigLoading ? (
             <div className="p-12 text-center text-muted-foreground flex items-center justify-center">
-              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Scanning mods folder…
+              <Loader2 className="h-5 w-5 animate-spin mr-2" /> Loading container configuration…
             </div>
-          ) : filteredMods.length === 0 ? (
-            <div className="p-12 text-center text-muted-foreground">No matching mods found.</div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {filteredMods.map((mod) => (
-                <div
-                  key={mod.filename}
-                  className={cn(
-                    'p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition-all',
-                    mod.enabled ? 'bg-muted/20 border-border' : 'bg-muted/5 border-border/40 opacity-60'
-                  )}
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold text-foreground font-mono truncate" title={mod.filename}>
-                      {mod.filename.replace('.disabled', '')}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground font-mono">
-                      {formatBytes(mod.size)} • {mod.enabled ? <span className="text-emerald-400 font-bold">Enabled</span> : <span className="text-amber-400 font-bold">Disabled (.disabled)</span>}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={() => toggleModMutation.mutate(mod.filename)}
-                      disabled={toggleModMutation.isPending}
-                      className={cn(
-                        'px-2.5 py-1 rounded-lg text-xs font-bold border transition-colors flex items-center gap-1',
-                        mod.enabled
-                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400 hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-400'
-                          : 'bg-muted border-border text-muted-foreground hover:bg-emerald-500/10 hover:text-emerald-400'
-                      )}
-                      title={mod.enabled ? "Click to disable mod" : "Click to enable mod"}
-                    >
-                      {mod.enabled ? <ToggleRight className="h-4 w-4" /> : <ToggleLeft className="h-4 w-4" />}
-                      {mod.enabled ? 'Enabled' : 'Disabled'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (confirm(`Delete mod ${mod.filename}?`)) {
-                          deleteFileMutation.mutate(`mods/${mod.filename}`)
-                        }
-                      }}
-                      className="p-1.5 rounded-lg hover:bg-rose-500/20 text-rose-400"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+            <div className="space-y-6">
+              {(serverConfigData?.categories || []).map((cat) => (
+                <div key={cat.name} className="space-y-3">
+                  <h4 className="text-xs font-bold uppercase tracking-wider text-primary font-mono border-b border-border/60 pb-1.5">
+                    {cat.name}
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {cat.fields.map((field) => {
+                      const currentVal = configEdits[cat.name]?.[field.key] !== undefined
+                        ? configEdits[cat.name][field.key]
+                        : field.value
+                      return (
+                        <div key={field.key} className="p-3 rounded-xl bg-muted/20 border border-border space-y-1 text-xs">
+                          <label className="font-mono font-bold text-foreground block">{field.label || field.key}</label>
+                          {field.description && (
+                            <p className="text-[10px] text-muted-foreground">{field.description}</p>
+                          )}
+                          <input
+                            type="text"
+                            value={String(currentVal ?? '')}
+                            onChange={(e) =>
+                              setConfigEdits(prev => ({
+                                ...prev,
+                                [cat.name]: { ...(prev[cat.name] || {}), [field.key]: e.target.value },
+                              }))
+                            }
+                            className="w-full bg-background/80 border border-border rounded-lg px-2.5 py-1.5 font-mono text-xs text-foreground focus:outline-none focus:border-primary"
+                          />
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
+      )}
+
+      {/* TAB 6: SIDECAR MODULES (DISCOPANEL MODULESERVICE) */}
+      {activeTab === 'modules' && (
+        <div className="space-y-5">
+          <div className="bg-card rounded-2xl border border-border p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
+              <div>
+                <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                  <Box className="h-5 w-5 text-emerald-400" /> Sidecar Container Modules
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Attach companion sidecar services (BlueMap, Geyser, Voice Chat, RCON web) to <strong className="text-foreground">{server.name}</strong> via DiscoPanel ModuleService
+                </p>
+              </div>
+            </div>
+
+            {/* Create Module Bar */}
+            {(modulesData?.templates || []).length > 0 && (
+              <div className="flex flex-col sm:flex-row gap-2 p-3 rounded-xl bg-muted/20 border border-border text-xs">
+                <input
+                  type="text"
+                  placeholder="Module name (e.g. BlueMap 3D Map)..."
+                  value={newModuleName}
+                  onChange={(e) => setNewModuleName(e.target.value)}
+                  className="flex-1 bg-background border border-border rounded-xl px-3 py-2 text-xs text-foreground"
+                />
+                <select
+                  value={selectedTemplateId}
+                  onChange={(e) => setSelectedTemplateId(e.target.value)}
+                  className="bg-background border border-border rounded-xl px-3 py-2 text-xs text-foreground font-mono"
+                >
+                  <option value="">Select Module Template...</option>
+                  {(modulesData?.templates || []).map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => createModuleMutation.mutate()}
+                  disabled={!newModuleName || !selectedTemplateId || createModuleMutation.isPending}
+                  className="px-4 py-2 rounded-xl bg-primary text-primary-foreground font-bold flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Deploy Sidecar
+                </button>
+              </div>
+            )}
+
+            {isModulesLoading ? (
+              <div className="p-8 text-center text-muted-foreground flex items-center justify-center text-xs">
+                <Loader2 className="h-4 w-4 animate-spin mr-2" /> Querying sidecar modules…
+              </div>
+            ) : (modulesData?.modules || []).length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-xs space-y-1">
+                <p className="font-semibold text-foreground">No sidecar modules attached to this server yet.</p>
+                <p>When the DiscoPanel agent is active on {node?.name}, you can deploy BlueMap, Geyser, or custom companion containers in 1 click.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {(modulesData?.modules || []).map(mod => (
+                  <div key={mod.id} className="p-3.5 rounded-xl bg-muted/20 border border-border flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-bold text-foreground">{mod.name}</p>
+                      <p className="text-[11px] font-mono text-muted-foreground">Status: {mod.status}</p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => modulePowerMutation.mutate({ moduleId: mod.id, action: 'restart' })}
+                        className="px-2.5 py-1 rounded-lg bg-muted hover:bg-muted/80 text-foreground font-semibold border border-border"
+                      >
+                        Restart
+                      </button>
+                      <button
+                        onClick={() => modulePowerMutation.mutate({ moduleId: mod.id, action: 'stop' })}
+                        className="px-2.5 py-1 rounded-lg bg-rose-500/10 text-rose-400 font-semibold border border-rose-500/30"
+                      >
+                        Stop
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      {/* TAB 4: PLAYERS & ACCESS */}
+      {/* TAB 7: PLAYERS & ACCESS */}
       {activeTab === 'players' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Server Operators (Ops) */}
@@ -1065,7 +1828,7 @@ export default function ServerDashboardPage() {
         </div>
       )}
 
-      {/* TAB 5: DISCORD WEBHOOKS */}
+      {/* TAB 8: DISCORD WEBHOOKS */}
       {activeTab === 'discord' && (
         <div className="space-y-6">
           {/* Header Banner */}
@@ -1149,9 +1912,6 @@ export default function ServerDashboardPage() {
                     onChange={(e) => setChatWebhookUrl(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-muted/40 border border-border text-xs font-mono text-foreground focus:outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/50"
                   />
-                  <p className="text-[10px] text-muted-foreground">
-                    Obtained from Discord: <em>Edit Channel &rarr; Integrations &rarr; Webhooks &rarr; Copy Webhook URL</em>.
-                  </p>
                 </div>
               </div>
 
@@ -1173,7 +1933,7 @@ export default function ServerDashboardPage() {
                 <div className="flex items-center justify-between border-b border-border pb-3">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,0.5)]" />
-                    <h3 className="font-bold text-sm text-foreground">Console & Lifecycle Alerts</h3>
+                    <h3 className="font-bold text-sm text-foreground">Console &amp; Lifecycle Alerts</h3>
                   </div>
                   <button
                     onClick={() => setConsoleEnabled(!consoleEnabled)}
@@ -1205,9 +1965,6 @@ export default function ServerDashboardPage() {
                     onChange={(e) => setConsoleWebhookUrl(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-muted/40 border border-border text-xs font-mono text-foreground focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/50"
                   />
-                  <p className="text-[10px] text-muted-foreground">
-                    Recommended: Use a private channel visible only to Server Admins and Moderators.
-                  </p>
                 </div>
               </div>
 
@@ -1219,7 +1976,7 @@ export default function ServerDashboardPage() {
                 >
                   <Send className="h-3.5 w-3.5" /> Send Test Alert
                 </button>
-                <span className="text-[10px] text-muted-foreground font-mono">Lifecycle & Admin</span>
+                <span className="text-[10px] text-muted-foreground font-mono">Lifecycle &amp; Admin</span>
               </div>
             </div>
 
@@ -1229,7 +1986,7 @@ export default function ServerDashboardPage() {
                 <div className="flex items-center justify-between border-b border-border pb-3">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full bg-purple-400 shadow-[0_0_8px_rgba(192,132,252,0.5)]" />
-                    <h3 className="font-bold text-sm text-foreground">🚂 Create Train & Railway Dispatch</h3>
+                    <h3 className="font-bold text-sm text-foreground">🚂 Create Train &amp; Railway Dispatch</h3>
                   </div>
                   <button
                     onClick={() => setTrainEnabled(!trainEnabled)}
@@ -1247,7 +2004,7 @@ export default function ServerDashboardPage() {
                 </div>
 
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Pipes Create mod railway telemetry: train assemblies, station arrivals & schedule stops, signal deadlocks, collisions, and derailment crash alerts into your community train dispatch channel.
+                  Pipes Create mod railway telemetry: train assemblies, station arrivals &amp; schedule stops, signal deadlocks, collisions, and derailment crash alerts into your community train dispatch channel.
                 </p>
 
                 <div className="space-y-2">
@@ -1261,9 +2018,6 @@ export default function ServerDashboardPage() {
                     onChange={(e) => setTrainWebhookUrl(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl bg-muted/40 border border-border text-xs font-mono text-foreground focus:outline-none focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50"
                   />
-                  <p className="text-[10px] text-muted-foreground">
-                    Recommended: Connect to a dedicated <code>#train-dispatch</code> or <code>#railway-log</code> channel.
-                  </p>
                 </div>
               </div>
 
@@ -1348,7 +2102,7 @@ export default function ServerDashboardPage() {
                     onChange={(e) => setConfigForm({ ...configForm, enableDetailedPlayerMetrics: e.target.checked })}
                     className="rounded border-border text-primary"
                   />
-                  <span className="font-medium text-foreground">Detailed Player Metrics (IP GeoIP forwarding & ping)</span>
+                  <span className="font-medium text-foreground">Detailed Player Metrics (IP GeoIP forwarding &amp; ping)</span>
                 </label>
 
                 <label className="flex items-center gap-2 cursor-pointer select-none">

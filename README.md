@@ -2,7 +2,7 @@
 
 > Comprehensive administration, container operations, object storage, live console streaming, autonomous maintenance pipelines, and Minecraft server telemetry platform for the PETABLOCKS ecosystem.
 >
-> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.18.2` • **Endpoint**: `https://admin.petablocks.com`
+> 🚀 **Hosted & Powered by [MDRCloud](https://mdrcloud.com)** • **Version**: `v2.19.0` • **Endpoint**: `https://admin.petablocks.com`
 
 ---
 
@@ -39,17 +39,16 @@
 * **Audit History & Logs**: Persistent history of dispatched announcements with status verification.
 
 ### 6. 🎮 Minecraft Server Operations & Fleet Management (`/servers` & `/minecraft`)
-* **Native Server Management**: Pure JavaScript SSH/Docker bridge to dedicated game nodes (`mcs-01`, `mcs-02`, `mcs-03`).
+* **DiscoPanel Headless Engine & Hybrid Docker Orchestration**: Multi-node ConnectRPC/JSON integration (`server/services/discopanelClient.js`) across `PETABLOCKS-MCS1` (`10.20.110.118`), `MCS2` (`10.20.110.119`), and `MCS3` (`10.20.110.120`) with automatic SSH fallback.
+* **Non-Destructive Container Adoption**: 1-click cluster adoption (`POST /api/server-manager/discopanel/adopt-all`) linking existing running/stopped containers (`petablocks-modpack-s2-test`, `pb-paper-smp`, `petablocks-create-2`, `petablocks-patreon-creative`, `pb-lobby-main`, `pb-velocity-proxy`, `petablocks-modpack-main`) without restarting or modifying world data.
+* **Safe Modpack & Version Updater**: Browse Modrinth and CurseForge modpacks directly in the portal, select target release versions, and trigger the automated safe update pipeline (MinIO S3 pre-update snapshot $\rightarrow$ in-game `/tellraw` & `/save-all flush` $\rightarrow$ DiscoPanel container recreation $\rightarrow$ PETABLOCKS Telemetry Companion verification).
 * **In-Portal Telemetry Companion Installer & Fleet Batch Updater**:
   - Pre-built companion release catalog for NeoForge 1.21.1, Fabric 1.20.1, Paper 1.21.4, and Velocity 4.2.1.
   - 1-click update/install hero card in Server Dashboard with clean legacy JAR removal and post-install restart option.
   - Interactive Companion Config Modal allowing live editing of Gateway WebSocket URL, API secret token, broadcast frequency, and feature flags.
   - Fleet-wide telemetry status badges and 1-click batch update across all server nodes.
-* **Live Server List Ping (SLP)**: DNS SRV resolution with real-time latency tracking, player limits, and authentic in-game formatted MOTD rendering.
-* **Live Telemetry & Diagnostics**: Real-time TPS gauge, MSPT, JVM Heap & GC pause tracking, entity counts, loaded chunks per dimension, and mini-spark lag spike alerts.
-* **Server File Manager & Config Editor**: In-browser directory navigation, upload, deletion, and safe editing for configs and KubeJS scripts.
-* **Mod Manager**: Scans `mods/` directory with live search, timestamps, and 1-click toggle switches (`.jar` $\leftrightarrow$ `.jar.disabled`).
-* **Connected Player Roster**: Player avatars, ping, dimension coordinates, health status, and moderation controls.
+* **Live Server List Ping (SLP) & Fleet Telemetry**: DNS SRV resolution with real-time latency tracking, TPS/MSPT indicators on fleet cards, player limits, and authentic in-game formatted MOTD rendering.
+* **Server File & Archive Manager, `itzg` Config Editor, & Sidecar Modules**: In-browser directory navigation, folder creation, `.zip`/`.tar.gz` extraction, `mclo.gs` log sharing, `itzg/minecraft-server` config editor, and sidecar container modules.
 
 ### 3. 👥 Player Analytics & Retention (`/analytics`)
 * **Session Tracking**: Real-time tracking of active sessions, total play hours, AFK detection, and retention metrics.

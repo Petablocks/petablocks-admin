@@ -2,6 +2,21 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.19.0] - 2026-10-23
+### Added
+- **🚀 DiscoPanel Headless Multi-Node Orchestration Engine (`server/services/discopanelClient.js`, `server/routes/serverManager.js`)**:
+  - Integrated ConnectRPC/JSON client talking to headless `petablocks-discopanel` agents across `PETABLOCKS-MCS1`, `MCS2`, and `MCS3`, authenticated via `DISCOPANEL_INTERNAL_API_TOKEN` / `API_SECRET_TOKEN` with seamless SSH fallback.
+  - Added non-destructive container adoption (`POST /api/server-manager/discopanel/adopt-all`) and registered `modpack-s2-test` (`petablocks-modpack-s2-test` on `MCS1`) and `paper-duo-smp` (`pb-paper-smp` on `MCS2`) across Fleet, Telemetry, and MinIO S3 Backups.
+- **📦 Modpack Browser & Safe Modpack Update Pipeline (`ServerDashboard.tsx`, `CreateServerModal.tsx`)**:
+  - Added Modrinth & CurseForge modpack search and 1-click modpack server provisioning in `CreateServerModal.tsx`.
+  - Added **Modpacks & Updates** tab in `ServerDashboard.tsx` featuring the Safe Update Pipeline (`POST /api/server-manager/servers/:id/modpack-update`): automated pre-update MinIO S3 backup, in-game `/tellraw` & `/save-all flush`, DiscoPanel container update/recreation, and PETABLOCKS Telemetry Companion auto-reconciliation.
+- **⚙️ `itzg` Server Config Editor, Sidecar Modules, Archive Extraction & `mclo.gs` Sharing (`ServerDashboard.tsx`)**:
+  - Added **Server Config** tab (`GET/POST /api/server-manager/servers/:id/config`), **Sidecar Modules** tab (`GET/POST /api/server-manager/servers/:id/modules`), `.zip`/`.tar.gz` extraction, folder creation, and 1-click `mclo.gs` console log sharing.
+
+### Changed
+- **🖥️ Unified Server Fleet Cards (`ServerFleet.tsx`)**:
+  - Merged live Minecraft telemetry (TPS, MSPT, online players, player avatars) directly into the `/servers` fleet Bento cards alongside DiscoPanel engine badges and quick Modpack Updater shortcuts.
+
 ## [2.18.2] - 2026-10-12
 ### Added
 - **⚡ Telemetry Companion Mod v1.6.1 Fleet Packaging & Manifest Synchronization**:
