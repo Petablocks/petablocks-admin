@@ -9,6 +9,7 @@ const DashboardPage = lazy(() => import('./pages/Dashboard'))
 const MinecraftServersPage = lazy(() => import('./pages/MinecraftServers'))
 const MinecraftServerDetailPage = lazy(() => import('./pages/MinecraftServerDetail'))
 const ServerFleetPage = lazy(() => import('./pages/ServerFleet'))
+const CreateServerPage = lazy(() => import('./pages/CreateServerPage'))
 const ServerDashboardPage = lazy(() => import('./pages/ServerDashboard'))
 const NodesPage = lazy(() => import('./pages/Nodes'))
 const ContainersPage = lazy(() => import('./pages/Containers'))
@@ -55,6 +56,7 @@ export default function App() {
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="servers" element={<ServerFleetPage />} />
+            <Route path="servers/create" element={<CreateServerPage />} />
             <Route path="servers/:nodeId/:serverId" element={<ServerDashboardPage />} />
             <Route path="nodes" element={<NodesPage />} />
             <Route path="minecraft" element={<MinecraftServersPage />} />

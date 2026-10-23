@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
@@ -21,7 +20,6 @@ import {
   Package,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import CreateServerModal from '@/components/CreateServerModal'
 import { BentoGrid, BentoCard } from '@/components/bento'
 
 interface ManagedServer {
@@ -77,7 +75,6 @@ interface LiveMinecraftTelemetry {
 
 export default function ServerFleetPage() {
   const queryClient = useQueryClient()
-  const [showCreateModal, setShowCreateModal] = useState(false)
 
   // Fetch servers
   const { data: serversData, isLoading: isServersLoading, refetch: refetchServers } = useQuery<{ servers: ManagedServer[] }>({
@@ -254,12 +251,12 @@ export default function ServerFleetPage() {
           >
             <RefreshCw className={cn('h-3.5 w-3.5', (isServersLoading || isFleetTelemetryLoading) && 'animate-spin')} /> Refresh
           </button>
-          <button
-            onClick={() => setShowCreateModal(true)}
+          <Link
+            to="/servers/create"
             className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-md shadow-primary/20 transition-transform active:scale-95"
           >
             <Plus className="h-4 w-4" /> Create Server
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -392,12 +389,12 @@ export default function ServerFleetPage() {
           <div className="flex flex-col items-center justify-center py-16 gap-3 text-muted-foreground bg-card rounded-2xl border border-border">
             <Server className="h-10 w-10 opacity-30" />
             <p className="text-sm font-medium">No servers registered in fleet</p>
-            <button
-              onClick={() => setShowCreateModal(true)}
+            <Link
+              to="/servers/create"
               className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold rounded-xl flex items-center gap-1.5"
             >
               <Plus className="h-4 w-4" /> Create First Server
-            </button>
+            </Link>
           </div>
         ) : (
           <BentoGrid cols={6}>
@@ -570,12 +567,6 @@ export default function ServerFleetPage() {
         )}
       </div>
 
-      {/* Creation Wizard Modal */}
-      <CreateServerModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        nodes={nodes}
-      />
     </div>
   )
 }

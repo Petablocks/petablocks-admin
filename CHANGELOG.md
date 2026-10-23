@@ -2,6 +2,13 @@
 
 All notable changes to the PETABLOCKS Admin & Operations Portal will be documented in this file.
 
+## [2.19.1] - 2026-10-23
+### Added
+- **🖥️ Dedicated Create Server Operations Page (`/servers/create`, `CreateServerPage.tsx`)**:
+  - Replaced the compact modal with a full-width, dedicated server creation workstation at `/servers/create`.
+  - Added expandable Modpack catalog search with multi-column layout, real-time node hardware resource metrics (cores, RAM headroom, latency), and live deployment spec preview.
+  - Linked directly from Fleet action buttons and `/servers` empty state.
+
 ## [2.19.0] - 2026-10-23
 ### Added
 - **🚀 DiscoPanel Headless Multi-Node Orchestration Engine (`server/services/discopanelClient.js`, `server/routes/serverManager.js`)**:
